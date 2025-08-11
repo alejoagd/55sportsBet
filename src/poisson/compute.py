@@ -1,12 +1,8 @@
 from __future__ import annotations
-import numpy as np
 from scipy.stats import poisson
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from typing import Tuple
 
-from src.db import SessionLocal
-from src.models import Match, MatchStats, PoissonPrediction, Team
+from src.models import Match, PoissonPrediction
 
 # --- helpers ---
 
@@ -16,7 +12,6 @@ def xi(goals_for_avg: float, goals_against_avg: float, home: bool) -> float:
 
 
 def outcome_probs(lmb_home: float, lmb_away: float, max_goals: int = 10) -> tuple[float, float, float]:
-    # P(H), P(D), P(A)
     p_home = p_draw = p_away = 0.0
     for hg in range(0, max_goals + 1):
         for ag in range(0, max_goals + 1):
@@ -55,38 +50,32 @@ def both_teams_score(lmb_home: float, lmb_away: float, max_goals: int = 10) -> t
 
 
 def compute_for_match(session: Session, match_id: int) -> PoissonPrediction:
-    # estimar lambdas desde medias recientes; puedes refinar con tus métricas
-    # para demo: usa 5 últimos partidos por equipo si existen en match_stats
     m: Match = session.get(Match, match_id)
     assert m, f"Match {match_id} no existe"
 
-    # media simple de GF/GC por equipo (últimos 5)
-    def avg_for_against(team_id: int, home: bool) -> tuple[float, float]:
-        q = (
-            session.query(MatchStats)
-            .join(Match, MatchStats.match_id == Match.id)
+    # medias simples de GF/GC por equipo usando últimos 5 partidos
+    def avg_for_against(team_id: int) -> tuple[float, float]:
+        rows = (
+            session.query(Match)
             .filter((Match.home_team_id == team_id) | (Match.away_team_id == team_id))
             .order_by(Match.date.desc())
             .limit(5)
+            .all()
         )
-        rows = q.all()
         if not rows:
-            return 1.2, 1.2  # fallback
-        gf = []
-        ga = []
-        for r in rows:
-            # necesitamos saber si el team fue home o away en ese match
-            mt = session.get(Match, r.match_id)
+            return 1.2, 1.2
+        gf, ga = [], []
+        for mt in rows:
             if mt.home_team_id == team_id:
-                gf.append(r.home_goals or 0)
-                ga.append(r.away_goals or 0)
+                gf.append(mt.home_goals or 0)
+                ga.append(mt.away_goals or 0)
             else:
-                gf.append(r.away_goals or 0)
-                ga.append(r.home_goals or 0)
-        return (np.mean(gf) if gf else 1.2, np.mean(ga) if ga else 1.2)
+                gf.append(mt.away_goals or 0)
+                ga.append(mt.home_goals or 0)
+        return (float(sum(gf)/len(gf)), float(sum(ga)/len(ga)))
 
-    gf_h, ga_h = avg_for_against(m.home_team_id, home=True)
-    gf_a, ga_a = avg_for_against(m.away_team_id, home=False)
+    gf_h, ga_h = avg_for_against(m.home_team_id)
+    gf_a, ga_a = avg_for_against(m.away_team_id)
 
     lmb_home = xi(gf_h, ga_a, home=True)
     lmb_away = xi(gf_a, ga_h, home=False)
@@ -95,7 +84,7 @@ def compute_for_match(session: Session, match_id: int) -> PoissonPrediction:
     over, under = over_under_25(lmb_home, lmb_away)
     btts_y, btts_n = both_teams_score(lmb_home, lmb_away)
 
-    pred = PoissonPrediction(
+    return PoissonPrediction(
         match_id=m.id,
         prob_home_win=float(ph),
         prob_draw=float(pd),
@@ -105,10 +94,8 @@ def compute_for_match(session: Session, match_id: int) -> PoissonPrediction:
         both_score=float(btts_y),
         both_Noscore=float(btts_n),
     )
-    return pred
 
 
 def upsert_prediction(session: Session, pred: PoissonPrediction):
-    # sencillamente borra y vuelve a insertar si ya existe (ajusta a ON CONFLICT si tienes unique)
     session.query(PoissonPrediction).filter_by(match_id=pred.match_id).delete()
     session.add(pred)

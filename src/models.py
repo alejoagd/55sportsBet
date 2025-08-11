@@ -1,4 +1,5 @@
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from datetime import date as DateType
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, ForeignKey, Date, Float
 
 class Base(DeclarativeBase):
@@ -18,17 +19,48 @@ class Team(Base):
 class Match(Base):
     __tablename__ = "matches"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[Date]
+    season_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Anotar con tipo Python (datetime.date) y definir tipo SQLAlchemy en mapped_column
+    date: Mapped[DateType] = mapped_column(Date)
     home_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
     away_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
+    # campos adicionales existentes en tu BD
+    home_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fulltime_result: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    halftime_homegoal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    halftime_awaygoal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    halftime_result: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    referee: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 class MatchStats(Base):
     __tablename__ = "match_stats"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), index=True)
-    home_goals: Mapped[int | None]
-    away_goals: Mapped[int | None]
-    # agrega campos extra según tu schema real
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id"),
+        primary_key=True,
+        index=True
+    )
+    # totales/métricas del partido
+    total_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_shots_on_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_shots_on_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_shots_on_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_fouls: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_fouls: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_fouls: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_corners: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_corners: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_corners: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_yellow_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_yellow_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_red_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_red_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_cardshome: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_cardsaway: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 class PoissonPrediction(Base):
     __tablename__ = "poisson_predictions"
