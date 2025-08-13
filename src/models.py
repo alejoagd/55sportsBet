@@ -35,11 +35,8 @@ class Match(Base):
 
 class MatchStats(Base):
     __tablename__ = "match_stats"
-    match_id: Mapped[int] = mapped_column(
-        ForeignKey("matches.id"),
-        primary_key=True,
-        index=True
-    )
+    # En tu BD match_id es la PK (no existe columna id)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), primary_key=True, index=True)
     # totales/métricas del partido
     total_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
     home_shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -64,12 +61,31 @@ class MatchStats(Base):
 
 class PoissonPrediction(Base):
     __tablename__ = "poisson_predictions"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), index=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id"),
+        primary_key=True,
+        index=True
+    )
+
     prob_home_win: Mapped[float]
     prob_draw: Mapped[float]
     prob_away_win: Mapped[float]
     over_2: Mapped[float]
     under_2: Mapped[float]
     both_score: Mapped[float]
-    both_Noscore: Mapped[float]
+
+    # 🔽 mapea al nombre real en BD (todo minúsculas)
+    both_Noscore: Mapped[float] = mapped_column(name="both_noscore")
+
+    min_odds_1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 🔽 idem, mapea a minúsculas
+    min_odds_X: Mapped[float | None] = mapped_column(Float, nullable=True, name="min_odds_x")
+    min_odds_2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_odds_over25: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_odds_under25: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_odds_btts_yes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_odds_btts_no: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+        # --- NUEVO: goles esperados (como en tu Excel) ---
+    expected_home_goals: Mapped[float | None] = mapped_column(Float, nullable=True)
+    expected_away_goals: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -1,6 +1,8 @@
 from __future__ import annotations
+from math import isfinite
 from scipy.stats import poisson
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from src.models import Match, PoissonPrediction
 
@@ -49,6 +51,17 @@ def both_teams_score(lmb_home: float, lmb_away: float, max_goals: int = 10) -> t
     return yes, no
 
 
+def _inv(prob: float | None) -> float | None:
+    """Retorna 1/prob si prob>0, si no, None."""
+    if prob is None:
+        return None
+    try:
+        v = 1.0 / float(prob)
+        return float(v) if isfinite(v) else None
+    except ZeroDivisionError:
+        return None
+
+
 def compute_for_match(session: Session, match_id: int) -> PoissonPrediction:
     m: Match = session.get(Match, match_id)
     assert m, f"Match {match_id} no existe"
@@ -84,8 +97,30 @@ def compute_for_match(session: Session, match_id: int) -> PoissonPrediction:
     over, under = over_under_25(lmb_home, lmb_away)
     btts_y, btts_n = both_teams_score(lmb_home, lmb_away)
 
+    avg_h, avg_a = _league_avgs(session, m.season_id)
+
+    gfph, gcph = _home_rates(session, m.home_team_id, m.season_id)  # local
+    gfpa, gcpa = _away_rates(session, m.away_team_id, m.season_id)  # visitante
+
+        # índices
+    IAL = (gfph / avg_h) if avg_h else 1.0
+    IDL = (gcph / avg_a) if avg_a else 1.0
+    IAV = (gfpa / avg_a) if avg_a else 1.0
+    IDV = (gcpa / avg_h) if avg_h else 1.0
+
+    # goles esperados (clamp mínimo)
+    exp_home = max(0.01, IAL * IDV * avg_h)
+    exp_away = max(0.01, IAV * IDL * avg_a)
+
+    # usa EH/EA como lambdas Poisson
+    ph, pd, pa = outcome_probs(exp_home, exp_away)
+    over, under = over_under_25(exp_home, exp_away)
+    btts_y, btts_n = both_teams_score(exp_home, exp_away)
+
     return PoissonPrediction(
         match_id=m.id,
+        expected_home_goals=exp_home,
+        expected_away_goals=exp_away,
         prob_home_win=float(ph),
         prob_draw=float(pd),
         prob_away_win=float(pa),
@@ -93,7 +128,47 @@ def compute_for_match(session: Session, match_id: int) -> PoissonPrediction:
         under_2=float(under),
         both_score=float(btts_y),
         both_Noscore=float(btts_n),
+        # cuotas mínimas
+        min_odds_1=_inv(ph),
+        min_odds_X=_inv(pd),
+        min_odds_2=_inv(pa),
+        min_odds_over25=_inv(over),
+        min_odds_under25=_inv(under),
+        min_odds_btts_yes=_inv(btts_y),
+        min_odds_btts_no=_inv(btts_n),
     )
+
+def _league_avgs(session: Session, season_id: int | None):
+    q = session.query(func.avg(Match.home_goals), func.avg(Match.away_goals))
+    if season_id is not None:
+        q = q.filter(Match.season_id == season_id)
+    avg_h, avg_a = q.one()
+    # valores de respaldo si aún no hay datos
+    return float(avg_h or 1.2), float(avg_a or 1.2)
+
+def _home_rates(session: Session, team_id: int, season_id: int | None):
+    q = session.query(
+        func.coalesce(func.sum(Match.home_goals), 0),
+        func.coalesce(func.sum(Match.away_goals), 0),
+        func.count(Match.id),
+    ).filter(Match.home_team_id == team_id)
+    if season_id is not None:
+        q = q.filter(Match.season_id == season_id)
+    gf, gc, gp = q.one()
+    gp = gp or 1
+    return float(gf)/gp, float(gc)/gp  # (GF/L por partido, GC/L por partido)
+
+def _away_rates(session: Session, team_id: int, season_id: int | None):
+    q = session.query(
+        func.coalesce(func.sum(Match.away_goals), 0),
+        func.coalesce(func.sum(Match.home_goals), 0),
+        func.count(Match.id),
+    ).filter(Match.away_team_id == team_id)
+    if season_id is not None:
+        q = q.filter(Match.season_id == season_id)
+    gf, gc, gp = q.one()
+    gp = gp or 1
+    return float(gf)/gp, float(gc)/gp  # (GF/V por partido, GC/V por partido)
 
 
 def upsert_prediction(session: Session, pred: PoissonPrediction):
