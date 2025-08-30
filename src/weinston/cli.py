@@ -1,9 +1,9 @@
 import typer
 from sqlalchemy import text
 from src.db import SessionLocal
-from src.models import Match
 from scipy.stats import poisson
 from decimal import Decimal
+from src.models import Match
 
 app = typer.Typer(help="Weinston → weinston_predictions")
 

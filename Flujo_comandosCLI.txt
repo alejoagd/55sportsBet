@@ -1,0 +1,20 @@
+
+
+#Insertar los partidos de la proxima fecha en la tabla de matchs (bulk fixtures)
+python -m src.fixtures.cli bulk data/fixtures_E0.csv --season-id 2 --league "Premier League" --dayfirst
+
+#Generar predicciones de poisson y weinston de los partidos que se jugaran en la proxima fecha 
+python -m src.predictions.cli --season-id 2  --from 2025-08-15 --to 2025-08-18 --models poisson,weinston
+
+#Leer archivo CSV con la data de los resultados, y almacenar informacion en la base de datos de stats
+python -m src.ingest.load_unified data/raw/E0.csv --league "Premier League" --div E0 --season-id 2 --dayfirst
+
+
+#Ejecutar el frontend con localhost fastapi
+python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
+
+#Url para visualizar el frontend con JSON
+http://localhost:8000/api/predictions?season_id=2&date_from=2025-08-30&date_to=2025-08-31
+
+#Url para visualizar el frontend con CSS
+http://localhost:5173/
