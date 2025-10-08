@@ -4,6 +4,20 @@ from typing import List, Tuple, Dict
 from sqlalchemy import text
 from .upcoming_core import load_team_strengths
 
+# --- [NUEVO] helper de cuotas ----------------------------------------------
+# colchón opcional sobre la cuota justa; 0.03 = +3%. Pon 0.0 si no quieres margen.
+ODDS_MARGIN = 0.03
+
+def _odds(p: float | None, cushion: float = ODDS_MARGIN) -> float | None:
+    """
+    Convierte probabilidad (0..1) a 'cuota mínima' decimal.
+    Si p es 0/None devuelve None. Redondea a 4 decimales.
+    """
+    if p is None or p <= 0:
+        return None
+    return round((1.0 / float(p)) * (1.0 + float(cushion)), 4)
+
+
 def _poisson_pmf(lam: float, k: int) -> float:
     if lam <= 0:
         return 1.0 if k == 0 else 0.0
@@ -55,12 +69,26 @@ def predict_and_upsert_poisson(conn, season_id: int, match_ids: List[int]) -> No
 
     upsert = text("""
         INSERT INTO poisson_predictions
-            (match_id,
-             expected_home_goals, expected_away_goals,
-             prob_home_win, prob_draw, prob_away_win,
-             over_2, under_2, both_score, both_noscore)
+        (
+            match_id,
+            expected_home_goals, expected_away_goals,
+            prob_home_win, prob_draw, prob_away_win,
+            over_2, under_2, both_score, both_noscore,
+            -- nuevas columnas de cuotas
+            min_odds_1, min_odds_x, min_odds_2,
+            min_odds_over25, min_odds_under25,
+            min_odds_btts_yes, min_odds_btts_no
+        )
         VALUES
-            (:mid, :ehg, :eag, :pH, :pD, :pA, :pO25, :pU25, :pBTTS, :pNBTS)
+        (
+            :mid,
+            :ehg, :eag,
+            :pH, :pD, :pA,
+            :pO25, :pU25, :pBTTS, :pNBTS,
+            :odds1, :oddsX, :odds2,
+            :oddsO25, :oddsU25,
+            :oddsBTTS, :oddsNBTS
+        )
         ON CONFLICT (match_id) DO UPDATE SET
             expected_home_goals = EXCLUDED.expected_home_goals,
             expected_away_goals = EXCLUDED.expected_away_goals,
@@ -70,7 +98,14 @@ def predict_and_upsert_poisson(conn, season_id: int, match_ids: List[int]) -> No
             over_2              = EXCLUDED.over_2,
             under_2             = EXCLUDED.under_2,
             both_score          = EXCLUDED.both_score,
-            both_noscore        = EXCLUDED.both_noscore
+            both_noscore        = EXCLUDED.both_noscore,
+            min_odds_1          = EXCLUDED.min_odds_1,
+            min_odds_x          = EXCLUDED.min_odds_x,
+            min_odds_2          = EXCLUDED.min_odds_2,
+            min_odds_over25     = EXCLUDED.min_odds_over25,
+            min_odds_under25    = EXCLUDED.min_odds_under25,
+            min_odds_btts_yes   = EXCLUDED.min_odds_btts_yes,
+            min_odds_btts_no    = EXCLUDED.min_odds_btts_no
     """)
 
     for mid, h, a in rows:
@@ -82,10 +117,23 @@ def predict_and_upsert_poisson(conn, season_id: int, match_ids: List[int]) -> No
             lam_h = lg_home_gf * sh["attack_home"] * sa["defense_away"] * HFA
             lam_a = lg_away_gf * sa["attack_away"] * sh["defense_home"]
 
-        probs = _aggregate_probs(lam_h, lam_a)
+        probs = _aggregate_probs(lam_h, lam_a)  # <-- pH, pD, pA, pO25, pU25, pBTTS, pNBTS
+
+        # calcula las cuotas a partir de las probabilidades
+        odds = {
+            "odds1":   _odds(probs.get("pH")),
+            "oddsX":   _odds(probs.get("pD")),
+            "odds2":   _odds(probs.get("pA")),
+            "oddsO25": _odds(probs.get("pO25")),
+            "oddsU25": _odds(probs.get("pU25")),
+            "oddsBTTS": _odds(probs.get("pBTTS")),
+            "oddsNBTS": _odds(probs.get("pNBTS")),
+        }
 
         conn.execute(upsert, {
             "mid": int(mid),
-            "ehg": float(lam_h), "eag": float(lam_a),
-            **probs
+            "ehg": float(lam_h),
+            "eag": float(lam_a),
+            **probs,    # pH, pD, pA, pO25, pU25, pBTTS, pNBTS
+            **odds      # odds1, oddsX, odds2, oddsO25, oddsU25, oddsBTTS, oddsNBTS
         })

@@ -8,11 +8,12 @@ import typer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.db import SessionLocal
+from src.db import SessionLocal,engine
 from src.models import Team, League, Match
 import os
 from sqlalchemy import create_engine, text
 from src.config import settings
+
 
 app = typer.Typer(help="Alta masiva de fixtures (partidos futuros)")
 
@@ -364,6 +365,40 @@ def add_round(
         s.commit()
 
     typer.echo(f"OK round {d}: inserted={ins} updated={upd} skipped={skip}")
+
+
+@app.command("derive-weinston-picks")
+def derive_weinston_picks(
+    season_id: int,
+    date_from: str | None = None,
+    date_to: str | None = None,
+):
+    sql = """
+    UPDATE weinston_predictions wp
+    SET
+      result_1x2 = CASE
+                     WHEN wp.local_goals IS NULL OR wp.away_goals IS NULL THEN NULL
+                     WHEN wp.local_goals >  wp.away_goals THEN 1
+                     WHEN wp.local_goals <  wp.away_goals THEN 2
+                     ELSE 0
+                   END,
+      over_2 = CASE
+                 WHEN wp.local_goals IS NULL OR wp.away_goals IS NULL THEN NULL
+                 WHEN (wp.local_goals + wp.away_goals) > 2.5 THEN 'OVER' ELSE 'UNDER'
+               END,
+      both_score = CASE
+                     WHEN wp.local_goals IS NULL OR wp.away_goals IS NULL THEN NULL
+                     WHEN wp.local_goals >= 0.5 AND wp.away_goals >= 0.5 THEN 'YES' ELSE 'NO'
+                   END
+    FROM matches m
+    WHERE m.id = wp.match_id
+      AND m.season_id = :season_id
+      AND (:date_from IS NULL OR m.date >= :date_from::date)
+      AND (:date_to   IS NULL OR m.date <= :date_to::date);
+    """
+    with engine.begin() as con:
+        con.execute(text(sql), {"season_id": season_id, "date_from": date_from, "date_to": date_to})
+    typer.echo("Picks de Weinston derivados desde goles esperados.")
 
 
 if __name__ == "__main__":
