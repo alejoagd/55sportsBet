@@ -1,6 +1,8 @@
 #Antes de ejecutar cualquier comando validar si estas con el environment activado , ejecutando el siguiente comando
 .\.venv\Scripts\Activate.ps1
 
+
+
 --------------------------------Cargar nuevos partidos, actualizar estadisticas y resultados predicciones----------------------------------
 #1.Insertar los partidos de la proxima fecha en la tabla de matchs (bulk fixtures)
 python -m src.fixtures.cli bulk data/fixtures_E0.csv --season-id 2 --league "Premier League" --dayfirst
@@ -17,6 +19,8 @@ python -m src.predictions.cli score --season-id 2 --from 2025-08-30 --to 2025-08
 
 #5.Ejecutar despues de insertar los resultados para evaluar el resultado de las predicciones
 python -m src.predictions.cli evaluate --season-id 2 --from 2025-08-01 --to 2025-08-31
+
+
 --------------------------------Correr el Frontend----------------------------------
 #1. Ejecutar el backend FastApi Uviconrn 
 python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
@@ -34,3 +38,386 @@ http://localhost:5173/
 1.Eliminar de Matches-stats bd
 2.Eliminar de matchs
 3.Automaticamente se eliminana de las otras tablas.
+
+-----------------------------------flujos de claude
+# 1. Entrenar Weinston (genera ratings + parámetros)
+python -m src.predictions.cli fit --season-id 2
+
+# 2. Generar predicciones
+python -m src.predictions.cli upcoming --season-id 2 --from 2025-08-15 --to 2025-10-05
+
+# 3. Evaluar resultados (solo partidos terminados)
+python -m src.predictions.cli evaluate --season-id 2 --from 2025-08-15 --to 2025-10-05
+
+------------------------------------------------------------------------------------------GUIA ORGANIZADA --------------------------
+# Guía de Comandos CLI - 55sportsBet
+
+## Activar Entorno Virtual
+**SIEMPRE ejecutar antes de cualquier comando:**
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+---
+
+## 🤖 MÉTODO RECOMENDADO: Script Inteligente
+
+En lugar de ejecutar comandos manualmente, usa el script inteligente:
+
+```bash
+python -m src.scripts.update_predictions
+```
+
+### **7 Modos Disponibles:**
+
+#### **Modos Individuales:**
+1. **📥 FIXTURES** - Cargar nuevos partidos desde CSV (sin resultados)
+2. **🎯 PREDICT** - Generar predicciones para partidos sin resultados
+3. **📥 RESULTS** - Cargar resultados de partidos terminados desde CSV
+4. **📊 EVALUATE** - Evaluar predicciones vs resultados reales
+5. **🔄 RETRAIN** - Re-entrenar modelo Weinston con nuevos datos
+
+#### **Flujos Automáticos:**
+6. **🚀 COMPLETE** - Flujo PRE-partidos (FIXTURES → RETRAIN → PREDICT)
+7. **📊 FINISH** - Flujo POST-partidos (RESULTS → EVALUATE)
+
+### **Ventajas:**
+- ✅ Valida archivos CSV antes de cargar
+- ✅ Muestra preview de datos antes de insertar
+- ✅ Verifica duplicados y datos faltantes
+- ✅ Cuenta partidos afectados antes de ejecutar
+- ✅ Advierte sobre predicciones que se actualizarán
+- ✅ Confirma cada paso antes de proceder
+- ✅ Mensajes claros con colores (✅ verde, ⚠️ amarillo, ❌ rojo)
+- ✅ Guía paso a paso para flujos complejos
+
+### **Flujo Típico de una Jornada:**
+
+```
+ANTES DE LOS PARTIDOS (Modo 6 - COMPLETE):
+├─ 📥 Cargar fixtures desde CSV
+├─ 🔄 Re-entrenar Weinston
+└─ 🎯 Generar predicciones
+
+⚽ LOS PARTIDOS SE JUEGAN
+
+DESPUÉS DE LOS PARTIDOS (Modo 7 - FINISH):
+├─ 📥 Cargar resultados desde CSV
+└─ 📊 Evaluar predicciones
+```
+
+---
+
+## 📅 FLUJO MANUAL: Nueva Jornada de Partidos
+
+Si prefieres ejecutar comandos manualmente (no recomendado):
+
+### **Escenario**: Nueva fecha de partidos por jugar
+
+#### **Paso 1: Cargar fixtures de la próxima fecha**
+Inserta los partidos que se jugarán en la tabla `matches` (sin resultados aún).
+
+```bash
+python -m src.fixtures.cli bulk data/fixtures_E0.csv --season-id 2 --league "Premier League" --dayfirst
+```
+
+**📋 Qué hace**: Carga partidos futuros (home_goals y away_goals = NULL)
+
+---
+
+#### **Paso 2: Re-entrenar modelo Weinston (NUEVO)**
+⚠️ **IMPORTANTE**: Ejecutar ANTES de generar predicciones si hay nuevos partidos terminados.
+
+```bash
+python -m src.predictions.cli fit --season-id 2
+```
+
+**📋 Qué hace**: 
+- Recalcula ratings de equipos (atk_home, def_home, atk_away, def_away)
+- Actualiza parámetros de liga (μ_home, μ_away, home_advantage)
+- Guarda todo en `weinston_ratings` y `weinston_params`
+
+**⏱️ Cuándo ejecutar**:
+- Después de cargar resultados de partidos terminados (antes del Paso 5)
+- Al inicio de cada nueva jornada si hubo partidos en la jornada anterior
+
+---
+
+#### **Paso 3: Generar predicciones para próxima fecha**
+Genera predicciones de Poisson y Weinston para partidos sin resultado.
+
+```bash
+# Opción 1: Por rango de fechas (RECOMENDADO)
+python -m src.predictions.cli upcoming --season-id 2 --from 2025-09-13 --to 2025-09-14
+
+# Opción 2: Especificar modelos explícitamente
+python -m src.predictions.cli upcoming --season-id 2 --from 2025-09-13 --to 2025-09-14 --models poisson,weinston
+```
+
+**📋 Qué hace**: 
+- Lee ratings y parámetros actualizados
+- Genera predicciones en `poisson_predictions` y `weinston_predictions`
+
+**💡 Tip**: Si ves "⚠️ No hay parámetros Weinston, usando fallback", ejecuta primero el Paso 2.
+
+---
+
+#### **Paso 4: Los partidos se juegan** ⚽
+*(Aquí esperas a que los partidos terminen y obtengas los resultados reales)*
+
+---
+
+#### **Paso 5: Cargar resultados reales**
+Lee el CSV con resultados y actualiza la BD con goles y estadísticas.
+
+```bash
+python -m src.ingest.load_unified data/raw/E0.csv --league "Premier League" --div E0 --season-id 2 --dayfirst
+```
+
+**📋 Qué hace**: 
+- Actualiza `home_goals`, `away_goals` en `matches`
+- Inserta estadísticas del partido en `match_stats`
+
+**💡 Alternativa inteligente**: Usa `python src/scripts/update_predictions.py` y selecciona modo 3 (RESULTS)
+
+---
+
+#### **Paso 6: Calcular RMSE de Weinston**
+Calcula el error de predicción de goles de Weinston.
+
+```bash
+python -m src.predictions.cli score --season-id 2 --from 2025-09-13 --to 2025-09-14 --metric rmse
+```
+
+**📋 Qué hace**: Actualiza campo `error` en `weinston_predictions`
+
+---
+
+#### **Paso 7: Evaluar precisión de predicciones**
+Compara predicciones vs resultados reales y calcula porcentajes de acierto.
+
+```bash
+python -m src.predictions.cli evaluate --season-id 2 --from 2025-09-13 --to 2025-09-14
+```
+
+**📋 Qué hace**: 
+- Crea/actualiza registros en `prediction_outcomes`
+- Calcula aciertos de 1X2, Over/Under 2.5, BTTS
+- Calcula RMSE de goles para Weinston
+
+---
+
+#### **Paso 8: Volver al Paso 2** 🔄
+Para la siguiente jornada, vuelve al **Paso 2** (re-entrenar Weinston con los nuevos datos).
+
+---
+
+## 🚀 Script Automatizado (Recomendado)
+
+Crea `update_predictions.py` para automatizar todo:
+
+```python
+# src/scripts/update_predictions.py
+import subprocess
+from datetime import datetime
+
+season_id = 2
+date_from = "2025-09-13"
+date_to = "2025-09-14"
+
+commands = [
+    # 1. Re-entrenar Weinston
+    f"python -m src.predictions.cli fit --season-id {season_id}",
+    
+    # 2. Generar predicciones
+    f"python -m src.predictions.cli upcoming --season-id {season_id} --from {date_from} --to {date_to}",
+    
+    # 3. Calcular RMSE (después de cargar resultados)
+    f"python -m src.predictions.cli score --season-id {season_id} --from {date_from} --to {date_to} --metric rmse",
+    
+    # 4. Evaluar
+    f"python -m src.predictions.cli evaluate --season-id {season_id} --from {date_from} --to {date_to}",
+]
+
+for cmd in commands:
+    print(f"\n🔄 {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+print("\n✅ ¡Actualización completa!")
+```
+
+**Ejecutar**:
+```bash
+python src/scripts/update_predictions.py
+```
+
+---
+
+## 🖥️ Correr el Frontend
+
+### **Backend (FastAPI)**
+```bash
+python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
+```
+
+### **Frontend (Vite-React)** *(en otra terminal)*
+```bash
+cd frontend
+npm run dev
+```
+
+### **URLs útiles**:
+- **API JSON**: http://localhost:8000/api/predictions?season_id=2&date_from=2025-08-30&date_to=2025-08-31
+- **Frontend**: http://localhost:5173/
+- **API Docs**: http://localhost:8000/docs
+
+---
+
+## 🗑️ Eliminar Datos (Orden correcto)
+
+**IMPORTANTE**: Respetar este orden por dependencias de FK:
+
+1. Eliminar de `match_stats`
+2. Eliminar de `matches`
+3. Las otras tablas se limpian automáticamente (CASCADE)
+
+```sql
+-- Eliminar partidos de una jornada específica
+DELETE FROM match_stats WHERE match_id IN (
+    SELECT id FROM matches WHERE season_id = 2 AND date BETWEEN '2025-09-13' AND '2025-09-14'
+);
+
+DELETE FROM matches WHERE season_id = 2 AND date BETWEEN '2025-09-13' AND '2025-09-14';
+```
+
+---
+
+## 📊 Comandos de Verificación
+
+### **Ver estado de predicciones**
+```sql
+SELECT 
+    m.date, 
+    t1.name as home, 
+    t2.name as away,
+    pp.prob_home_win, 
+    wp.result_1x2,
+    m.home_goals, 
+    m.away_goals
+FROM matches m
+LEFT JOIN teams t1 ON t1.id = m.home_team_id
+LEFT JOIN teams t2 ON t2.id = m.away_team_id
+LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
+LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+WHERE m.season_id = 2 AND m.date BETWEEN '2025-09-13' AND '2025-09-14'
+ORDER BY m.date;
+```
+
+### **Ver métricas de modelos**
+```sql
+SELECT 
+    model,
+    COUNT(*) as total,
+    ROUND(AVG((hit_1x2)::int)::numeric * 100, 1) as acierto_1x2,
+    ROUND(AVG((hit_over25)::int)::numeric * 100, 1) as acierto_over25,
+    ROUND(AVG((hit_btts)::int)::numeric * 100, 1) as acierto_btts,
+    ROUND(AVG(rmse_goals)::numeric, 3) as rmse
+FROM prediction_outcomes po
+JOIN matches m ON m.id = po.match_id
+WHERE m.season_id = 2
+GROUP BY model;
+```
+
+### **Ver diferencias entre modelos**
+```sql
+SELECT 
+    COUNT(*) as total,
+    COUNT(*) FILTER (WHERE p.pick_1x2 = w.pick_1x2) as iguales,
+    COUNT(*) FILTER (WHERE p.pick_1x2 != w.pick_1x2) as diferentes,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE p.pick_1x2 != w.pick_1x2) / COUNT(*), 1) as pct_dif
+FROM prediction_outcomes p
+JOIN prediction_outcomes w ON p.match_id = w.match_id AND w.model = 'weinston'
+WHERE p.model = 'poisson';
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### **Error: "No hay parámetros Weinston"**
+**Solución**: Ejecutar `python -m src.predictions.cli fit --season-id 2`
+
+### **Predicciones idénticas entre modelos**
+**Solución**: 
+1. Verificar que ejecutaste `fit` después de cargar nuevos resultados
+2. Regenerar predicciones con `upcoming`
+3. Re-evaluar con `evaluate`
+
+### **RMSE vacío en Poisson**
+**Normal**: Poisson no predice goles exactos, solo probabilidades.
+
+### **Frontend muestra datos viejos**
+**Solución**: Hacer clic en botón "Refrescar" o recargar la página (F5)
+
+---
+
+## 📝 Notas Importantes
+
+1. **Siempre re-entrenar Weinston** después de cargar nuevos resultados y antes de generar nuevas predicciones
+2. **El orden importa**: fit → upcoming → (partidos se juegan) → load results → score → evaluate
+3. **Weinston es superior a Poisson** en la mayoría de métricas (~10% mejor en 1X2, ~25% mejor en BTTS)
+4. **Fallback automático**: Si no hay parámetros Weinston, usa promedios de liga (menos preciso)
+
+---
+
+## 🎯 Resumen Visual del Flujo
+
+### **Ciclo Completo de una Jornada:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  JORNADA N                                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. 📥 CARGAR FIXTURES (CSV → BD)                          │
+│     ├─ Obtener CSV con fixtures de la jornada              │
+│     ├─ Ejecutar: FIXTURES mode                             │
+│     └─ Resultado: Partidos en BD sin resultados            │
+│                                                             │
+│  2. 🔄 RE-ENTRENAR WEINSTON                                │
+│     ├─ Usa partidos terminados hasta ahora                 │
+│     ├─ Ejecutar: RETRAIN mode                              │
+│     └─ Resultado: Ratings y parámetros actualizados        │
+│                                                             │
+│  3. 🎯 GENERAR PREDICCIONES                                │
+│     ├─ Usa ratings actualizados                            │
+│     ├─ Ejecutar: PREDICT mode                              │
+│     └─ Resultado: Predicciones Poisson + Weinston          │
+│                                                             │
+│  4. ⚽ PARTIDOS SE JUEGAN                                   │
+│     └─ (Esperar resultados reales)                         │
+│                                                             │
+│  5. 📥 CARGAR RESULTADOS (CSV → BD)                        │
+│     ├─ Obtener CSV con resultados y stats                  │
+│     ├─ Ejecutar: load_unified                              │
+│     └─ Resultado: home_goals/away_goals actualizados       │
+│                                                             │
+│  6. 📊 EVALUAR PREDICCIONES                                │
+│     ├─ Compara predicciones vs resultados                  │
+│     ├─ Ejecutar: EVALUATE mode                             │
+│     └─ Resultado: % de acierto calculados                  │
+│                                                             │
+│  🔄 VOLVER AL PASO 1 para JORNADA N+1                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### **Opción Rápida (Script Inteligente - Modo COMPLETE):**
+
+```
+Un solo comando ejecuta:
+FIXTURES → RETRAIN → PREDICT
+
+Luego manualmente:
+RESULTADOS → EVALUATE
+```

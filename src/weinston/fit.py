@@ -87,7 +87,8 @@ def _dataset(s: Session, season_id: int):
     return team_ids, H, A, HG, AG
 
 def fit_weinston(s: Session, season_id: int) -> FitResult:
-    team_ids, H, A, HG, AG = _dataset(s, season_id); n = len(team_ids)
+    team_ids, H, A, HG, AG = _dataset(s, season_id)
+    n = len(team_ids)
     mh, ma = _league_means(s, season_id)
     x0 = np.r_[np.ones(n), np.ones(n), np.ones(n), np.ones(n), mh, ma, 1.2]
 
@@ -115,4 +116,43 @@ def fit_weinston(s: Session, season_id: int) -> FitResult:
     res = minimize(loss, x0, method="trust-constr", constraints=[lc], bounds=bnd,
                    options={"gtol":1e-6,"xtol":1e-6,"maxiter":500})
     aL,dH,aA,dA,mu_h,mu_a,hadv = unp(res.x)
+    
+    # Guardar ratings Y parámetros
+    #save_ratings(season_id, team_ids, aL, dH, aA, dA)
+    #save_league_params(season_id, mu_h, mu_a, hadv, res.fun)  # ← AGREGAR ESTA LÍNEA
+    
     return FitResult(team_ids, aL, dH, aA, dA, float(mu_h), float(mu_a), float(hadv), float(res.fun))
+
+def save_league_params(season_id: int, mu_home: float, mu_away: float, home_adv: float, loss: float):
+    """
+    Guarda/actualiza los parámetros de liga calculados por fit_weinston.
+    Mantiene UN ÚNICO registro por season_id.
+    
+    Args:
+        season_id: ID de la temporada
+        mu_home: Promedio de goles esperados en casa (μ_home)
+        mu_away: Promedio de goles esperados visitante (μ_away)
+        home_adv: Ventaja de local (home advantage)
+        loss: Valor de la función de pérdida (para monitoreo)
+    """
+    upsert_sql = text("""
+        INSERT INTO weinston_params (season_id, mu_home, mu_away, home_adv, loss, updated_at)
+        VALUES (:season_id, :mu_home, :mu_away, :home_adv, :loss, NOW())
+        ON CONFLICT (season_id) DO UPDATE SET
+            mu_home = EXCLUDED.mu_home,
+            mu_away = EXCLUDED.mu_away,
+            home_adv = EXCLUDED.home_adv,
+            loss = EXCLUDED.loss,
+            updated_at = NOW()
+    """)
+    
+    with SessionLocal() as s, s.begin():
+        s.execute(upsert_sql, {
+            "season_id": int(season_id),
+            "mu_home": float(mu_home),
+            "mu_away": float(mu_away),
+            "home_adv": float(home_adv),
+            "loss": float(loss)
+        })
+    
+    print(f"✓ Parámetros guardados: μ_home={mu_home:.3f}, μ_away={mu_away:.3f}, HFA={home_adv:.3f}, loss={loss:.2f}")

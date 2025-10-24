@@ -178,5 +178,56 @@ def main(
     typer.echo(f"✓ Evaluados: Poisson={counts['poisson']}, Weinston={counts['weinston']}")
 
 
+# Agregar este comando a src/predictions/cli.py
+
+@app.command("fit")
+def fit_weinston_cmd(
+    season_id: int = typer.Option(..., help="Season a entrenar"),
+):
+    """
+    Entrena el modelo Weinston para una temporada.
+    Calcula ratings de equipos (atk/def home/away) y parámetros de liga (mu_home, mu_away, home_adv).
+    Guarda todo en weinston_ratings y weinston_params.
+    """
+    from src.db import SessionLocal
+    from src.weinston.fit import fit_weinston, save_ratings, save_league_params
+    
+    typer.echo(f"🔄 Entrenando modelo Weinston para season_id={season_id}...")
+    
+    try:
+        with SessionLocal() as s:
+            result = fit_weinston(s, season_id)
+            
+            # Guardar ratings
+            save_ratings(
+                season_id=season_id,
+                team_ids=result.team_ids,
+                atk_home=result.atk_home,
+                def_home=result.def_home,
+                atk_away=result.atk_away,
+                def_away=result.def_away
+            )
+            
+            # Guardar parámetros de liga
+            save_league_params(
+                season_id=season_id,
+                mu_home=result.mu_home,
+                mu_away=result.mu_away,
+                home_adv=result.home_adv,
+                loss=result.loss
+            )
+            
+            typer.echo(f"✅ Modelo entrenado exitosamente!")
+            typer.echo(f"   📊 Equipos: {len(result.team_ids)}")
+            typer.echo(f"   📈 μ_home: {result.mu_home:.3f}")
+            typer.echo(f"   📉 μ_away: {result.mu_away:.3f}")
+            typer.echo(f"   🏠 Home Advantage: {result.home_adv:.3f}")
+            typer.echo(f"   🎯 Loss: {result.loss:.2f}")
+            
+    except Exception as e:
+        typer.echo(f"❌ Error entrenando Weinston: {e}")
+        raise
+
+
 if __name__ == "__main__":
     app()
