@@ -5,6 +5,7 @@ import MetricsEvolutionChart from "./MetricsEvolutionChart";
 import TeamStatistics from './Teamstatistics';
 import ImprovedDashboard from './ImprovedDashboard';
 import MatchDetail from './MatchDetail';
+import BestBetsSection from './BestBetsSection';
 
 
 // Si usas TypeScript estricto, puedes exportar estos tipos también
@@ -45,6 +46,16 @@ function Navigation() {
               📊 Dashboard
             </Link>
             <Link
+              to="/best-bets"
+              className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                isActive('/best-bets') 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              🎯 Mejores Apuestas
+            </Link>
+            <Link
               to="/evolution"
               className={`px-6 py-2 rounded-lg font-medium transition-all ${
                 isActive('/evolution') 
@@ -55,10 +66,14 @@ function Navigation() {
               📈 Evolución
             </Link>
             <Link 
-              to="/statistics">
-              <button className="px-4 py-2 bg-slate-700 text-white rounded-lg">
+              to="/statistics"
+              className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                isActive('/statistics') 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
               📊 Estadísticas
-              </button>
             </Link>
             <Link 
               to="/statistics2">
@@ -84,6 +99,7 @@ export default function App() {
         {/* Contenido - Rutas */}
         <Routes>
           <Route path="/" element={<ImprovedDashboard />} />
+          <Route path="/best-bets" element={<BestBetsSection />} />
           <Route path="/evolution" element={<MetricsEvolutionChart />} />
           <Route path="/statistics" element={<TeamStatistics />} />
           <Route path="/statistics2" element={<PredictionsDashboard />} />

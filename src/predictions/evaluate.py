@@ -10,9 +10,18 @@ def _res_1x2(hg: int, ag: int) -> str:
     return "X"
 
 def _over25(hg: int, ag: int) -> str:
-    return "OVER" if (hg + ag) > 2 else "UNDER"
+    """
+    Determina si el resultado fue OVER o UNDER 2.5 goles
+    Over 2.5 significa 3 o más goles (>= 3)
+    Under 2.5 significa 2 o menos goles (<= 2)
+    """
+    total_goals = hg + ag
+    return "OVER" if total_goals >= 3 else "UNDER"
 
 def _btts(hg: int, ag: int) -> str:
+    """
+    Determina si ambos equipos anotaron (Both Teams To Score)
+    """
     return "YES" if (hg > 0 and ag > 0) else "NO"
 
 def _argmax_1x2(ph: float, px: float, pa: float) -> str:

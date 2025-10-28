@@ -518,6 +518,75 @@ def mode_evaluate(season_id: int, date_from: str, date_to: str):
     print_info("💡 Puedes ver los resultados en el frontend")
     return True
 
+def generate_betting_lines_predictions(season_id: int, date_from: str, date_to: str) -> bool:
+    """
+    Genera predicciones de líneas de apuesta para partidos sin resultado
+    Se ejecuta automáticamente después de generar predicciones normales
+    """
+    print_info("Generando predicciones de betting lines...")
+    
+    cmd = f"python -m src.predictions.cli betting-lines-generate --season-id {season_id} --from {date_from} --to {date_to}"
+    
+    if not run_command(cmd):
+        print_warning("Error al generar betting lines (continuando...)")
+        return False
+    
+    print_success("Betting lines generadas exitosamente")
+    return True
+
+
+def validate_betting_lines_predictions(season_id: int, date_from: str, date_to: str) -> bool:
+    """
+    Valida las predicciones de líneas de apuesta contra resultados reales
+    Se ejecuta automáticamente después de evaluar predicciones normales
+    """
+    print_info("Validando betting lines contra resultados...")
+    
+    cmd = f"python -m src.predictions.cli betting-lines-validate --season-id {season_id} --from {date_from} --to {date_to}"
+    
+    if not run_command(cmd):
+        print_warning("Error al validar betting lines (continuando...)")
+        return False
+    
+    print_success("Betting lines validadas exitosamente")
+    
+    # Mostrar resumen de accuracy
+    try:
+        query = text("""
+            SELECT 
+                model,
+                ROUND(AVG(CASE WHEN shots_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as shots_acc,
+                ROUND(AVG(CASE WHEN corners_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as corners_acc,
+                ROUND(AVG(CASE WHEN cards_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as cards_acc,
+                ROUND(AVG(
+                    (CASE WHEN shots_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN shots_on_target_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN corners_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN cards_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN fouls_hit THEN 1.0 ELSE 0.0 END) / 5.0
+                ) * 100, 1) as overall_acc
+            FROM betting_lines_predictions blp
+            JOIN matches m ON m.id = blp.match_id
+            WHERE m.season_id = :sid
+              AND m.date BETWEEN :dfrom AND :dto
+              AND blp.actual_total_shots IS NOT NULL
+            GROUP BY model
+        """)
+        
+        with engine.begin() as conn:
+            results = conn.execute(query, {"sid": season_id, "dfrom": date_from, "dto": date_to}).fetchall()
+            
+            if results:
+                print(f"\n{Colors.BOLD}📊 Accuracy de Betting Lines:{Colors.END}")
+                for row in results:
+                    print(f"  {row.model.upper()}:")
+                    print(f"    • General: {row.overall_acc}%")
+                    print(f"    • Tiros: {row.shots_acc}%  |  Corners: {row.corners_acc}%  |  Tarjetas: {row.cards_acc}%")
+    except Exception as e:
+        print_warning(f"No se pudo obtener accuracy: {e}")
+    
+    return True
+
 def mode_retrain(season_id: int):
     """Modo: Re-entrenar modelo Weinston"""
     print_step("🔄 MODO: RE-ENTRENAR WEINSTON")
@@ -583,8 +652,8 @@ def main():
     print("  3. 📥 RESULTS  - Cargar resultados de partidos terminados desde CSV")
     print("  4. 📊 EVALUATE - Evaluar predicciones vs resultados reales")
     print("  5. 🔄 RETRAIN  - Re-entrenar modelo Weinston con nuevos datos")
-    print("  6. 🚀 COMPLETE - Flujo completo nueva jornada (fixtures + retrain + predict)")
-    print("  7. 📊 FINISH   - Flujo completo post-partidos (results + evaluate)")
+    print("  6. 🚀 COMPLETE - Flujo completo nueva jornada (fixtures + retrain + predict + betting lines )")
+    print("  7. 📊 FINISH   - Flujo completo post-partidos (results + evaluate + validate betting)")
     print("  0. ❌ SALIR\n")
     
     choice = input(f"{Colors.GREEN}Selecciona una opción (0-7): {Colors.END}")
@@ -642,15 +711,25 @@ def main():
             input(f"\n{Colors.YELLOW}✓ Modelo entrenado. Presiona Enter para continuar con PREDICT...{Colors.END}")
             
             # Paso 3: Generar predicciones
-            if mode_predict(season_id, date_from, date_to):
-                print(f"\n{Colors.GREEN}{Colors.BOLD}")
-                print("╔════════════════════════════════════════════════════════════╗")
-                print("║          ✅ FLUJO PRE-PARTIDOS COMPLETADO ✅             ║")
-                print("╚════════════════════════════════════════════════════════════╝")
-                print(f"{Colors.END}")
-                print_info("💡 Los partidos están listos con predicciones")
-                print_info("⚽ Ahora espera a que se jueguen los partidos")
-                print_info("📊 Después ejecuta el modo 7 (FINISH) para cargar resultados y evaluar")
+            if not mode_predict(season_id, date_from, date_to):
+                print_error("Fallo al generar predicciones, abortando flujo")
+                return
+
+            # Paso 4: ✨ NUEVO - Generar betting lines
+            generate_betting_lines_predictions(season_id, date_from, date_to)
+            
+            print(f"\n{Colors.GREEN}{Colors.BOLD}")
+            print("╔════════════════════════════════════════════════════════════╗")
+            print("║          ✅ FLUJO PRE-PARTIDOS COMPLETADO ✅             ║")
+            print("╚════════════════════════════════════════════════════════════╝")
+            print(f"{Colors.END}")
+            print_success("✓ Fixtures cargados")
+            print_success("✓ Modelo entrenado")
+            print_success("✓ Predicciones generadas")
+            print_success("✓ Betting lines generadas")
+            print_info("💡 Los partidos están listos con predicciones y líneas de apuesta")
+            print_info("⚽ Ahora espera a que se jueguen los partidos")
+            print_info("📊 Después ejecuta el modo 7 (FINISH) para cargar resultados y evaluar")
         
         elif choice == "7":
             # Flujo completo: DESPUÉS de los partidos
@@ -665,15 +744,25 @@ def main():
             input(f"\n{Colors.YELLOW}✓ Resultados cargados. Presiona Enter para continuar con EVALUATE...{Colors.END}")
             
             # Paso 2: Evaluar predicciones
-            if mode_evaluate(season_id, date_from, date_to):
-                print(f"\n{Colors.GREEN}{Colors.BOLD}")
-                print("╔════════════════════════════════════════════════════════════╗")
-                print("║         ✅ FLUJO POST-PARTIDOS COMPLETADO ✅             ║")
-                print("╚════════════════════════════════════════════════════════════╝")
-                print(f"{Colors.END}")
-                print_info("💡 Predicciones evaluadas y métricas actualizadas")
-                print_info("🖥️  Puedes ver los resultados en el frontend")
-                print_info("🔄 Para la siguiente jornada, ejecuta el modo 6 (COMPLETE)")
+            if not mode_evaluate(season_id, date_from, date_to):
+                print_error("Fallo al evaluar predicciones, abortando flujo")
+                return
+
+            # Paso 3: ✨ NUEVO - Validar betting lines
+            validate_betting_lines_predictions(season_id, date_from, date_to)
+            
+            print(f"\n{Colors.GREEN}{Colors.BOLD}")
+            print("╔════════════════════════════════════════════════════════════╗")
+            print("║         ✅ FLUJO POST-PARTIDOS COMPLETADO ✅             ║")
+            print("╚════════════════════════════════════════════════════════════╝")
+            print(f"{Colors.END}")
+            print_success("✓ Resultados cargados")
+            print_success("✓ Predicciones evaluadas")
+            print_success("✓ Betting lines validadas")
+            print_info("💡 Predicciones evaluadas y métricas actualizadas")
+            print_info("📊 Betting lines validadas con accuracy calculado")
+            print_info("🖥️  Puedes ver los resultados en el frontend")
+            print_info("🔄 Para la siguiente jornada, ejecuta el modo 6 (COMPLETE)")
         else:
             print_error("Opción inválida")
     

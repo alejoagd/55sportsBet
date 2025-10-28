@@ -960,7 +960,8 @@ def recalculate_prediction_outcomes(season_id: int = Query(..., description="ID 
 def get_match_details(match_id: int):
     """
     Obtiene todos los detalles de un partido específico incluyendo estadísticas y predicciones
-    USA LAS MISMAS FÓRMULAS QUE EL DASHBOARD para calcular porcentajes de Weinston
+    - Predicciones de Weinston: SIEMPRE de weinston_predictions
+    - Estadísticas del Partido: de match_stats (reales) o weinston_predictions (fallback)
     """
     
     with engine.begin() as conn:
@@ -974,21 +975,41 @@ def get_match_details(match_id: int):
                 m.away_goals,
                 m.referee,
                 
-                -- Estadísticas desde weinston_predictions
-                wp.shots_home as home_shots,
-                wp.shots_away as away_shots,
-                wp.shots_target_home as home_shots_on_target,
-                wp.shots_target_away as away_shots_on_target,
-                wp.fouls_home as home_fouls,
-                wp.fouls_away as away_fouls,
-                wp.corners_home as home_corners,
-                wp.corners_away as away_corners,
-                wp.cards_home as home_yellow_cards,
-                wp.cards_away as away_yellow_cards,
-                0 as home_red_cards,
-                0 as away_red_cards,
-                0 as home_possession,
-                0 as away_possession,
+                -- PREDICCIONES DE WEINSTON (SIEMPRE de weinston_predictions)
+                wp.shots_home as weinston_shots_home,
+                wp.shots_away as weinston_shots_away,
+                wp.shots_target_home as weinston_shots_on_target_home,
+                wp.shots_target_away as weinston_shots_on_target_away,
+                wp.fouls_home as weinston_fouls_home,
+                wp.fouls_away as weinston_fouls_away,
+                wp.corners_home as weinston_corners_home,
+                wp.corners_away as weinston_corners_away,
+                wp.cards_home as weinston_cards_home,
+                wp.cards_away as weinston_cards_away,
+                
+                -- ESTADÍSTICAS REALES DEL PARTIDO (de match_stats con fallback a weinston)
+                COALESCE(ms.home_shots, wp.shots_home, 0) as home_shots,
+                COALESCE(ms.away_shots, wp.shots_away, 0) as away_shots,
+                COALESCE(ms.home_shots_on_target, wp.shots_target_home, 0) as home_shots_on_target,
+                COALESCE(ms.away_shots_on_target, wp.shots_target_away, 0) as away_shots_on_target,
+                COALESCE(ms.home_fouls, wp.fouls_home, 0) as home_fouls,
+                COALESCE(ms.away_fouls, wp.fouls_away, 0) as away_fouls,
+                COALESCE(ms.home_corners, wp.corners_home, 0) as home_corners,
+                COALESCE(ms.away_corners, wp.corners_away, 0) as away_corners,
+                COALESCE(ms.home_yellow_cards, wp.cards_home, 0) as home_yellow_cards,
+                COALESCE(ms.away_yellow_cards, wp.cards_away, 0) as away_yellow_cards,
+                COALESCE(ms.home_red_cards, 0) as home_red_cards,
+                COALESCE(ms.away_red_cards, 0) as away_red_cards,
+                
+                -- Estadísticas adicionales solo disponibles en match_stats
+                ms.total_shots,
+                ms.total_shots_on_target,
+                ms.total_corners,
+                ms.total_fouls,
+                ms.total_cards,
+                
+                -- Indicador de si tiene estadísticas reales
+                CASE WHEN ms.match_id IS NOT NULL THEN true ELSE false END as has_real_stats,
                 
                 -- Predicciones Poisson
                 pp.expected_home_goals as poisson_home_goals,
@@ -1007,13 +1028,11 @@ def get_match_details(match_id: int):
                 wp.both_score as weinston_btts_text,
                 
                 -- CÁLCULO DINÁMICO: Over/Under basado en goles predichos
-                -- MISMA FÓRMULA QUE USA EL DASHBOARD
                 GREATEST(0.05, LEAST(0.95,
                     1.0 / (1.0 + EXP(-(COALESCE(wp.local_goals, 0) + COALESCE(wp.away_goals, 0) - 2.5) * 1.8))
                 )) as weinston_over_25,
                 
                 -- CÁLCULO DINÁMICO: BTTS basado en goles individuales
-                -- MISMA FÓRMULA QUE USA EL DASHBOARD
                 GREATEST(0.05, LEAST(0.95,
                     (1.0 - EXP(-COALESCE(wp.local_goals, 0) * 1.2)) * 
                     (1.0 - EXP(-COALESCE(wp.away_goals, 0) * 1.2))
@@ -1026,6 +1045,8 @@ def get_match_details(match_id: int):
             -- LEFT JOIN con predicciones
             LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
             LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            -- LEFT JOIN con estadísticas REALES del partido
+            LEFT JOIN match_stats ms ON ms.match_id = m.id
             WHERE m.id = :match_id
         """)
         
@@ -1050,6 +1071,782 @@ def get_match_details(match_id: int):
         
         return match_data
 
+
+@router.get("/api/best-bets/analysis")
+def get_best_bets_analysis(season_id: int = Query(..., description="ID de la temporada")):
+    """
+    Analiza los próximos partidos y recomienda las mejores apuestas basándose en:
+    1. Porcentaje de acierto histórico del modelo en cada tipo de predicción
+    2. Confianza (probabilidad) de la predicción actual
+    3. Score combinado para rankear
+    """
+    
+    with engine.begin() as conn:
+        # 1. Calcular % de acierto histórico por modelo y tipo
+        historical_accuracy_query = text("""
+            SELECT 
+                model,
+                COUNT(*) as total_predictions,
+                
+                -- Aciertos por tipo
+                SUM(CASE WHEN hit_1x2 THEN 1 ELSE 0 END) as hits_1x2,
+                SUM(CASE WHEN hit_over25 THEN 1 ELSE 0 END) as hits_over25,
+                SUM(CASE WHEN hit_btts THEN 1 ELSE 0 END) as hits_btts,
+                
+                -- Porcentajes de acierto
+                ROUND(AVG(CASE WHEN hit_1x2 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_1x2,
+                ROUND(AVG(CASE WHEN hit_over25 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_over25,
+                ROUND(AVG(CASE WHEN hit_btts THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_btts
+                
+            FROM prediction_outcomes po
+            JOIN matches m ON m.id = po.match_id
+            WHERE m.season_id = :season_id
+              AND m.home_goals IS NOT NULL  -- Solo partidos finalizados
+            GROUP BY model
+        """)
+        
+        accuracy_results = conn.execute(historical_accuracy_query, {"season_id": season_id}).mappings().all()
+        
+        # Crear diccionario de accuracy por modelo
+        accuracy_by_model = {}
+        for row in accuracy_results:
+            accuracy_by_model[row['model']] = {
+                'total_predictions': row['total_predictions'],
+                'accuracy_1x2': float(row['accuracy_1x2'] or 0),
+                'accuracy_over25': float(row['accuracy_over25'] or 0),
+                'accuracy_btts': float(row['accuracy_btts'] or 0)
+            }
+        
+        # 2. Obtener próximos partidos con predicciones
+        upcoming_matches_query = text("""
+            SELECT
+                m.id as match_id,
+                m.date,
+                th.name as home_team,
+                ta.name as away_team,
+                
+                -- Poisson predictions
+                pp.prob_home_win as poisson_prob_home,
+                pp.prob_draw as poisson_prob_draw,
+                pp.prob_away_win as poisson_prob_away,
+                pp.over_2 as poisson_over_25,
+                pp.both_score as poisson_btts,
+                
+                -- Weinston predictions
+                wp.result_1x2 as weinston_result_int,
+                wp.local_goals as weinston_home_goals,
+                wp.away_goals as weinston_away_goals,
+                
+                -- Cálculo dinámico Over/Under para Weinston
+                GREATEST(0.05, LEAST(0.95,
+                    1.0 / (1.0 + EXP(-(COALESCE(wp.local_goals, 0) + COALESCE(wp.away_goals, 0) - 2.5) * 1.8))
+                )) as weinston_over_25,
+                
+                -- Cálculo dinámico BTTS para Weinston
+                GREATEST(0.05, LEAST(0.95,
+                    (1.0 - EXP(-COALESCE(wp.local_goals, 0) * 1.2)) * 
+                    (1.0 - EXP(-COALESCE(wp.away_goals, 0) * 1.2))
+                )) as weinston_btts
+                
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.season_id = :season_id
+              AND m.home_goals IS NULL
+              AND m.date >= CURRENT_DATE
+            ORDER BY m.date
+            LIMIT 20
+        """)
+        
+        upcoming_matches = conn.execute(upcoming_matches_query, {"season_id": season_id}).mappings().all()
+        
+        # 3. Analizar cada partido y calcular scores
+        recommendations = []
+        
+        for match in upcoming_matches:
+            match_id = match['match_id']
+            home_team = match['home_team']
+            away_team = match['away_team']
+            date = match['date']
+            
+            # Analizar Poisson
+            if match['poisson_prob_home'] is not None:
+                poisson_accuracy = accuracy_by_model.get('poisson', {})
+                
+                # 1X2 - Predicción más probable
+                prob_home = float(match['poisson_prob_home'] or 0)
+                prob_draw = float(match['poisson_prob_draw'] or 0)
+                prob_away = float(match['poisson_prob_away'] or 0)
+                
+                max_prob_1x2 = max(prob_home, prob_draw, prob_away)
+                if max_prob_1x2 == prob_home:
+                    prediction_1x2 = 'Victoria Local (1)'
+                elif max_prob_1x2 == prob_away:
+                    prediction_1x2 = 'Victoria Visitante (2)'
+                else:
+                    prediction_1x2 = 'Empate (X)'
+                
+                # Score 1X2 = Probabilidad * Accuracy histórica / 100
+                score_1x2 = max_prob_1x2 * (poisson_accuracy.get('accuracy_1x2', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': date,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'Poisson',
+                    'bet_type': '1X2',
+                    'prediction': prediction_1x2,
+                    'confidence': round(max_prob_1x2 * 100, 1),
+                    'historical_accuracy': poisson_accuracy.get('accuracy_1x2', 0),
+                    'combined_score': round(score_1x2 * 100, 2)
+                })
+                
+                # Over/Under
+                over_prob = float(match['poisson_over_25'] or 0)
+                under_prob = 1 - over_prob
+                
+                if over_prob > 0.5:
+                    prediction_ou = f'Over 2.5'
+                    confidence_ou = over_prob
+                else:
+                    prediction_ou = f'Under 2.5'
+                    confidence_ou = under_prob
+                
+                score_ou = confidence_ou * (poisson_accuracy.get('accuracy_over25', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': date,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'Poisson',
+                    'bet_type': 'Over/Under',
+                    'prediction': prediction_ou,
+                    'confidence': round(confidence_ou * 100, 1),
+                    'historical_accuracy': poisson_accuracy.get('accuracy_over25', 0),
+                    'combined_score': round(score_ou * 100, 2)
+                })
+                
+                # BTTS
+                btts_prob = float(match['poisson_btts'] or 0)
+                no_btts_prob = 1 - btts_prob
+                
+                if btts_prob > 0.5:
+                    prediction_btts = 'Ambos anotan (Sí)'
+                    confidence_btts = btts_prob
+                else:
+                    prediction_btts = 'Ambos NO anotan'
+                    confidence_btts = no_btts_prob
+                
+                score_btts = confidence_btts * (poisson_accuracy.get('accuracy_btts', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': date,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'Poisson',
+                    'bet_type': 'BTTS',
+                    'prediction': prediction_btts,
+                    'confidence': round(confidence_btts * 100, 1),
+                    'historical_accuracy': poisson_accuracy.get('accuracy_btts', 0),
+                    'combined_score': round(score_btts * 100, 2)
+                })
+            
+            # Analizar Weinston
+            if match['weinston_result_int'] is not None:
+                weinston_accuracy = accuracy_by_model.get('weinston', {})
+                
+                # 1X2
+                result_int = match['weinston_result_int']
+                if result_int == 0:
+                    prediction_1x2 = 'Empate (X)'
+                elif result_int == 1:
+                    prediction_1x2 = 'Victoria Local (1)'
+                else:
+                    prediction_1x2 = 'Victoria Visitante (2)'
+                
+                # Weinston no tiene probabilidades por resultado, usar confianza base
+                confidence_1x2 = 0.75  # Confianza base
+                score_1x2 = confidence_1x2 * (weinston_accuracy.get('accuracy_1x2', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': date,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'Weinston',
+                    'bet_type': '1X2',
+                    'prediction': prediction_1x2,
+                    'confidence': round(confidence_1x2 * 100, 1),
+                    'historical_accuracy': weinston_accuracy.get('accuracy_1x2', 0),
+                    'combined_score': round(score_1x2 * 100, 2)
+                })
+                
+                # Over/Under
+                over_prob = float(match['weinston_over_25'] or 0)
+                under_prob = 1 - over_prob
+                
+                if over_prob > 0.5:
+                    prediction_ou = f'Over 2.5'
+                    confidence_ou = over_prob
+                else:
+                    prediction_ou = f'Under 2.5'
+                    confidence_ou = under_prob
+                
+                score_ou = confidence_ou * (weinston_accuracy.get('accuracy_over25', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': date,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'Weinston',
+                    'bet_type': 'Over/Under',
+                    'prediction': prediction_ou,
+                    'confidence': round(confidence_ou * 100, 1),
+                    'historical_accuracy': weinston_accuracy.get('accuracy_over25', 0),
+                    'combined_score': round(score_ou * 100, 2)
+                })
+                
+                # BTTS
+                btts_prob = float(match['weinston_btts'] or 0)
+                no_btts_prob = 1 - btts_prob
+                
+                if btts_prob > 0.5:
+                    prediction_btts = 'Ambos anotan (Sí)'
+                    confidence_btts = btts_prob
+                else:
+                    prediction_btts = 'Ambos NO anotan'
+                    confidence_btts = no_btts_prob
+                
+                score_btts = confidence_btts * (weinston_accuracy.get('accuracy_btts', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': date,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'Weinston',
+                    'bet_type': 'BTTS',
+                    'prediction': prediction_btts,
+                    'confidence': round(confidence_btts * 100, 1),
+                    'historical_accuracy': weinston_accuracy.get('accuracy_btts', 0),
+                    'combined_score': round(score_btts * 100, 2)
+                })
+        
+        # 4. Ordenar por combined_score descendente y tomar top 4
+        recommendations.sort(key=lambda x: x['combined_score'], reverse=True)
+        top_recommendations = recommendations[:4]
+        
+        return {
+            'historical_accuracy': dict(accuracy_by_model),
+            'top_bets': top_recommendations,
+            'all_recommendations': recommendations[:10]  # Top 10 para referencia
+        }
+    
+
+@router.post("/api/betting-lines/generate")
+def generate_betting_lines_predictions(season_id: int = Query(...)):
+    """
+    Genera predicciones de líneas de apuesta (Over/Under) para todos los partidos sin resultado
+    
+    Líneas de apuesta estándar (basadas en Premier League):
+    - Tiros totales: 24.5
+    - Tiros a puerta: 8.5
+    - Corners: 10.5
+    - Tarjetas: 4.5
+    - Faltas: 22.5
+    """
+    
+    # Configuración de líneas (pueden ajustarse basándose en análisis histórico)
+    BETTING_LINES = {
+        'shots': 24.5,
+        'shots_on_target': 8.5,
+        'corners': 10.5,
+        'cards': 4.5,
+        'fouls': 22.5
+    }
+    
+    with engine.begin() as conn:
+        # Obtener partidos sin resultado
+        matches_query = text("""
+            SELECT 
+                m.id as match_id,
+                m.date,
+                th.name as home_team,
+                ta.name as away_team,
+                
+                -- Predicciones Poisson
+                pp.expected_home_goals as poisson_home_goals,
+                pp.expected_away_goals as poisson_away_goals,
+                
+                -- Predicciones Weinston (estadísticas)
+                wp.shots_home as weinston_shots_home,
+                wp.shots_away as weinston_shots_away,
+                wp.shots_target_home as weinston_shots_on_target_home,
+                wp.shots_target_away as weinston_shots_on_target_away,
+                wp.corners_home as weinston_corners_home,
+                wp.corners_away as weinston_corners_away,
+                wp.cards_home as weinston_cards_home,
+                wp.cards_away as weinston_cards_away,
+                wp.fouls_home as weinston_fouls_home,
+                wp.fouls_away as weinston_fouls_away
+                
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.season_id = :season_id
+              AND m.home_goals IS NULL
+              AND m.date >= CURRENT_DATE
+            ORDER BY m.date
+        """)
+        
+        matches = conn.execute(matches_query, {"season_id": season_id}).mappings().all()
+        
+        generated_predictions = []
+        
+        for match in matches:
+            match_id = match['match_id']
+            
+            # WEINSTON: Calcular totales predichos
+            if match['weinston_shots_home'] is not None:
+                # Tiros
+                predicted_shots = float(match['weinston_shots_home'] or 0) + float(match['weinston_shots_away'] or 0)
+                shots_line = BETTING_LINES['shots']
+                shots_prediction = 'over' if predicted_shots > shots_line else 'under'
+                # Confianza: distancia normalizada del umbral (0-1)
+                shots_distance = abs(predicted_shots - shots_line)
+                shots_confidence = min(shots_distance / 10.0, 1.0)  # Normalizar a 0-1
+                
+                # Tiros a puerta
+                predicted_shots_ot = float(match['weinston_shots_on_target_home'] or 0) + float(match['weinston_shots_on_target_away'] or 0)
+                shots_ot_line = BETTING_LINES['shots_on_target']
+                shots_ot_prediction = 'over' if predicted_shots_ot > shots_ot_line else 'under'
+                shots_ot_distance = abs(predicted_shots_ot - shots_ot_line)
+                shots_ot_confidence = min(shots_ot_distance / 5.0, 1.0)
+                
+                # Corners
+                predicted_corners = float(match['weinston_corners_home'] or 0) + float(match['weinston_corners_away'] or 0)
+                corners_line = BETTING_LINES['corners']
+                corners_prediction = 'over' if predicted_corners > corners_line else 'under'
+                corners_distance = abs(predicted_corners - corners_line)
+                corners_confidence = min(corners_distance / 5.0, 1.0)
+                
+                # Tarjetas
+                predicted_cards = float(match['weinston_cards_home'] or 0) + float(match['weinston_cards_away'] or 0)
+                cards_line = BETTING_LINES['cards']
+                cards_prediction = 'over' if predicted_cards > cards_line else 'under'
+                cards_distance = abs(predicted_cards - cards_line)
+                cards_confidence = min(cards_distance / 3.0, 1.0)
+                
+                # Faltas
+                predicted_fouls = float(match['weinston_fouls_home'] or 0) + float(match['weinston_fouls_away'] or 0)
+                fouls_line = BETTING_LINES['fouls']
+                fouls_prediction = 'over' if predicted_fouls > fouls_line else 'under'
+                fouls_distance = abs(predicted_fouls - fouls_line)
+                fouls_confidence = min(fouls_distance / 8.0, 1.0)
+                
+                # Insertar o actualizar predicciones
+                insert_query = text("""
+                    INSERT INTO betting_lines_predictions (
+                        match_id, model,
+                        predicted_total_shots, shots_line, shots_prediction, shots_confidence,
+                        predicted_total_shots_on_target, shots_on_target_line, shots_on_target_prediction, shots_on_target_confidence,
+                        predicted_total_corners, corners_line, corners_prediction, corners_confidence,
+                        predicted_total_cards, cards_line, cards_prediction, cards_confidence,
+                        predicted_total_fouls, fouls_line, fouls_prediction, fouls_confidence
+                    ) VALUES (
+                        :match_id, 'weinston',
+                        :predicted_shots, :shots_line, :shots_prediction, :shots_confidence,
+                        :predicted_shots_ot, :shots_ot_line, :shots_ot_prediction, :shots_ot_confidence,
+                        :predicted_corners, :corners_line, :corners_prediction, :corners_confidence,
+                        :predicted_cards, :cards_line, :cards_prediction, :cards_confidence,
+                        :predicted_fouls, :fouls_line, :fouls_prediction, :fouls_confidence
+                    )
+                    ON CONFLICT (match_id, model) 
+                    DO UPDATE SET
+                        predicted_total_shots = EXCLUDED.predicted_total_shots,
+                        shots_line = EXCLUDED.shots_line,
+                        shots_prediction = EXCLUDED.shots_prediction,
+                        shots_confidence = EXCLUDED.shots_confidence,
+                        predicted_total_shots_on_target = EXCLUDED.predicted_total_shots_on_target,
+                        shots_on_target_line = EXCLUDED.shots_on_target_line,
+                        shots_on_target_prediction = EXCLUDED.shots_on_target_prediction,
+                        shots_on_target_confidence = EXCLUDED.shots_on_target_confidence,
+                        predicted_total_corners = EXCLUDED.predicted_total_corners,
+                        corners_line = EXCLUDED.corners_line,
+                        corners_prediction = EXCLUDED.corners_prediction,
+                        corners_confidence = EXCLUDED.corners_confidence,
+                        predicted_total_cards = EXCLUDED.predicted_total_cards,
+                        cards_line = EXCLUDED.cards_line,
+                        cards_prediction = EXCLUDED.cards_prediction,
+                        cards_confidence = EXCLUDED.cards_confidence,
+                        predicted_total_fouls = EXCLUDED.predicted_total_fouls,
+                        fouls_line = EXCLUDED.fouls_line,
+                        fouls_prediction = EXCLUDED.fouls_prediction,
+                        fouls_confidence = EXCLUDED.fouls_confidence,
+                        updated_at = CURRENT_TIMESTAMP
+                """)
+                
+                conn.execute(insert_query, {
+                    "match_id": match_id,
+                    "predicted_shots": predicted_shots,
+                    "shots_line": shots_line,
+                    "shots_prediction": shots_prediction,
+                    "shots_confidence": shots_confidence,
+                    "predicted_shots_ot": predicted_shots_ot,
+                    "shots_ot_line": shots_ot_line,
+                    "shots_ot_prediction": shots_ot_prediction,
+                    "shots_ot_confidence": shots_ot_confidence,
+                    "predicted_corners": predicted_corners,
+                    "corners_line": corners_line,
+                    "corners_prediction": corners_prediction,
+                    "corners_confidence": corners_confidence,
+                    "predicted_cards": predicted_cards,
+                    "cards_line": cards_line,
+                    "cards_prediction": cards_prediction,
+                    "cards_confidence": cards_confidence,
+                    "predicted_fouls": predicted_fouls,
+                    "fouls_line": fouls_line,
+                    "fouls_prediction": fouls_prediction,
+                    "fouls_confidence": fouls_confidence
+                })
+                
+                generated_predictions.append({
+                    'match_id': match_id,
+                    'home_team': match['home_team'],
+                    'away_team': match['away_team'],
+                    'date': str(match['date']),
+                    'predictions': {
+                        'shots': {
+                            'predicted': round(predicted_shots, 2),
+                            'line': shots_line,
+                            'prediction': shots_prediction,
+                            'confidence': round(shots_confidence * 100, 1)
+                        },
+                        'shots_on_target': {
+                            'predicted': round(predicted_shots_ot, 2),
+                            'line': shots_ot_line,
+                            'prediction': shots_ot_prediction,
+                            'confidence': round(shots_ot_confidence * 100, 1)
+                        },
+                        'corners': {
+                            'predicted': round(predicted_corners, 2),
+                            'line': corners_line,
+                            'prediction': corners_prediction,
+                            'confidence': round(corners_confidence * 100, 1)
+                        },
+                        'cards': {
+                            'predicted': round(predicted_cards, 2),
+                            'line': cards_line,
+                            'prediction': cards_prediction,
+                            'confidence': round(cards_confidence * 100, 1)
+                        },
+                        'fouls': {
+                            'predicted': round(predicted_fouls, 2),
+                            'line': fouls_line,
+                            'prediction': fouls_prediction,
+                            'confidence': round(fouls_confidence * 100, 1)
+                        }
+                    }
+                })
+        
+        return {
+            'betting_lines': BETTING_LINES,
+            'total_matches': len(matches),
+            'predictions_generated': len(generated_predictions),
+            'predictions': generated_predictions
+        }
+
+
+@router.post("/api/betting-lines/validate")
+def validate_betting_lines(season_id: int = Query(...)):
+    """
+    Valida las predicciones de líneas de apuesta contra los resultados reales
+    Se ejecuta después de que los partidos han finalizado
+    """
+    
+    with engine.begin() as conn:
+        # Actualizar resultados reales y validar predicciones
+        update_query = text("""
+            UPDATE betting_lines_predictions blp
+            SET 
+                -- Actualizar resultados reales
+                actual_total_shots = ms.home_shots + ms.away_shots,
+                actual_total_shots_on_target = ms.home_shots_on_target + ms.away_shots_on_target,
+                actual_total_corners = ms.home_corners + ms.away_corners,
+                actual_total_cards = ms.home_yellow_cards + ms.away_yellow_cards + 
+                                    COALESCE(ms.home_red_cards, 0) + COALESCE(ms.away_red_cards, 0),
+                actual_total_fouls = ms.home_fouls + ms.away_fouls,
+                
+                -- Validar predicciones (TRUE si acertó)
+                shots_hit = CASE 
+                    WHEN blp.shots_prediction = 'over' AND (ms.home_shots + ms.away_shots) > blp.shots_line THEN TRUE
+                    WHEN blp.shots_prediction = 'under' AND (ms.home_shots + ms.away_shots) < blp.shots_line THEN TRUE
+                    ELSE FALSE
+                END,
+                
+                shots_on_target_hit = CASE 
+                    WHEN blp.shots_on_target_prediction = 'over' AND (ms.home_shots_on_target + ms.away_shots_on_target) > blp.shots_on_target_line THEN TRUE
+                    WHEN blp.shots_on_target_prediction = 'under' AND (ms.home_shots_on_target + ms.away_shots_on_target) < blp.shots_on_target_line THEN TRUE
+                    ELSE FALSE
+                END,
+                
+                corners_hit = CASE 
+                    WHEN blp.corners_prediction = 'over' AND (ms.home_corners + ms.away_corners) > blp.corners_line THEN TRUE
+                    WHEN blp.corners_prediction = 'under' AND (ms.home_corners + ms.away_corners) < blp.corners_line THEN TRUE
+                    ELSE FALSE
+                END,
+                
+                cards_hit = CASE 
+                    WHEN blp.cards_prediction = 'over' AND (ms.home_yellow_cards + ms.away_yellow_cards + COALESCE(ms.home_red_cards, 0) + COALESCE(ms.away_red_cards, 0)) > blp.cards_line THEN TRUE
+                    WHEN blp.cards_prediction = 'under' AND (ms.home_yellow_cards + ms.away_yellow_cards + COALESCE(ms.home_red_cards, 0) + COALESCE(ms.away_red_cards, 0)) < blp.cards_line THEN TRUE
+                    ELSE FALSE
+                END,
+                
+                fouls_hit = CASE 
+                    WHEN blp.fouls_prediction = 'over' AND (ms.home_fouls + ms.away_fouls) > blp.fouls_line THEN TRUE
+                    WHEN blp.fouls_prediction = 'under' AND (ms.home_fouls + ms.away_fouls) < blp.fouls_line THEN TRUE
+                    ELSE FALSE
+                END,
+                
+                updated_at = CURRENT_TIMESTAMP
+                
+            FROM matches m
+            JOIN match_stats ms ON ms.match_id = m.id
+            WHERE blp.match_id = m.id
+              AND m.season_id = :season_id
+              AND m.home_goals IS NOT NULL
+              AND blp.actual_total_shots IS NULL
+        """)
+        
+        result = conn.execute(update_query, {"season_id": season_id})
+        updated_count = result.rowcount
+        
+        # Obtener accuracy general
+        accuracy_query = text("""
+            SELECT 
+                blp.model,
+                COUNT(*) as total_predictions,
+                
+                -- Accuracy por tipo de predicción
+                ROUND(AVG(CASE WHEN blp.shots_hit THEN 1.0 ELSE 0.0 END) * 100, 2) as shots_accuracy,
+                ROUND(AVG(CASE WHEN blp.shots_on_target_hit THEN 1.0 ELSE 0.0 END) * 100, 2) as shots_ot_accuracy,
+                ROUND(AVG(CASE WHEN blp.corners_hit THEN 1.0 ELSE 0.0 END) * 100, 2) as corners_accuracy,
+                ROUND(AVG(CASE WHEN blp.cards_hit THEN 1.0 ELSE 0.0 END) * 100, 2) as cards_accuracy,
+                ROUND(AVG(CASE WHEN blp.fouls_hit THEN 1.0 ELSE 0.0 END) * 100, 2) as fouls_accuracy,
+                
+                -- Accuracy promedio
+                ROUND(AVG(
+                    (CASE WHEN blp.shots_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.shots_on_target_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.corners_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.cards_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.fouls_hit THEN 1.0 ELSE 0.0 END) / 5.0
+                ) * 100, 2) as overall_accuracy
+                
+            FROM betting_lines_predictions blp
+            JOIN matches m ON m.id = blp.match_id
+            WHERE m.season_id = :season_id
+              AND blp.actual_total_shots IS NOT NULL
+            GROUP BY blp.model
+        """)
+        
+        accuracy_results = conn.execute(accuracy_query, {"season_id": season_id}).mappings().all()
+        
+        return {
+            'validated_predictions': updated_count,
+            'accuracy_by_model': [dict(row) for row in accuracy_results]
+        }
+
+
+@router.get("/api/betting-lines/matches/{match_id}")
+def get_betting_lines_for_match(match_id: int):
+    """
+    Obtiene las predicciones de líneas de apuesta para un partido específico
+    """
+    
+    with engine.begin() as conn:
+        query = text("""
+            SELECT 
+                blp.*,
+                m.date,
+                th.name as home_team,
+                ta.name as away_team,
+                m.home_goals,
+                m.away_goals
+            FROM betting_lines_predictions blp
+            JOIN matches m ON m.id = blp.match_id
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            WHERE blp.match_id = :match_id
+        """)
+        
+        result = conn.execute(query, {"match_id": match_id}).mappings().first()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="No se encontraron predicciones para este partido")
+        
+        return dict(result)    
+    
+# ============================================================================
+# ENDPOINTS DE BETTING LINES
+# ============================================================================
+
+@app.get("/api/betting-lines/match/{match_id}")
+def get_betting_lines_by_match(match_id: int, model: str = Query("weinston")):
+    """
+    Obtiene las betting lines de un partido específico para mostrar en la tabla
+    """
+    query = text("""
+        SELECT 
+            bl.match_id,
+            
+            -- Tiros
+            bl.predicted_total_shots,
+            bl.shots_line,
+            bl.shots_prediction,
+            bl.shots_confidence,
+            bl.actual_total_shots,
+            bl.shots_hit,
+            
+            -- Tiros a puerta
+            bl.predicted_total_shots_on_target,
+            bl.shots_on_target_line,
+            bl.shots_on_target_prediction,
+            bl.shots_on_target_confidence,
+            bl.actual_total_shots_on_target,
+            bl.shots_on_target_hit,
+            
+            -- Corners
+            bl.predicted_total_corners,
+            bl.corners_line,
+            bl.corners_prediction,
+            bl.corners_confidence,
+            bl.actual_total_corners,
+            bl.corners_hit,
+            
+            -- Tarjetas
+            bl.predicted_total_cards,
+            bl.cards_line,
+            bl.cards_prediction,
+            bl.cards_confidence,
+            bl.actual_total_cards,
+            bl.cards_hit,
+            
+            -- Faltas
+            bl.predicted_total_fouls,
+            bl.fouls_line,
+            bl.fouls_prediction,
+            bl.fouls_confidence,
+            bl.actual_total_fouls,
+            bl.fouls_hit
+            
+        FROM betting_lines_predictions bl
+        WHERE bl.match_id = :match_id
+          AND bl.model = :model
+    """)
+    
+    with engine.begin() as conn:
+        result = conn.execute(query, {"match_id": match_id, "model": model}).mappings().first()
+        
+        if not result:
+            return None
+        
+        return dict(result)
+
+
+@app.get("/api/betting-lines/season/{season_id}")
+def get_betting_lines_by_season(
+    season_id: int,
+    model: str = Query("weinston"),
+    validated: Optional[bool] = Query(None)
+):
+    """
+    Obtiene todas las betting lines de una temporada
+    """
+    where_clauses = ["m.season_id = :season_id", "bl.model = :model"]
+    params = {"season_id": season_id, "model": model}
+    
+    if validated is not None:
+        if validated:
+            where_clauses.append("bl.actual_total_shots IS NOT NULL")
+        else:
+            where_clauses.append("bl.actual_total_shots IS NULL")
+    
+    query = text(f"""
+        SELECT 
+            bl.match_id,
+            m.date,
+            t1.name as home_team,
+            t2.name as away_team,
+            
+            -- Betting lines resumidas
+            bl.shots_prediction,
+            bl.shots_line,
+            bl.shots_confidence,
+            bl.shots_hit,
+            
+            bl.corners_prediction,
+            bl.corners_line,
+            bl.corners_confidence,
+            bl.corners_hit,
+            
+            bl.cards_prediction,
+            bl.cards_line,
+            bl.cards_confidence,
+            bl.cards_hit
+            
+        FROM betting_lines_predictions bl
+        JOIN matches m ON m.id = bl.match_id
+        JOIN teams t1 ON t1.id = m.home_team_id
+        JOIN teams t2 ON t2.id = m.away_team_id
+        WHERE {" AND ".join(where_clauses)}
+        ORDER BY m.date DESC
+    """)
+    
+    with engine.begin() as conn:
+        results = conn.execute(query, params).mappings().all()
+        return [dict(r) for r in results]
+
+
+@app.get("/api/betting-lines/accuracy/{season_id}")
+def get_betting_lines_accuracy(season_id: int):
+    """
+    Obtiene el accuracy de betting lines por modelo
+    """
+    query = text("""
+        SELECT 
+            bl.model,
+            COUNT(*) as total,
+            ROUND(AVG(CASE WHEN bl.shots_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as shots_acc,
+            ROUND(AVG(CASE WHEN bl.shots_on_target_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as shots_ot_acc,
+            ROUND(AVG(CASE WHEN bl.corners_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as corners_acc,
+            ROUND(AVG(CASE WHEN bl.cards_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as cards_acc,
+            ROUND(AVG(CASE WHEN bl.fouls_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as fouls_acc,
+            ROUND(AVG(
+                (CASE WHEN bl.shots_hit THEN 1.0 ELSE 0.0 END +
+                 CASE WHEN bl.shots_on_target_hit THEN 1.0 ELSE 0.0 END +
+                 CASE WHEN bl.corners_hit THEN 1.0 ELSE 0.0 END +
+                 CASE WHEN bl.cards_hit THEN 1.0 ELSE 0.0 END +
+                 CASE WHEN bl.fouls_hit THEN 1.0 ELSE 0.0 END) / 5.0
+            ) * 100, 1) as overall_acc
+        FROM betting_lines_predictions bl
+        JOIN matches m ON m.id = bl.match_id
+        WHERE m.season_id = :season_id
+          AND bl.actual_total_shots IS NOT NULL
+        GROUP BY bl.model
+    """)
+    
+    with engine.begin() as conn:
+        results = conn.execute(query, {"season_id": season_id}).mappings().all()
+        return [dict(r) for r in results]   
 
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)

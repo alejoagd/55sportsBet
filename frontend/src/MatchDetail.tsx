@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 interface MatchStats {
@@ -23,8 +23,26 @@ interface MatchStats {
   away_yellow_cards: number;
   home_red_cards: number;
   away_red_cards: number;
-  home_possession: number;
-  away_possession: number;
+  
+  // Predicciones de Weinston (estadísticas predichas)
+  weinston_shots_home?: number;
+  weinston_shots_away?: number;
+  weinston_shots_on_target_home?: number;
+  weinston_shots_on_target_away?: number;
+  weinston_fouls_home?: number;
+  weinston_fouls_away?: number;
+  weinston_corners_home?: number;
+  weinston_corners_away?: number;
+  weinston_cards_home?: number;
+  weinston_cards_away?: number;
+  
+  // Totales del partido (de match_stats)
+  total_shots?: number;
+  total_shots_on_target?: number;
+  total_corners?: number;
+  total_fouls?: number;
+  total_cards?: number;
+  has_real_stats?: boolean;
   
   // Predicciones
   poisson_home_goals: number;
@@ -42,15 +60,36 @@ interface MatchStats {
   weinston_btts: number;
 }
 
+// 🎯 INTERFACES PARA BETTING LINES
+interface BettingLine {
+  prediction: string;
+  line: number;
+  confidence: number;
+  predicted_total: number;
+  actual_total: number | null;
+  hit: boolean | null;
+}
+
+interface BettingLinesData {
+  match_id: number;
+  shots: BettingLine;
+  shots_on_target: BettingLine;
+  corners: BettingLine;
+  cards: BettingLine;
+  fouls: BettingLine;
+}
+
 export default function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const [match, setMatch] = useState<MatchStats | null>(null);
+  const [bettingLines, setBettingLines] = useState<BettingLinesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMatchDetails();
+    fetchBettingLines();
   }, [matchId]);
 
   const fetchMatchDetails = async () => {
@@ -75,6 +114,69 @@ export default function MatchDetail() {
     }
   };
 
+  // 🎯 FETCH BETTING LINES
+  const fetchBettingLines = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/betting-lines/match/${matchId}?model=weinston`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data) {
+          // Transformar datos a formato más fácil de usar
+          setBettingLines({
+            match_id: data.match_id,
+            shots: {
+              prediction: data.shots_prediction,
+              line: data.shots_line,
+              confidence: data.shots_confidence,
+              predicted_total: data.predicted_total_shots,
+              actual_total: data.actual_total_shots,
+              hit: data.shots_hit
+            },
+            shots_on_target: {
+              prediction: data.shots_on_target_prediction,
+              line: data.shots_on_target_line,
+              confidence: data.shots_on_target_confidence,
+              predicted_total: data.predicted_total_shots_on_target,
+              actual_total: data.actual_total_shots_on_target,
+              hit: data.shots_on_target_hit
+            },
+            corners: {
+              prediction: data.corners_prediction,
+              line: data.corners_line,
+              confidence: data.corners_confidence,
+              predicted_total: data.predicted_total_corners,
+              actual_total: data.actual_total_corners,
+              hit: data.corners_hit
+            },
+            cards: {
+              prediction: data.cards_prediction,
+              line: data.cards_line,
+              confidence: data.cards_confidence,
+              predicted_total: data.predicted_total_cards,
+              actual_total: data.actual_total_cards,
+              hit: data.cards_hit
+            },
+            fouls: {
+              prediction: data.fouls_prediction,
+              line: data.fouls_line,
+              confidence: data.fouls_confidence,
+              predicted_total: data.predicted_total_fouls,
+              actual_total: data.actual_total_fouls,
+              hit: data.fouls_hit
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching betting lines:', error);
+      // No es crítico, simplemente no se mostrarán
+    }
+  };
+
   const safeNumber = (value: any, defaultValue: number = 0): number => {
     if (value === null || value === undefined || isNaN(value)) {
       return defaultValue;
@@ -82,10 +184,83 @@ export default function MatchDetail() {
     return Number(value);
   };
 
+  // Función para formatear fecha sin problemas de zona horaria
+  const formatMatchDate = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    // Parsear manualmente la fecha (YYYY-MM-DD) sin conversión de timezone
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month - 1 porque JavaScript usa 0-11
+    
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
   const getResultLabel = (result: string) => {
     if (result === 'H' || result === '1') return '1';
     if (result === 'A' || result === '2') return '2';
     return 'X';
+  };
+
+  // 🎯 FUNCIÓN PARA RENDERIZAR BETTING LINE
+  const renderBettingLine = (line: BettingLine | undefined) => {
+    if (!line) {
+      return <span className="text-slate-500 text-xs">-</span>;
+    }
+
+    const isFinished = line.actual_total !== null;
+    
+    if (isFinished) {
+      // Partido ya jugado - mostrar si acertó
+      return (
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-mono">
+              {line.prediction.toUpperCase()} {line.line}
+            </span>
+            {line.hit ? (
+              <span className="text-green-500 text-lg">✅</span>
+            ) : (
+              <span className="text-red-500 text-lg">❌</span>
+            )}
+          </div>
+          <span className="text-[10px] text-slate-500">
+            Real: {line.actual_total}
+          </span>
+        </div>
+      );
+    } else {
+      // Partido no jugado - mostrar predicción con confianza
+      const confidencePercent = Math.round(line.confidence * 100);
+      const confidenceColor = 
+        confidencePercent >= 70 ? 'text-green-400' :
+        confidencePercent >= 40 ? 'text-yellow-400' :
+        confidencePercent >= 20 ? 'text-orange-400' :
+        'text-slate-500';
+      
+      const confidenceEmoji =
+        confidencePercent >= 70 ? '🔥' :
+        confidencePercent >= 40 ? '🟢' :
+        confidencePercent >= 20 ? '🟡' :
+        '⚪';
+      
+      return (
+        <div className="flex flex-col items-center gap-1">
+          <span className={`font-semibold text-sm ${
+            line.prediction === 'over' ? 'text-green-400' : 'text-blue-400'
+          }`}>
+            {line.prediction.toUpperCase()} {line.line}
+          </span>
+          <span className={`text-[10px] ${confidenceColor} flex items-center gap-1`}>
+            {confidenceEmoji} {confidencePercent}%
+          </span>
+        </div>
+      );
+    }
   };
 
   if (loading) {
@@ -124,12 +299,7 @@ export default function MatchDetail() {
             ← Volver al Dashboard
           </button>
           <span className="text-slate-400 text-sm">
-            {new Date(match.date).toLocaleDateString('es-ES', {
-              weekday: 'long',
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric'
-            })}
+            {formatMatchDate(match.date)}
           </span>
         </div>
 
@@ -180,157 +350,168 @@ export default function MatchDetail() {
           <h2 className="text-2xl font-bold text-orange-400 mb-6 flex items-center gap-2">
             📊 Predicciones de Estadísticas (Weinston)
           </h2>
-
+          
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-700">
-                  <th className="text-left py-3 px-4 text-slate-400 font-semibold">Stat</th>
-                  <th className="text-right py-3 px-4 text-blue-400 font-semibold">{match.home_team}</th>
-                  <th className="text-right py-3 px-4 text-orange-400 font-semibold">{match.away_team}</th>
-                  <th className="text-right py-3 px-4 text-slate-400 font-semibold">Edge</th>
+                  <th className="py-3 px-4 text-left text-slate-400 font-medium">Stat</th>
+                  <th className="py-3 px-4 text-right text-blue-400 font-medium">{match.home_team}</th>
+                  <th className="py-3 px-4 text-right text-orange-400 font-medium">{match.away_team}</th>
+                  <th className="py-3 px-4 text-right text-slate-400 font-medium">Edge</th>
+                  <th className="py-3 px-4 text-center text-purple-400 font-medium">🎯 Betting Line</th>
                 </tr>
               </thead>
               <tbody>
-                {/* Tiros */}
-                <StatPredictionRow
+                <StatPredictionRowWithBetting
                   label="Shots"
-                  homeValue={safeNumber(match.home_shots)}
-                  awayValue={safeNumber(match.away_shots)}
+                  homeValue={safeNumber(match.weinston_shots_home)}
+                  awayValue={safeNumber(match.weinston_shots_away)}
                   homeTeam={match.home_team}
                   awayTeam={match.away_team}
+                  bettingLine={bettingLines?.shots}
+                  renderBettingLine={renderBettingLine}
                 />
-                
-                {/* Tiros a puerta */}
-                <StatPredictionRow
+                <StatPredictionRowWithBetting
                   label="Shots OT"
-                  homeValue={safeNumber(match.home_shots_on_target)}
-                  awayValue={safeNumber(match.away_shots_on_target)}
+                  homeValue={safeNumber(match.weinston_shots_on_target_home)}
+                  awayValue={safeNumber(match.weinston_shots_on_target_away)}
                   homeTeam={match.home_team}
                   awayTeam={match.away_team}
+                  bettingLine={bettingLines?.shots_on_target}
+                  renderBettingLine={renderBettingLine}
                 />
-                
-                {/* Faltas */}
-                <StatPredictionRow
+                <StatPredictionRowWithBetting
                   label="Fouls"
-                  homeValue={safeNumber(match.home_fouls)}
-                  awayValue={safeNumber(match.away_fouls)}
+                  homeValue={safeNumber(match.weinston_fouls_home)}
+                  awayValue={safeNumber(match.weinston_fouls_away)}
                   homeTeam={match.home_team}
                   awayTeam={match.away_team}
+                  bettingLine={bettingLines?.fouls}
+                  renderBettingLine={renderBettingLine}
                 />
-                
-                {/* Tarjetas */}
-                <StatPredictionRow
+                <StatPredictionRowWithBetting
                   label="Cards"
-                  homeValue={safeNumber(match.home_yellow_cards)}
-                  awayValue={safeNumber(match.away_yellow_cards)}
+                  homeValue={safeNumber(match.weinston_cards_home)}
+                  awayValue={safeNumber(match.weinston_cards_away)}
                   homeTeam={match.home_team}
                   awayTeam={match.away_team}
+                  bettingLine={bettingLines?.cards}
+                  renderBettingLine={renderBettingLine}
                 />
-                
-                {/* Corners */}
-                <StatPredictionRow
+                <StatPredictionRowWithBetting
                   label="Corners"
-                  homeValue={safeNumber(match.home_corners)}
-                  awayValue={safeNumber(match.away_corners)}
+                  homeValue={safeNumber(match.weinston_corners_home)}
+                  awayValue={safeNumber(match.weinston_corners_away)}
                   homeTeam={match.home_team}
                   awayTeam={match.away_team}
+                  bettingLine={bettingLines?.corners}
+                  renderBettingLine={renderBettingLine}
                 />
-                
-                {/* Win Corners */}
-                <tr className="border-b border-slate-700/50">
-                  <td className="py-3 px-4 text-slate-300">Win Corners</td>
-                  <td className="py-3 px-4 text-right" colSpan={2}></td>
-                  <td className="py-3 px-4 text-right">
-                    <span className={`px-3 py-1 rounded text-xs font-bold ${
-                      safeNumber(match.home_corners) > safeNumber(match.away_corners)
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-orange-500/20 text-orange-400'
-                    }`}>
-                      {safeNumber(match.home_corners) > safeNumber(match.away_corners)
-                        ? 'HOME'
-                        : 'AWAY'}
-                    </span>
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
-        </div>
 
-        {/* Estadísticas del Partido (solo para partidos finalizados) */}
-        {isFinished && (
-          <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-              📊 Estadísticas del Partido
-            </h2>
-
-            <div className="space-y-4">
-              {/* Posesión */}
-              <div>
-                <div className="flex justify-between text-sm text-slate-400 mb-2">
-                  <span>{match.home_team}</span>
-                  <span className="font-bold">Posesión</span>
-                  <span>{match.away_team}</span>
+          {/* Leyenda de Betting Lines */}
+          {!isFinished && bettingLines && (
+            <div className="mt-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+              <p className="text-slate-300 text-sm font-semibold mb-3">🎯 Leyenda de Betting Lines:</p>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-400">🔥 70-100%</span>
+                  <span className="text-slate-400">= Alta confianza (apostar)</span>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold"
-                       style={{ width: `${safeNumber(match.home_possession)}%` }}>
-                    {safeNumber(match.home_possession)}%
-                  </div>
-                  <div className="flex-1 h-8 bg-orange-600 rounded flex items-center justify-center text-white font-bold"
-                       style={{ width: `${safeNumber(match.away_possession)}%` }}>
-                    {safeNumber(match.away_possession)}%
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-400">🟢 40-70%</span>
+                  <span className="text-slate-400">= Buena confianza</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-orange-400">🟡 20-40%</span>
+                  <span className="text-slate-400">= Media confianza</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">⚪ 0-20%</span>
+                  <span className="text-slate-400">= Baja confianza (no apostar)</span>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
 
-              {/* Grid de estadísticas */}
-              <div className="grid grid-cols-3 gap-4 mt-6">
-                {/* Tiros */}
-                <StatRow
+        {/* Estadísticas Reales (si el partido está finalizado) */}
+        {isFinished && match.has_real_stats && (
+          <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-green-500/20">
+            <h2 className="text-2xl font-bold text-green-400 mb-6">📈 Estadísticas Reales del Partido</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <StatRow 
                   label="Tiros"
-                  homeValue={safeNumber(match.home_shots)}
-                  awayValue={safeNumber(match.away_shots)}
+                  homeValue={match.home_shots}
+                  awayValue={match.away_shots}
                 />
-
-                {/* Tiros a puerta */}
-                <StatRow
-                  label="Tiros a puerta"
-                  homeValue={safeNumber(match.home_shots_on_target)}
-                  awayValue={safeNumber(match.away_shots_on_target)}
+                <StatRow 
+                  label="Tiros a Puerta"
+                  homeValue={match.home_shots_on_target}
+                  awayValue={match.away_shots_on_target}
                 />
-
-                {/* Faltas */}
-                <StatRow
+                <StatRow 
                   label="Faltas"
-                  homeValue={safeNumber(match.home_fouls)}
-                  awayValue={safeNumber(match.away_fouls)}
+                  homeValue={match.home_fouls}
+                  awayValue={match.away_fouls}
                 />
-
-                {/* Corners */}
-                <StatRow
+              </div>
+              <div className="space-y-3">
+                <StatRow 
                   label="Corners"
-                  homeValue={safeNumber(match.home_corners)}
-                  awayValue={safeNumber(match.away_corners)}
+                  homeValue={match.home_corners}
+                  awayValue={match.away_corners}
                 />
-
-                {/* Tarjetas amarillas */}
-                <StatRow
-                  label="Tarjetas amarillas"
-                  homeValue={safeNumber(match.home_yellow_cards)}
-                  awayValue={safeNumber(match.away_yellow_cards)}
+                <StatRow 
+                  label="Tarjetas Amarillas"
+                  homeValue={match.home_yellow_cards}
+                  awayValue={match.away_yellow_cards}
                   color="yellow"
                 />
-
-                {/* Tarjetas rojas */}
-                <StatRow
-                  label="Tarjetas rojas"
-                  homeValue={safeNumber(match.home_red_cards)}
-                  awayValue={safeNumber(match.away_red_cards)}
+                <StatRow 
+                  label="Tarjetas Rojas"
+                  homeValue={match.home_red_cards}
+                  awayValue={match.away_red_cards}
                   color="red"
                 />
               </div>
+
+              {/* Totales del partido */}
+              {(match.total_shots || match.total_corners || match.total_fouls || match.total_cards) && (
+                <div className="col-span-2 mt-4 pt-4 border-t border-slate-700">
+                  <h3 className="text-slate-400 text-sm font-semibold mb-3">Totales del Partido</h3>
+                  <div className="grid grid-cols-4 gap-3">
+                    {match.total_shots && (
+                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                        <div className="text-slate-400 text-xs mb-1">Tiros Totales</div>
+                        <div className="text-2xl font-bold text-white">{match.total_shots}</div>
+                      </div>
+                    )}
+                    {match.total_corners && (
+                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                        <div className="text-slate-400 text-xs mb-1">Corners Totales</div>
+                        <div className="text-2xl font-bold text-white">{match.total_corners}</div>
+                      </div>
+                    )}
+                    {match.total_fouls && (
+                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                        <div className="text-slate-400 text-xs mb-1">Faltas Totales</div>
+                        <div className="text-2xl font-bold text-white">{match.total_fouls}</div>
+                      </div>
+                    )}
+                    {match.total_cards && (
+                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                        <div className="text-slate-400 text-xs mb-1">Tarjetas Totales</div>
+                        <div className="text-2xl font-bold text-yellow-400">{match.total_cards}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -484,16 +665,26 @@ function StatRow({ label, homeValue, awayValue, color = 'blue' }: StatRowProps) 
   );
 }
 
-// Componente auxiliar para filas de predicciones de estadísticas
-interface StatPredictionRowProps {
+// 🎯 COMPONENTE MEJORADO CON BETTING LINE
+interface StatPredictionRowWithBettingProps {
   label: string;
   homeValue: number;
   awayValue: number;
   homeTeam: string;
   awayTeam: string;
+  bettingLine?: BettingLine;
+  renderBettingLine: (line: BettingLine | undefined) => JSX.Element;
 }
 
-function StatPredictionRow({ label, homeValue, awayValue, homeTeam, awayTeam }: StatPredictionRowProps) {
+function StatPredictionRowWithBetting({ 
+  label, 
+  homeValue, 
+  awayValue, 
+  homeTeam, 
+  awayTeam,
+  bettingLine,
+  renderBettingLine
+}: StatPredictionRowWithBettingProps) {
   const getEdge = () => {
     if (homeValue > awayValue) return homeTeam;
     if (awayValue > homeValue) return awayTeam;
@@ -523,6 +714,10 @@ function StatPredictionRow({ label, homeValue, awayValue, homeTeam, awayTeam }: 
         ) : (
           <span className="text-slate-500">-</span>
         )}
+      </td>
+      {/* 🎯 NUEVA COLUMNA DE BETTING LINE */}
+      <td className="py-3 px-4 text-center">
+        {renderBettingLine(bettingLine)}
       </td>
     </tr>
   );

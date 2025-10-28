@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BestBetsSection from './BestBetsSection';
 
 interface Match {
   match_id: number;
@@ -97,6 +98,22 @@ export default function ImprovedDashboard() {
     return (num * 100).toFixed(0);
   };
 
+  // Función para formatear fecha sin problemas de zona horaria
+  const formatMatchDate = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    // Parsear manualmente la fecha (YYYY-MM-DD) sin conversión de timezone
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month - 1 porque JavaScript usa 0-11
+    
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
   const getPredictedResult = (probHome: number, probDraw: number, probAway: number) => {
     if (probHome > probDraw && probHome > probAway) return 'H';
     if (probAway > probDraw && probAway > probHome) return 'A';
@@ -125,12 +142,7 @@ export default function ImprovedDashboard() {
         {/* Fecha */}
         <div className="flex items-center justify-between mb-3">
           <span className="text-slate-400 text-sm">
-            {new Date(match.date).toLocaleDateString('es-ES', {
-              weekday: 'short',
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            })}
+            {formatMatchDate(match.date)}
           </span>
           {showResult && (
             <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded font-bold">
@@ -427,6 +439,7 @@ export default function ImprovedDashboard() {
   return (
     <div className="min-h-screen bg-slate-900 p-6">
       <div className="max-w-7xl mx-auto space-y-8">
+
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
           <div className="flex items-center justify-between">
