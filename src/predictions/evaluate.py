@@ -24,6 +24,23 @@ def _btts(hg: int, ag: int) -> str:
     """
     return "YES" if (hg > 0 and ag > 0) else "NO"
 
+def _normalize_string(value: Any) -> Optional[str]:
+    """
+    Normaliza valores de string para comparación consistente.
+    Elimina espacios, convierte a mayúsculas y maneja None/vacío.
+    """
+    if value is None:
+        return None
+    
+    # Convertir a string y limpiar
+    str_value = str(value).strip().upper()
+    
+    # Si es vacío después de limpiar, retornar None
+    if not str_value:
+        return None
+    
+    return str_value
+
 def _argmax_1x2(ph: float, px: float, pa: float) -> str:
     m = max(ph, px, pa)
     if m == ph: return "1"
@@ -113,6 +130,8 @@ def evaluate(
         for r in rows:
             mid = r["mid"]
             hg, ag = int(r["home_goals"]), int(r["away_goals"])
+            
+            # Calcular resultados reales
             act_1x2 = _res_1x2(hg, ag)
             act_over = _over25(hg, ag)
             act_btts = _btts(hg, ag)
@@ -142,24 +161,41 @@ def evaluate(
             if r["local_goals"] is not None:
                 lh = float(r["local_goals"] or 0.0)
                 la = float(r["away_goals"] or 0.0)
-                # mapear enteros a '1','X','2'
+                
+                # Mapear enteros a '1','X','2'
                 wr = r["result_1x2"]
                 if wr is None:
                     pick_w_1x2 = None
                 else:
                     pick_w_1x2 = "1" if wr == 1 else ("2" if wr == 2 else "X")
-                pick_w_over = (r["win_over2"] or "").upper() or None
-                pick_w_btts = (r["win_btts"] or "").upper() or None
+                
+                # 🔥 FIX: Normalizar strings antes de comparar
+                pick_w_over = _normalize_string(r["win_over2"])
+                pick_w_btts = _normalize_string(r["win_btts"])
 
+                # Calcular si acertó (comparar solo si hay predicción)
+                hit_over = None
+                hit_btts = None
+                
+                if pick_w_over is not None:
+                    hit_over = (pick_w_over == act_over)
+                
+                if pick_w_btts is not None:
+                    hit_btts = (pick_w_btts == act_btts)
+
+                # Errores de goles
                 ae_h = abs(lh - hg)
                 ae_a = abs(la - ag)
                 rmse = sqrt(((lh - hg) ** 2 + (la - ag) ** 2) / 2.0)
 
                 conn.execute(upsert, {
                     "mid": mid, "model": "weinston",
-                    "p1x2": pick_w_1x2, "h1x2": (pick_w_1x2 == act_1x2) if pick_w_1x2 else None,
-                    "pover": pick_w_over, "hover": (pick_w_over == act_over) if pick_w_over else None,
-                    "pbtts": pick_w_btts, "hbtts": (pick_w_btts == act_btts) if pick_w_btts else None,
+                    "p1x2": pick_w_1x2, 
+                    "h1x2": (pick_w_1x2 == act_1x2) if pick_w_1x2 else None,
+                    "pover": pick_w_over, 
+                    "hover": hit_over,
+                    "pbtts": pick_w_btts, 
+                    "hbtts": hit_btts,
                     "ae_h": ae_h, "ae_a": ae_a, "rmse": rmse
                 })
                 counters["weinston"] += 1

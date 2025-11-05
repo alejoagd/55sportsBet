@@ -1,6 +1,6 @@
 # api.py
 from __future__ import annotations
-from fastapi import FastAPI, APIRouter, Query
+from fastapi import FastAPI, HTTPException, APIRouter, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List, Dict, Any
 from sqlalchemy import create_engine, text
@@ -377,7 +377,6 @@ def get_metrics_evolution(
         }
 
 
-
 @router.get("/api/team-statistics")
 def get_team_statistics(
     season_id: int = Query(..., description="ID de la temporada"),
@@ -393,6 +392,8 @@ def get_team_statistics(
     - Faltas
     - Tarjetas
     Separado por local y visitante
+    
+    ⚠️ CORREGIDO: Ahora usa match_stats (datos reales) en lugar de weinston_predictions
     """
     
     # Query para estadísticas de equipos
@@ -402,23 +403,28 @@ def get_team_statistics(
                 t.id as team_id,
                 t.name as team_name,
                 COUNT(*) as matches_played,
+                
+                -- Goles (desde matches)
                 AVG(m.home_goals) as avg_goals_scored,
                 AVG(m.away_goals) as avg_goals_conceded,
                 SUM(m.home_goals) as total_goals_scored,
                 SUM(m.away_goals) as total_goals_conceded,
-                AVG(wp.corners_home) as avg_corners,
-                SUM(wp.corners_home) as total_corners,
-                AVG(wp.shots_home) as avg_shots,
-                SUM(wp.shots_home) as total_shots,
-                AVG(wp.shots_target_home) as avg_shots_target,
-                SUM(wp.shots_target_home) as total_shots_target,
-                AVG(wp.fouls_home) as avg_fouls,
-                SUM(wp.fouls_home) as total_fouls,
-                AVG(wp.cards_home) as avg_cards,
-                SUM(wp.cards_home) as total_cards
+                
+                -- Estadísticas detalladas (desde match_stats - DATOS REALES)
+                AVG(ms.home_corners) as avg_corners,
+                SUM(ms.home_corners) as total_corners,
+                AVG(ms.home_shots) as avg_shots,
+                SUM(ms.home_shots) as total_shots,
+                AVG(ms.home_shots_on_target) as avg_shots_target,
+                SUM(ms.home_shots_on_target) as total_shots_target,
+                AVG(ms.home_fouls) as avg_fouls,
+                SUM(ms.home_fouls) as total_fouls,
+                AVG(COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0)) as avg_cards,
+                SUM(COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0)) as total_cards
+                
             FROM teams t
             JOIN matches m ON m.home_team_id = t.id
-            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            LEFT JOIN match_stats ms ON ms.match_id = m.id
             WHERE m.season_id = :season_id
               AND m.home_goals IS NOT NULL
               AND (:date_from IS NULL OR m.date >= :date_from)
@@ -430,23 +436,28 @@ def get_team_statistics(
                 t.id as team_id,
                 t.name as team_name,
                 COUNT(*) as matches_played,
+                
+                -- Goles (desde matches)
                 AVG(m.away_goals) as avg_goals_scored,
                 AVG(m.home_goals) as avg_goals_conceded,
                 SUM(m.away_goals) as total_goals_scored,
                 SUM(m.home_goals) as total_goals_conceded,
-                AVG(wp.corners_away) as avg_corners,
-                SUM(wp.corners_away) as total_corners,
-                AVG(wp.shots_away) as avg_shots,
-                SUM(wp.shots_away) as total_shots,
-                AVG(wp.shots_target_away) as avg_shots_target,
-                SUM(wp.shots_target_away) as total_shots_target,
-                AVG(wp.fouls_away) as avg_fouls,
-                SUM(wp.fouls_away) as total_fouls,
-                AVG(wp.cards_away) as avg_cards,
-                SUM(wp.cards_away) as total_cards
+                
+                -- Estadísticas detalladas (desde match_stats - DATOS REALES)
+                AVG(ms.away_corners) as avg_corners,
+                SUM(ms.away_corners) as total_corners,
+                AVG(ms.away_shots) as avg_shots,
+                SUM(ms.away_shots) as total_shots,
+                AVG(ms.away_shots_on_target) as avg_shots_target,
+                SUM(ms.away_shots_on_target) as total_shots_target,
+                AVG(ms.away_fouls) as avg_fouls,
+                SUM(ms.away_fouls) as total_fouls,
+                AVG(COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0)) as avg_cards,
+                SUM(COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0)) as total_cards
+                
             FROM teams t
             JOIN matches m ON m.away_team_id = t.id
-            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            LEFT JOIN match_stats ms ON ms.match_id = m.id
             WHERE m.season_id = :season_id
               AND m.home_goals IS NOT NULL
               AND (:date_from IS NULL OR m.date >= :date_from)
@@ -510,17 +521,23 @@ def get_team_statistics(
         ORDER BY team_name
     """)
     
-    # Query para estadísticas de árbitros
+    # Query para estadísticas de árbitros (TAMBIÉN CORREGIDA)
     referee_query = text("""
         SELECT 
             m.referee,
             COUNT(*) as matches_officiated,
-            AVG(wp.fouls_home + wp.fouls_away) as avg_fouls_per_match,
-            SUM(wp.fouls_home + wp.fouls_away) as total_fouls,
-            AVG(wp.cards_home + wp.cards_away) as avg_cards_per_match,
-            SUM(wp.cards_home + wp.cards_away) as total_cards
+            ROUND(AVG(COALESCE(ms.home_fouls, 0) + COALESCE(ms.away_fouls, 0))::numeric, 2) as avg_fouls_per_match,
+            SUM(COALESCE(ms.home_fouls, 0) + COALESCE(ms.away_fouls, 0)) as total_fouls,
+            ROUND(AVG(
+                COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.away_yellow_cards, 0) + 
+                COALESCE(ms.home_red_cards, 0) + COALESCE(ms.away_red_cards, 0)
+            )::numeric, 2) as avg_cards_per_match,
+            SUM(
+                COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.away_yellow_cards, 0) + 
+                COALESCE(ms.home_red_cards, 0) + COALESCE(ms.away_red_cards, 0)
+            ) as total_cards
         FROM matches m
-        LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+        LEFT JOIN match_stats ms ON ms.match_id = m.id
         WHERE m.season_id = :season_id
           AND m.referee IS NOT NULL
           AND m.home_goals IS NOT NULL
@@ -556,10 +573,8 @@ def get_team_statistics(
             "date_to": date_to,
             "teams": team_stats,
             "referees": referee_stats
-        }        
+        }
 
-
-# Reemplaza SOLO estos dos endpoints en tu api.py
 
 @router.get("/api/matches/upcoming")
 def get_upcoming_matches(
@@ -598,22 +613,9 @@ def get_upcoming_matches(
                 ELSE NULL
             END as weinston_result,
             
-            -- CÁLCULO DINÁMICO: Over/Under basado en goles predichos
-            -- Usa función sigmoid centrada en 2.5 goles
-            -- Si predice 2.5 goles → 50%
-            -- Si predice 4+ goles → 90%+
-            -- Si predice 1 gol → 10%
-            GREATEST(0.05, LEAST(0.95,
-                1.0 / (1.0 + EXP(-(COALESCE(wp.local_goals, 0) + COALESCE(wp.away_goals, 0) - 2.5) * 1.8))
-            )) as weinston_over_25,
-            
-            -- CÁLCULO DINÁMICO: BTTS basado en goles individuales
-            -- Si ambos predicen 1+ gol → alta probabilidad
-            -- Usa producto de probabilidades exponenciales
-            GREATEST(0.05, LEAST(0.95,
-                (1.0 - EXP(-COALESCE(wp.local_goals, 0) * 1.2)) * 
-                (1.0 - EXP(-COALESCE(wp.away_goals, 0) * 1.2))
-            )) as weinston_btts
+            -- ✅ USAR VALORES DE BD (el frontend ya sabe cómo mostrarlos)
+            wp.prob_over_25 as weinston_over_25,
+            wp.prob_btts as weinston_btts
             
         FROM matches m
         JOIN teams th ON th.id = m.home_team_id
@@ -682,16 +684,9 @@ def get_recent_results(
                 ELSE NULL
             END as weinston_result,
             
-            -- CÁLCULO DINÁMICO: Over/Under basado en goles predichos
-            GREATEST(0.05, LEAST(0.95,
-                1.0 / (1.0 + EXP(-(COALESCE(wp.local_goals, 0) + COALESCE(wp.away_goals, 0) - 2.5) * 1.8))
-            )) as weinston_over_25,
-            
-            -- CÁLCULO DINÁMICO: BTTS basado en goles individuales
-            GREATEST(0.05, LEAST(0.95,
-                (1.0 - EXP(-COALESCE(wp.local_goals, 0) * 1.2)) * 
-                (1.0 - EXP(-COALESCE(wp.away_goals, 0) * 1.2))
-            )) as weinston_btts,
+            -- ✅ USAR VALORES DE BD
+            wp.prob_over_25 as weinston_over_25,
+            wp.prob_btts as weinston_btts,
             
             -- Aciertos (desde prediction_outcomes)
             po_poisson.hit_1x2 as poisson_hit_1x2,
@@ -954,7 +949,6 @@ def recalculate_prediction_outcomes(season_id: int = Query(..., description="ID 
         }
 
 
-# REEMPLAZA EL ENDPOINT EN api.py CON ESTE CÓDIGO CORREGIDO
 
 @router.get("/api/matches/{match_id}/details")
 def get_match_details(match_id: int):
@@ -986,6 +980,13 @@ def get_match_details(match_id: int):
                 wp.corners_away as weinston_corners_away,
                 wp.cards_home as weinston_cards_home,
                 wp.cards_away as weinston_cards_away,
+
+                -- 🔥 NUEVO: Probabilidades exactas de Weinston
+                wp.prob_over_25 as weinston_prob_over_25,
+                wp.prob_btts as weinston_prob_btts,
+                wp.prob_home_win as weinston_prob_home_win,
+                wp.prob_draw as weinston_prob_draw,
+                wp.prob_away_win as weinston_prob_away_win,
                 
                 -- ESTADÍSTICAS REALES DEL PARTIDO (de match_stats con fallback a weinston)
                 COALESCE(ms.home_shots, wp.shots_home, 0) as home_shots,
@@ -1027,16 +1028,9 @@ def get_match_details(match_id: int):
                 wp.over_2 as weinston_over_text,
                 wp.both_score as weinston_btts_text,
                 
-                -- CÁLCULO DINÁMICO: Over/Under basado en goles predichos
-                GREATEST(0.05, LEAST(0.95,
-                    1.0 / (1.0 + EXP(-(COALESCE(wp.local_goals, 0) + COALESCE(wp.away_goals, 0) - 2.5) * 1.8))
-                )) as weinston_over_25,
-                
-                -- CÁLCULO DINÁMICO: BTTS basado en goles individuales
-                GREATEST(0.05, LEAST(0.95,
-                    (1.0 - EXP(-COALESCE(wp.local_goals, 0) * 1.2)) * 
-                    (1.0 - EXP(-COALESCE(wp.away_goals, 0) * 1.2))
-                )) as weinston_btts
+                -- ✅ USAR VALORES DE BD
+                wp.prob_over_25 as weinston_over_25,
+                wp.prob_btts as weinston_btts
                 
             FROM matches m
             -- JOIN con tabla teams para obtener nombres
@@ -1847,6 +1841,374 @@ def get_betting_lines_accuracy(season_id: int):
     with engine.begin() as conn:
         results = conn.execute(query, {"season_id": season_id}).mappings().all()
         return [dict(r) for r in results]   
+
+
+@app.get("/api/matches/{match_id}/h2h-analysis")
+async def get_h2h_analysis(match_id: int):
+    """
+    Obtiene análisis de enfrentamientos directos (H2H) con narrativa generada.
+    Analiza hasta 12 partidos previos: 6 como local + 6 como visitante.
+    """
+    
+    with engine.begin() as conn:
+        # 1. Obtener información del partido actual
+        match_info_query = text("""
+            SELECT 
+                m.id,
+                m.date,
+                m.home_team_id,
+                m.away_team_id,
+                m.season_id,
+                ht.name as home_team,
+                at.name as away_team,
+                m.home_goals,
+                m.away_goals,
+                
+                -- Predicciones de Weinston
+                wp.local_goals as pred_home_goals,
+                wp.away_goals as pred_away_goals,
+                wp.shots_home as pred_home_shots,
+                wp.shots_away as pred_away_shots,
+                wp.corners_home as pred_home_corners,
+                wp.corners_away as pred_away_corners,
+                wp.cards_home as pred_home_cards,
+                wp.cards_away as pred_away_cards,
+                wp.both_score as pred_btts,
+                wp.over_2 as pred_over25
+                
+            FROM matches m
+            JOIN teams ht ON ht.id = m.home_team_id
+            JOIN teams at ON at.id = m.away_team_id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.id = :match_id
+        """)
+        
+        match_info = conn.execute(match_info_query, {"match_id": match_id}).mappings().first()
+        
+        if not match_info:
+            raise HTTPException(status_code=404, detail="Partido no encontrado")
+        
+        match_info = dict(match_info)
+        
+        # 2. Obtener últimos 6 H2H cuando el equipo HOME jugó de LOCAL
+        # Ejemplo: Brighton (home) vs Leeds (away) - buscamos partidos donde Brighton fue local contra Leeds
+        h2h_home_query = text("""
+            SELECT 
+                m.id,
+                m.date,
+                CONCAT(s.year_start, '/', s.year_end) as season,
+                m.home_goals,
+                m.away_goals,
+                m.home_goals + m.away_goals as total_goals,
+                CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN true ELSE false END as btts,
+                CASE WHEN m.home_goals + m.away_goals >= 3 THEN true ELSE false END as over25,
+                
+                -- Estadísticas
+                COALESCE(ms.home_shots, 0) as home_shots,
+                COALESCE(ms.away_shots, 0) as away_shots,
+                COALESCE(ms.home_shots_on_target, 0) as home_shots_on_target,
+                COALESCE(ms.away_shots_on_target, 0) as away_shots_on_target,
+                COALESCE(ms.home_corners, 0) as home_corners,
+                COALESCE(ms.away_corners, 0) as away_corners,
+                COALESCE(ms.home_fouls, 0) as home_fouls,
+                COALESCE(ms.away_fouls, 0) as away_fouls,
+                COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0) as home_cards,
+                COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0) as away_cards,
+                
+                -- Totales
+                COALESCE(ms.total_shots, 0) as total_shots,
+                COALESCE(ms.total_corners, 0) as total_corners,
+                COALESCE(ms.total_fouls, 0) as total_fouls,
+                COALESCE(ms.total_cards, 0) as total_cards
+                
+            FROM matches m
+            JOIN seasons s ON s.id = m.season_id
+            LEFT JOIN match_stats ms ON ms.match_id = m.id
+            WHERE m.home_team_id = :home_team_id
+              AND m.away_team_id = :away_team_id
+              AND m.home_goals IS NOT NULL
+              AND m.id != :current_match_id
+              AND m.date < :match_date
+            ORDER BY m.date DESC
+            LIMIT 6
+        """)
+        
+        h2h_home_rows = conn.execute(h2h_home_query, {
+            "home_team_id": match_info["home_team_id"],
+            "away_team_id": match_info["away_team_id"],
+            "current_match_id": match_id,
+            "match_date": match_info["date"]
+        }).mappings().all()
+        
+        h2h_home = [dict(row) for row in h2h_home_rows]
+        
+        # 3. Obtener últimos 6 H2H cuando el equipo HOME jugó de VISITANTE
+        # Ejemplo: Brighton (home hoy) vs Leeds - buscamos partidos donde Brighton fue visitante contra Leeds
+        # Es decir: Leeds (home) vs Brighton (away)
+        h2h_away_query = text("""
+            SELECT 
+                m.id,
+                m.date,
+                CONCAT(s.year_start, '/', s.year_end) as season,
+                m.away_goals as team_goals,
+                m.home_goals as opponent_goals,
+                m.home_goals + m.away_goals as total_goals,
+                CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN true ELSE false END as btts,
+                CASE WHEN m.home_goals + m.away_goals >= 3 THEN true ELSE false END as over25,
+                
+                -- Estadísticas (desde la perspectiva del equipo que hoy es local)
+                COALESCE(ms.away_shots, 0) as team_shots,
+                COALESCE(ms.home_shots, 0) as opponent_shots,
+                COALESCE(ms.away_shots_on_target, 0) as team_shots_on_target,
+                COALESCE(ms.home_shots_on_target, 0) as opponent_shots_on_target,
+                COALESCE(ms.away_corners, 0) as team_corners,
+                COALESCE(ms.home_corners, 0) as opponent_corners,
+                COALESCE(ms.away_fouls, 0) as team_fouls,
+                COALESCE(ms.home_fouls, 0) as opponent_fouls,
+                COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0) as team_cards,
+                COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0) as opponent_cards,
+                
+                -- Totales
+                COALESCE(ms.total_shots, 0) as total_shots,
+                COALESCE(ms.total_corners, 0) as total_corners,
+                COALESCE(ms.total_fouls, 0) as total_fouls,
+                COALESCE(ms.total_cards, 0) as total_cards,
+                
+                -- Para mostrar el marcador correctamente (home - away del partido histórico)
+                m.home_goals,
+                m.away_goals
+                
+            FROM matches m
+            JOIN seasons s ON s.id = m.season_id
+            LEFT JOIN match_stats ms ON ms.match_id = m.id
+            WHERE m.away_team_id = :home_team_id
+              AND m.home_team_id = :away_team_id
+              AND m.home_goals IS NOT NULL
+              AND m.id != :current_match_id
+              AND m.date < :match_date
+            ORDER BY m.date DESC
+            LIMIT 6
+        """)
+        
+        h2h_away_rows = conn.execute(h2h_away_query, {
+            "home_team_id": match_info["home_team_id"],
+            "away_team_id": match_info["away_team_id"],
+            "current_match_id": match_id,
+            "match_date": match_info["date"]
+        }).mappings().all()
+        
+        h2h_away = [dict(row) for row in h2h_away_rows]
+        
+        # 4. Calcular estadísticas agregadas
+        stats = calculate_h2h_stats(h2h_home, h2h_away, match_info)
+        
+        # 5. Generar narrativa
+        narrative = generate_match_narrative(match_info, stats, h2h_home, h2h_away)
+        
+        return {
+            "match_id": match_id,
+            "home_team": match_info["home_team"],
+            "away_team": match_info["away_team"],
+            "date": match_info["date"],
+            "h2h_home": h2h_home,
+            "h2h_away": h2h_away,
+            "stats": stats,
+            "narrative": narrative,
+            "predictions": {
+                "home_goals": match_info["pred_home_goals"],
+                "away_goals": match_info["pred_away_goals"],
+                "home_shots": match_info["pred_home_shots"],
+                "away_shots": match_info["pred_away_shots"],
+                "home_corners": match_info["pred_home_corners"],
+                "away_corners": match_info["pred_away_corners"],
+                "btts": match_info["pred_btts"],
+                "over25": match_info["pred_over25"]
+            }
+        }
+
+
+# ==============================================================================
+# FUNCIONES CORREGIDAS: calculate_h2h_stats y generate_match_narrative
+# Incluye TODAS las estadísticas: goles, tiros, tiros a puerta, corners, faltas y tarjetas
+# ==============================================================================
+
+def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], match_info: Dict) -> Dict[str, Any]:
+    """
+    Calcula estadísticas agregadas del H2H con TODAS las métricas
+    """
+    all_matches = h2h_home + h2h_away
+    total_matches = len(all_matches)
+    
+    if total_matches == 0:
+        return {
+            "total_matches": 0,
+            "has_data": False,
+            "message": "No hay datos históricos de enfrentamientos directos"
+        }
+    
+    # Promedios
+    stats = {
+        "total_matches": total_matches,
+        "matches_home_venue": len(h2h_home),
+        "matches_away_venue": len(h2h_away),
+        "has_data": True,
+        
+        # Promedios generales (todos los partidos)
+        "avg_total_goals": sum(m["total_goals"] for m in all_matches) / total_matches if total_matches > 0 else 0,
+        "avg_total_shots": sum(m.get("total_shots", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
+        "avg_total_corners": sum(m.get("total_corners", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
+        "avg_total_fouls": sum(m.get("total_fouls", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
+        "avg_total_cards": sum(m.get("total_cards", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
+        
+        # Frecuencias
+        "btts_count": sum(1 for m in all_matches if m.get("btts")),
+        "btts_percentage": (sum(1 for m in all_matches if m.get("btts")) / total_matches * 100) if total_matches > 0 else 0,
+        
+        "over25_count": sum(1 for m in all_matches if m.get("over25")),
+        "over25_percentage": (sum(1 for m in all_matches if m.get("over25")) / total_matches * 100) if total_matches > 0 else 0,
+    }
+    
+    # Promedios específicos de LOCAL (equipo que hoy juega de local)
+    if h2h_home:
+        stats["home_venue"] = {
+            "matches": len(h2h_home),
+            # Goles
+            "avg_home_goals": sum(m["home_goals"] for m in h2h_home) / len(h2h_home),
+            "avg_away_goals": sum(m["away_goals"] for m in h2h_home) / len(h2h_home),
+            # Tiros
+            "avg_home_shots": sum(m.get("home_shots", 0) for m in h2h_home) / len(h2h_home),
+            "avg_away_shots": sum(m.get("away_shots", 0) for m in h2h_home) / len(h2h_home),
+            # Tiros a puerta
+            "avg_home_shots_on_target": sum(m.get("home_shots_on_target", 0) for m in h2h_home) / len(h2h_home),
+            "avg_away_shots_on_target": sum(m.get("away_shots_on_target", 0) for m in h2h_home) / len(h2h_home),
+            # Corners
+            "avg_home_corners": sum(m.get("home_corners", 0) for m in h2h_home) / len(h2h_home),
+            "avg_away_corners": sum(m.get("away_corners", 0) for m in h2h_home) / len(h2h_home),
+            # Faltas
+            "avg_home_fouls": sum(m.get("home_fouls", 0) for m in h2h_home) / len(h2h_home),
+            "avg_away_fouls": sum(m.get("away_fouls", 0) for m in h2h_home) / len(h2h_home),
+            # Tarjetas
+            "avg_home_cards": sum(m.get("home_cards", 0) for m in h2h_home) / len(h2h_home),
+            "avg_away_cards": sum(m.get("away_cards", 0) for m in h2h_home) / len(h2h_home),
+        }
+    
+    # Promedios específicos de VISITANTE (equipo que hoy juega de local, pero en partidos donde fue visitante)
+    if h2h_away:
+        stats["away_venue"] = {
+            "matches": len(h2h_away),
+            # Goles (team = equipo que hoy es local, opponent = equipo que hoy es visitante)
+            "avg_team_goals": sum(m["team_goals"] for m in h2h_away) / len(h2h_away),
+            "avg_opponent_goals": sum(m["opponent_goals"] for m in h2h_away) / len(h2h_away),
+            # Tiros
+            "avg_team_shots": sum(m.get("team_shots", 0) for m in h2h_away) / len(h2h_away),
+            "avg_opponent_shots": sum(m.get("opponent_shots", 0) for m in h2h_away) / len(h2h_away),
+            # Tiros a puerta
+            "avg_team_shots_on_target": sum(m.get("team_shots_on_target", 0) for m in h2h_away) / len(h2h_away),
+            "avg_opponent_shots_on_target": sum(m.get("opponent_shots_on_target", 0) for m in h2h_away) / len(h2h_away),
+            # Corners
+            "avg_team_corners": sum(m.get("team_corners", 0) for m in h2h_away) / len(h2h_away),
+            "avg_opponent_corners": sum(m.get("opponent_corners", 0) for m in h2h_away) / len(h2h_away),
+            # Faltas
+            "avg_team_fouls": sum(m.get("team_fouls", 0) for m in h2h_away) / len(h2h_away),
+            "avg_opponent_fouls": sum(m.get("opponent_fouls", 0) for m in h2h_away) / len(h2h_away),
+            # Tarjetas
+            "avg_team_cards": sum(m.get("team_cards", 0) for m in h2h_away) / len(h2h_away),
+            "avg_opponent_cards": sum(m.get("opponent_cards", 0) for m in h2h_away) / len(h2h_away),
+        }
+    
+    return stats
+
+
+def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict], h2h_away: List[Dict]) -> Dict[str, str]:
+    """
+    Genera narrativa textual del análisis H2H con TODAS las estadísticas
+    """
+    home_team = match_info["home_team"]
+    away_team = match_info["away_team"]
+    
+    if not stats.get("has_data"):
+        return {
+            "summary": f"No hay datos históricos disponibles para enfrentamientos entre {home_team} y {away_team}.",
+            "home_venue_analysis": "",
+            "away_venue_analysis": "",
+            "prediction_analysis": "",
+            "conclusion": ""
+        }
+    
+    # 1. RESUMEN GENERAL
+    summary = f"""En los últimos {stats['total_matches']} enfrentamientos directos entre {home_team} y {away_team}, se han promediado {stats['avg_total_goals']:.1f} goles por partido. """
+    
+    if stats['btts_percentage'] >= 60:
+        summary += f"Ambos equipos han anotado en el {stats['btts_percentage']:.0f}% de los encuentros, mostrando una clara tendencia ofensiva. "
+    elif stats['btts_percentage'] <= 30:
+        summary += f"Solo en el {stats['btts_percentage']:.0f}% de los partidos ambos equipos han marcado, indicando encuentros con pocos goles. "
+    
+    if stats['over25_percentage'] >= 60:
+        summary += f"El {stats['over25_percentage']:.0f}% de los partidos han tenido más de 2.5 goles."
+    
+    # 2. ANÁLISIS CUANDO JUEGA DE LOCAL
+    # Orden: Equipo local primero, visitante después
+    home_venue_analysis = ""
+    if h2h_home:
+        home_stats = stats.get("home_venue", {})
+        home_venue_analysis = f"""Cuando {home_team} ha jugado de local contra {away_team} (últimos {len(h2h_home)} partidos):
+- Promedio de goles: {home_team} {home_stats['avg_home_goals']:.1f} - {away_team} {home_stats['avg_away_goals']:.1f}
+- Promedio de tiros: {home_stats['avg_home_shots']:.1f} del {home_team} vs {home_stats['avg_away_shots']:.1f} del {away_team}
+- Promedio de tiros al arco: {home_stats['avg_home_shots_on_target']:.1f} del {home_team} vs {home_stats['avg_away_shots_on_target']:.1f} del {away_team}
+- Promedio de corners: {home_stats['avg_home_corners']:.1f} del {home_team} vs {home_stats['avg_away_corners']:.1f} del {away_team}
+- Promedio de faltas: {home_stats['avg_home_fouls']:.1f} del {home_team} vs {home_stats['avg_away_fouls']:.1f} del {away_team}
+- Promedio de tarjetas: {home_stats['avg_home_cards']:.1f} del {home_team} vs {home_stats['avg_away_cards']:.1f} del {away_team}
+"""
+    
+    # 3. ANÁLISIS CUANDO JUEGA DE VISITANTE
+    # Orden INVERTIDO: Equipo que fue local primero (away_team), luego el visitante (home_team)
+    away_venue_analysis = ""
+    if h2h_away:
+        away_stats = stats.get("away_venue", {})
+        # CAMBIO CLAVE: Mostramos primero los datos del opponent (que fue local) y luego del team (que fue visitante)
+        away_venue_analysis = f"""Cuando {home_team} ha jugado de visitante contra {away_team} (últimos {len(h2h_away)} partidos):
+- Promedio de goles: {away_team} {away_stats['avg_opponent_goals']:.1f} - {home_team} {away_stats['avg_team_goals']:.1f}
+- Promedio de tiros: {away_stats['avg_opponent_shots']:.1f} del {away_team} vs {away_stats['avg_team_shots']:.1f} del {home_team}
+- Promedio de tiros al arco: {away_stats['avg_opponent_shots_on_target']:.1f} del {away_team} vs {away_stats['avg_team_shots_on_target']:.1f} del {home_team}
+- Promedio de corners: {away_stats['avg_opponent_corners']:.1f} del {away_team} vs {away_stats['avg_team_corners']:.1f} del {home_team}
+- Promedio de faltas: {away_stats['avg_opponent_fouls']:.1f} del {away_team} vs {away_stats['avg_team_fouls']:.1f} del {home_team}
+- Promedio de tarjetas: {away_stats['avg_opponent_cards']:.1f} del {away_team} vs {away_stats['avg_team_cards']:.1f} del {home_team}
+"""
+    
+    # 4. COMPARACIÓN CON PREDICCIÓN ACTUAL
+    pred_goals_total = (match_info["pred_home_goals"] or 0) + (match_info["pred_away_goals"] or 0)
+    prediction_analysis = f"""Predicción para este partido:
+- Goles esperados: {match_info['pred_home_goals']:.1f} - {match_info['pred_away_goals']:.1f} (Total: {pred_goals_total:.1f})
+- Histórico: {stats['avg_total_goals']:.1f} goles promedio
+
+"""
+    
+    if abs(pred_goals_total - stats['avg_total_goals']) < 0.5:
+        prediction_analysis += "La predicción se alinea con el histórico reciente."
+    elif pred_goals_total > stats['avg_total_goals'] + 0.5:
+        prediction_analysis += f"Se espera un partido con más goles que el promedio histórico (+{pred_goals_total - stats['avg_total_goals']:.1f} goles)."
+    else:
+        prediction_analysis += f"Se espera un partido con menos goles que el promedio histórico ({pred_goals_total - stats['avg_total_goals']:.1f} goles)."
+    
+    # 5. CONCLUSIÓN
+    conclusion = f"""Tendencia: Los enfrentamientos directos muestran """
+    if stats['avg_total_goals'] >= 3:
+        conclusion += "partidos con muchos goles"
+    elif stats['avg_total_goals'] >= 2:
+        conclusion += "partidos equilibrados"
+    else:
+        conclusion += "partidos cerrados y defensivos"
+    
+    conclusion += f", con un promedio de {stats['avg_total_corners']:.0f} corners y {stats['avg_total_cards']:.0f} tarjetas por partido."
+    
+    return {
+        "summary": summary,
+        "home_venue_analysis": home_venue_analysis,
+        "away_venue_analysis": away_venue_analysis,
+        "prediction_analysis": prediction_analysis,
+        "conclusion": conclusion,
+        "full_narrative": f"{summary}\n\n{home_venue_analysis}\n{away_venue_analysis}\n{prediction_analysis}\n\n{conclusion}"
+    }
 
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)

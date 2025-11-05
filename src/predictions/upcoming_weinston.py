@@ -253,18 +253,23 @@ def predict_and_upsert_weinston(conn, season_id: int, match_ids: List[int], thre
     q_matches = text("SELECT id, home_team_id, away_team_id FROM matches WHERE id = ANY(:ids)")
     matches = conn.execute(q_matches, {"ids": match_ids}).fetchall()
 
+    # 🔥 ACTUALIZADO: Agregar las columnas de probabilidades
     upsert = text("""
         INSERT INTO weinston_predictions
             (match_id, local_goals, away_goals, result_1x2, over_2, both_score,
+             prob_home_win, prob_draw, prob_away_win, prob_over_25, prob_btts,
              shots_home, shots_away, shots_target_home, shots_target_away,
              fouls_home, fouls_away, cards_home, cards_away,
              corners_home, corners_away, win_corners)
         VALUES
             (:mid, :lg, :ag, :r1x2, :over2, :btts,
+             :pH, :pD, :pA, :pO25, :pBTTS,
              :sh, :sa, :sth, :sta, :fh, :fa, :ch, :ca, :coh, :coa, :wc)
         ON CONFLICT (match_id) DO UPDATE SET
             local_goals = EXCLUDED.local_goals, away_goals = EXCLUDED.away_goals,
             result_1x2 = EXCLUDED.result_1x2, over_2 = EXCLUDED.over_2, both_score = EXCLUDED.both_score,
+            prob_home_win = EXCLUDED.prob_home_win, prob_draw = EXCLUDED.prob_draw, prob_away_win = EXCLUDED.prob_away_win,
+            prob_over_25 = EXCLUDED.prob_over_25, prob_btts = EXCLUDED.prob_btts,
             shots_home = EXCLUDED.shots_home, shots_away = EXCLUDED.shots_away,
             shots_target_home = EXCLUDED.shots_target_home, shots_target_away = EXCLUDED.shots_target_away,
             fouls_home = EXCLUDED.fouls_home, fouls_away = EXCLUDED.fouls_away,
@@ -277,6 +282,7 @@ def predict_and_upsert_weinston(conn, season_id: int, match_ids: List[int], thre
         lh, la = _calculate_weinston_lambdas(home_id, away_id, ratings, mu_home, mu_away, home_adv)
         pr = _aggregate_probs(lh, la)
 
+        # 🔥 IMPORTANTE: Usar >= para consistencia con evaluate.py
         if pr["pH"] >= pr["pD"] and pr["pH"] >= pr["pA"]:
             r1x2 = 1
         elif pr["pD"] >= pr["pH"] and pr["pD"] >= pr["pA"]:
@@ -284,6 +290,7 @@ def predict_and_upsert_weinston(conn, season_id: int, match_ids: List[int], thre
         else:
             r1x2 = 2
 
+        # 🔥 IMPORTANTE: Mantener >= 0.5 (igual que en evaluate.py)
         over2 = "OVER" if pr["pO25"] >= threshold else "UNDER"
         btts  = "YES"  if pr["pBTTS"] >= threshold else "NO"
 
@@ -302,9 +309,17 @@ def predict_and_upsert_weinston(conn, season_id: int, match_ids: List[int], thre
         
         wc = "HOME" if coh > coa else ("AWAY" if coa > coh else "TIE")
 
+        # 🔥 ACTUALIZADO: Guardar también las probabilidades numéricas
         conn.execute(upsert, {
             "mid": int(mid), "lg": lh, "ag": la, "r1x2": int(r1x2),
             "over2": over2, "btts": btts,
+            # Nuevas columnas de probabilidades
+            "pH": float(pr["pH"]),
+            "pD": float(pr["pD"]),
+            "pA": float(pr["pA"]),
+            "pO25": float(pr["pO25"]),
+            "pBTTS": float(pr["pBTTS"]),
+            # Estadísticas
             "sh": float(sh), "sa": float(sa),
             "sth": float(sth), "sta": float(sta),
             "fh": float(fh), "fa": float(fa),

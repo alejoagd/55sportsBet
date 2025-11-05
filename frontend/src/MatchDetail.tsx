@@ -1,5 +1,6 @@
 import { useState, useEffect, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import MatchH2HNarrative from './MatchH2HNarrative';
 
 interface MatchStats {
   match_id: number;
@@ -35,6 +36,13 @@ interface MatchStats {
   weinston_corners_away?: number;
   weinston_cards_home?: number;
   weinston_cards_away?: number;
+
+  // Probabilidades exactas de Weinston (nuevas)
+  weinston_prob_over_25?: number;     // Probabilidad exacta de Over 2.5
+  weinston_prob_btts?: number;        // Probabilidad exacta de BTTS
+  weinston_prob_home_win?: number;    // Probabilidad de victoria local
+  weinston_prob_draw?: number;        // Probabilidad de empate
+  weinston_prob_away_win?: number;    // Probabilidad de victoria visitante
   
   // Totales del partido (de match_stats)
   total_shots?: number;
@@ -345,6 +353,9 @@ export default function MatchDetail() {
           )}
         </div>
 
+        {/* 📊 NUEVO: Análisis de Enfrentamientos Directos */}
+        <MatchH2HNarrative matchId={parseInt(matchId || '0')} />
+
         {/* Predicciones de Estadísticas de Weinston */}
         <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-slate-700">
           <h2 className="text-2xl font-bold text-orange-400 mb-6 flex items-center gap-2">
@@ -544,27 +555,29 @@ export default function MatchDetail() {
                   <span className="text-orange-300 font-mono">{(safeNumber(match.poisson_prob_away) * 100).toFixed(0)}%</span>
                 </div>
               </div>
-
+              
               <div className="pt-3 border-t border-slate-700 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Over/Under 2.5:</span>
                   <span className={`font-mono text-sm font-bold ${
-                    safeNumber(match.poisson_over_25) > 0.5 ? 'text-green-400' : 'text-orange-400'
+                    // 🔥 CAMBIO: Usar >= en lugar de > para consistencia con backend
+                    safeNumber(match.poisson_over_25) >= 0.5 ? 'text-green-400' : 'text-orange-400'
                   }`}>
-                    {safeNumber(match.poisson_over_25) > 0.5
-                      ? `OVER ${(safeNumber(match.poisson_over_25) * 100).toFixed(0)}%`
-                      : `UNDER ${((1 - safeNumber(match.poisson_over_25)) * 100).toFixed(0)}%`
+                    {safeNumber(match.poisson_over_25) >= 0.5 
+                      ? `OVER ${(safeNumber(match.poisson_over_25) * 100).toFixed(1)}%`
+                      : `UNDER ${((1 - safeNumber(match.poisson_over_25)) * 100).toFixed(1)}%`
                     }
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">BTTS:</span>
                   <span className={`font-mono text-sm font-bold ${
-                    safeNumber(match.poisson_btts) > 0.5 ? 'text-green-400' : 'text-orange-400'
+                    // 🔥 CAMBIO: Usar >= en lugar de > para consistencia con backend
+                    safeNumber(match.poisson_btts) >= 0.5 ? 'text-green-400' : 'text-orange-400'
                   }`}>
-                    {safeNumber(match.poisson_btts) > 0.5
-                      ? `YES ${(safeNumber(match.poisson_btts) * 100).toFixed(0)}%`
-                      : `NO ${((1 - safeNumber(match.poisson_btts)) * 100).toFixed(0)}%`
+                    {safeNumber(match.poisson_btts) >= 0.5
+                      ? `YES ${(safeNumber(match.poisson_btts) * 100).toFixed(1)}%`
+                      : `NO ${((1 - safeNumber(match.poisson_btts)) * 100).toFixed(1)}%`
                     }
                   </span>
                 </div>
@@ -595,22 +608,22 @@ export default function MatchDetail() {
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Over/Under 2.5:</span>
                   <span className={`font-mono text-sm font-bold ${
-                    safeNumber(match.weinston_over_25) > 0.5 ? 'text-green-400' : 'text-orange-400'
+                    safeNumber(match.weinston_prob_over_25 ?? match.weinston_over_25) >= 0.5 ? 'text-green-400' : 'text-orange-400'
                   }`}>
-                    {safeNumber(match.weinston_over_25) > 0.5 
-                      ? `OVER ${(safeNumber(match.weinston_over_25) * 100).toFixed(0)}%`
-                      : `UNDER ${((1 - safeNumber(match.weinston_over_25)) * 100).toFixed(0)}%`
+                    {safeNumber(match.weinston_prob_over_25 ?? match.weinston_over_25) >= 0.5 
+                      ? `OVER ${(safeNumber(match.weinston_prob_over_25 ?? match.weinston_over_25) * 100).toFixed(1)}%`
+                      : `UNDER ${((1 - safeNumber(match.weinston_prob_over_25 ?? match.weinston_over_25)) * 100).toFixed(1)}%`
                     }
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">BTTS:</span>
                   <span className={`font-mono text-sm font-bold ${
-                    safeNumber(match.weinston_btts) > 0.5 ? 'text-green-400' : 'text-orange-400'
+                    safeNumber(match.weinston_prob_btts ?? match.weinston_btts) >= 0.5 ? 'text-green-400' : 'text-orange-400'
                   }`}>
-                    {safeNumber(match.weinston_btts) > 0.5
-                      ? `YES ${(safeNumber(match.weinston_btts) * 100).toFixed(0)}%`
-                      : `NO ${((1 - safeNumber(match.weinston_btts)) * 100).toFixed(0)}%`
+                    {safeNumber(match.weinston_prob_btts ?? match.weinston_btts) >= 0.5
+                      ? `YES ${(safeNumber(match.weinston_prob_btts ?? match.weinston_btts) * 100).toFixed(1)}%`
+                      : `NO ${((1 - safeNumber(match.weinston_prob_btts ?? match.weinston_btts)) * 100).toFixed(1)}%`
                     }
                   </span>
                 </div>

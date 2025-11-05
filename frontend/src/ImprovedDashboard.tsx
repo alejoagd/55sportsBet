@@ -29,6 +29,9 @@ interface Match {
   weinston_result: string;
   weinston_over_25: number;
   weinston_btts: number;
+
+  weinston_prob_over_25?: number;  // Valor correcto de BD
+  weinston_prob_btts?: number;     // Valor correcto de BD
   
   // Aciertos
   poisson_hit_1x2?: boolean;
@@ -249,7 +252,7 @@ export default function ImprovedDashboard() {
                   {(() => {
                     const overProb = safeNumber(match.poisson_over_25);
                     const underProb = 1 - overProb;
-                    const isOver = overProb > 0.5;
+                    const isOver = overProb >= 0.5;
                     const displayProb = isOver ? overProb : underProb;
                     
                     return (
@@ -271,7 +274,7 @@ export default function ImprovedDashboard() {
                   {(() => {
                     const bttsProb = safeNumber(match.poisson_btts);
                     const noBttsProb = 1 - bttsProb;
-                    const isBtts = bttsProb > 0.5;
+                    const isBtts = bttsProb >= 0.5;
                     const displayProb = isBtts ? bttsProb : noBttsProb;
                     
                     return (
@@ -359,14 +362,15 @@ export default function ImprovedDashboard() {
                 <span className="text-slate-400">O/U 2.5:</span>
                 <div className="flex items-center gap-2">
                   {(() => {
-                    const overProb = safeNumber(match.weinston_over_25);
+                    // ✅ CAMBIO: Usar ?? para fallback a weinston_over_25 si prob no existe
+                    const overProb = safeNumber(match.weinston_prob_over_25 ?? match.weinston_over_25);
                     const underProb = 1 - overProb;
-                    const isOver = overProb > 0.5;
+                    const isOver = overProb >= 0.5;  // ✅ CAMBIO: >= en lugar de >
                     const displayProb = isOver ? overProb : underProb;
-                    
+
                     return (
                       <span className={`font-mono text-xs ${isOver ? 'text-green-400' : 'text-orange-400'}`}>
-                        {isOver ? 'Over' : 'Under'} {formatPercentage(displayProb)}%
+                        {isOver ? 'Over' : 'Under'} {(displayProb * 100).toFixed(1)}%  {/* ✅ CAMBIO: toFixed(1) */}
                       </span>
                     );
                   })()}
@@ -381,14 +385,15 @@ export default function ImprovedDashboard() {
                 <span className="text-slate-400">BTTS:</span>
                 <div className="flex items-center gap-2">
                   {(() => {
-                    const bttsProb = safeNumber(match.weinston_btts);
+                    // ✅ CAMBIO: Usar ?? para fallback
+                    const bttsProb = safeNumber(match.weinston_prob_btts ?? match.weinston_btts);
                     const noBttsProb = 1 - bttsProb;
-                    const isBtts = bttsProb > 0.5;
+                    const isBtts = bttsProb >= 0.5;  // ✅ CAMBIO: >= en lugar de >
                     const displayProb = isBtts ? bttsProb : noBttsProb;
-                    
+
                     return (
                       <span className={`font-mono text-xs ${isBtts ? 'text-green-400' : 'text-orange-400'}`}>
-                        {isBtts ? 'Sí' : 'No'} {formatPercentage(displayProb)}%
+                        {isBtts ? 'Sí' : 'No'} {(displayProb * 100).toFixed(1)}%  {/* ✅ CAMBIO: toFixed(1) */}
                       </span>
                     );
                   })()}
