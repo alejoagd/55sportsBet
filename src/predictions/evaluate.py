@@ -124,17 +124,28 @@ def evaluate(
     """)
 
     counters = {"poisson": 0, "weinston": 0}
+    
+    print(f"\n🔍 DEBUG: Iniciando evaluación para season_id={season_id}")
+    print(f"📅 Rango de fechas: {date_from} a {date_to}")
 
     with engine.begin() as conn:
         rows = conn.execute(text(base), params).mappings().all()
-        for r in rows:
+        
+        print(f"📊 Total partidos encontrados: {len(rows)}")
+        
+        for i, r in enumerate(rows):
             mid = r["mid"]
             hg, ag = int(r["home_goals"]), int(r["away_goals"])
+            
+            print(f"\n🏈 PARTIDO {i+1}/{len(rows)} - Match ID: {mid}")
+            print(f"   Resultado real: {hg}-{ag}")
             
             # Calcular resultados reales
             act_1x2 = _res_1x2(hg, ag)
             act_over = _over25(hg, ag)
             act_btts = _btts(hg, ag)
+            
+            print(f"   Resultados reales: 1X2={act_1x2}, O/U={act_over}, BTTS={act_btts}")
 
             # --- POISSON ---
             if r["prob_home_win"] is not None:
@@ -147,31 +158,50 @@ def evaluate(
                 pick_1x2 = _argmax_1x2(ph, px, pa)
                 pick_over = "OVER" if p_over >= pick_over_thresh else "UNDER"
                 pick_btts = "YES" if p_btts >= pick_btts_thresh else "NO"
+                
+                # Evaluar aciertos
+                hit_1x2 = (pick_1x2 == act_1x2)
+                hit_over = (pick_over == act_over)
+                hit_btts = (pick_btts == act_btts)
+                
+                print(f"   Poisson predicciones: 1X2={pick_1x2}, O/U={pick_over}, BTTS={pick_btts}")
+                print(f"   Poisson aciertos: 1X2={hit_1x2}, O/U={hit_over}, BTTS={hit_btts}")
 
                 conn.execute(upsert, {
                     "mid": mid, "model": "poisson",
-                    "p1x2": pick_1x2, "h1x2": (pick_1x2 == act_1x2),
-                    "pover": pick_over, "hover": (pick_over == act_over),
-                    "pbtts": pick_btts, "hbtts": (pick_btts == act_btts),
+                    "p1x2": pick_1x2, "h1x2": hit_1x2,
+                    "pover": pick_over, "hover": hit_over,
+                    "pbtts": pick_btts, "hbtts": hit_btts,
                     "ae_h": None, "ae_a": None, "rmse": None
                 })
                 counters["poisson"] += 1
+            else:
+                print(f"   ❌ No hay predicciones Poisson para este partido")
 
             # --- WEINSTON ---
             if r["local_goals"] is not None:
                 lh = float(r["local_goals"] or 0.0)
                 la = float(r["away_goals"] or 0.0)
                 
+                print(f"   Weinston goles predichos: {lh:.2f}-{la:.2f}")
+                print(f"   Weinston datos raw: over_2='{r['win_over2']}', btts='{r['win_btts']}', result_1x2='{r['result_1x2']}'")
+                
                 # Mapear enteros a '1','X','2'
                 wr = r["result_1x2"]
                 if wr is None:
                     pick_w_1x2 = None
+                    hit_w_1x2 = None
+                    print(f"   Weinston 1X2: No hay predicción (result_1x2 es None)")
                 else:
                     pick_w_1x2 = "1" if wr == 1 else ("2" if wr == 2 else "X")
+                    hit_w_1x2 = (pick_w_1x2 == act_1x2)
+                    print(f"   Weinston 1X2: {pick_w_1x2} (acierto: {hit_w_1x2})")
                 
                 # 🔥 FIX: Normalizar strings antes de comparar
                 pick_w_over = _normalize_string(r["win_over2"])
                 pick_w_btts = _normalize_string(r["win_btts"])
+                
+                print(f"   Weinston normalizados: over='{pick_w_over}', btts='{pick_w_btts}'")
 
                 # Calcular si acertó (comparar solo si hay predicción)
                 hit_over = None
@@ -179,19 +209,27 @@ def evaluate(
                 
                 if pick_w_over is not None:
                     hit_over = (pick_w_over == act_over)
+                    print(f"   Weinston O/U: {pick_w_over} vs {act_over} = {hit_over}")
+                else:
+                    print(f"   Weinston O/U: No hay predicción válida")
                 
                 if pick_w_btts is not None:
                     hit_btts = (pick_w_btts == act_btts)
+                    print(f"   Weinston BTTS: {pick_w_btts} vs {act_btts} = {hit_btts}")
+                else:
+                    print(f"   Weinston BTTS: No hay predicción válida")
 
                 # Errores de goles
                 ae_h = abs(lh - hg)
                 ae_a = abs(la - ag)
                 rmse = sqrt(((lh - hg) ** 2 + (la - ag) ** 2) / 2.0)
+                
+                print(f"   Weinston errores: RMSE={rmse:.3f}, AE_home={ae_h:.2f}, AE_away={ae_a:.2f}")
 
                 conn.execute(upsert, {
                     "mid": mid, "model": "weinston",
                     "p1x2": pick_w_1x2, 
-                    "h1x2": (pick_w_1x2 == act_1x2) if pick_w_1x2 else None,
+                    "h1x2": hit_w_1x2,
                     "pover": pick_w_over, 
                     "hover": hit_over,
                     "pbtts": pick_w_btts, 
@@ -199,5 +237,11 @@ def evaluate(
                     "ae_h": ae_h, "ae_a": ae_a, "rmse": rmse
                 })
                 counters["weinston"] += 1
+            else:
+                print(f"   ❌ No hay predicciones Weinston para este partido")
+        
+        print(f"\n✅ Evaluación completada:")
+        print(f"   Poisson procesados: {counters['poisson']}")
+        print(f"   Weinston procesados: {counters['weinston']}")
 
     return counters

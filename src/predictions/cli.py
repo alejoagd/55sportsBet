@@ -477,7 +477,7 @@ def betting_lines_validate(
               AND m.season_id = :season_id
               AND m.date BETWEEN :date_from AND :date_to
               AND m.home_goals IS NOT NULL
-              AND blp.actual_total_shots IS NULL
+              AND (blp.actual_total_shots IS NULL OR blp.updated_at < m.date + INTERVAL '1 day')
         """)
         
         result = conn.execute(update_query, {

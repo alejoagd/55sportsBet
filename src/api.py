@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 from src.config import settings
 from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
+from datetime import datetime, date
 import math
 
 app = FastAPI(title="Predictions API")
@@ -1335,6 +1336,82 @@ def get_best_bets_analysis(season_id: int = Query(..., description="ID de la tem
         # 4. Ordenar por combined_score descendente y tomar top 4
         recommendations.sort(key=lambda x: x['combined_score'], reverse=True)
         top_recommendations = recommendations[:4]
+
+        # ✅ CORRECTO: Guardar automáticamente las top 4 en best_bets_history
+        if recommendations:
+            top_4 = recommendations[:4]
+            
+            # Preparar datos para guardar
+            with engine.begin() as conn_save:
+                for idx, rec in enumerate(top_4, start=1):
+                    # Obtener odds de Poisson
+                    odds_query = text("""
+                        SELECT 
+                            CASE 
+                                WHEN :bet_type = '1X2' AND :prediction = '1' THEN pp.min_odds_1
+                                WHEN :bet_type = '1X2' AND :prediction = 'X' THEN pp.min_odds_x
+                                WHEN :bet_type = '1X2' AND :prediction = '2' THEN pp.min_odds_2
+                                WHEN :bet_type = 'OVER_25' AND :prediction = 'OVER' THEN pp.min_odds_over25
+                                WHEN :bet_type = 'OVER_25' AND :prediction = 'UNDER' THEN pp.min_odds_under25
+                                WHEN :bet_type = 'BTTS' AND :prediction = 'YES' THEN pp.min_odds_btts_yes
+                                WHEN :bet_type = 'BTTS' AND :prediction = 'NO' THEN pp.min_odds_btts_no
+                                ELSE NULL
+                            END as odds
+                        FROM poisson_predictions pp
+                        WHERE pp.match_id = :match_id
+                    """)
+                    
+                    odds_result = conn_save.execute(odds_query, {
+                        "match_id": rec['match_id'],
+                        "bet_type": rec['bet_type'],
+                        "prediction": rec['prediction']
+                    }).scalar()
+                    
+                    odds = float(odds_result) if odds_result else None
+                    
+                    # Insertar en best_bets_history
+                    upsert_query = text("""
+                        INSERT INTO best_bets_history (
+                            match_id, season_id, date, home_team, away_team,
+                            model, bet_type, prediction,
+                            confidence, historical_accuracy, combined_score, rank, odds,
+                            created_at
+                        ) VALUES (
+                            :match_id, :season_id, :date, :home_team, :away_team,
+                            :model, :bet_type, :prediction,
+                            :confidence, :historical_accuracy, :combined_score, :rank, :odds,
+                            NOW()
+                        )
+                        ON CONFLICT (match_id, model, bet_type) 
+                        DO UPDATE SET
+                            prediction = EXCLUDED.prediction,
+                            confidence = EXCLUDED.confidence,
+                            historical_accuracy = EXCLUDED.historical_accuracy,
+                            combined_score = EXCLUDED.combined_score,
+                            rank = EXCLUDED.rank,
+                            odds = EXCLUDED.odds,
+                            created_at = NOW()
+                    """)
+                    
+                    try:
+                        conn_save.execute(upsert_query, {
+                            "match_id": rec['match_id'],
+                            "season_id": season_id,
+                            "date": rec['date'].strftime("%Y-%m-%d") if isinstance(rec['date'], date) else rec['date'],
+                            "home_team": rec['home_team'],
+                            "away_team": rec['away_team'],
+                            "model": rec['model'].lower(),
+                            "bet_type": rec['bet_type'],
+                            "prediction": rec['prediction'],
+                            "confidence": float(rec['confidence']),
+                            "historical_accuracy": float(rec['historical_accuracy']),
+                            "combined_score": float(rec['combined_score']),
+                            "rank": idx,
+                            "odds": odds
+                        })
+                        print(f"✅ Best bet {idx} guardada: {rec['home_team']} vs {rec['away_team']}")
+                    except Exception as e:
+                        print(f"⚠️ Error guardando best bet {idx}: {e}")
         
         return {
             'historical_accuracy': dict(accuracy_by_model),
@@ -2121,7 +2198,7 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], match_info: 
 
 def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict], h2h_away: List[Dict]) -> Dict[str, str]:
     """
-    Genera narrativa textual del análisis H2H con TODAS las estadísticas
+    Genera narrativa textual del análisis H2H con resumen de resultados y estadísticas
     """
     home_team = match_info["home_team"]
     away_team = match_info["away_team"]
@@ -2146,12 +2223,23 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
     if stats['over25_percentage'] >= 60:
         summary += f"El {stats['over25_percentage']:.0f}% de los partidos han tenido más de 2.5 goles."
     
-    # 2. ANÁLISIS CUANDO JUEGA DE LOCAL
-    # Orden: Equipo local primero, visitante después
+    # 2. ANÁLISIS CUANDO JUEGA DE LOCAL CON RESUMEN DE RESULTADOS
     home_venue_analysis = ""
     if h2h_home:
         home_stats = stats.get("home_venue", {})
-        home_venue_analysis = f"""Cuando {home_team} ha jugado de local contra {away_team} (últimos {len(h2h_home)} partidos):
+        
+        # 🎯 CALCULAR RESULTADOS (G-E-P, BTTS, Over 2.5)
+        wins = sum(1 for m in h2h_home if m['home_goals'] > m['away_goals'])
+        draws = sum(1 for m in h2h_home if m['home_goals'] == m['away_goals'])
+        losses = sum(1 for m in h2h_home if m['home_goals'] < m['away_goals'])
+        btts_count = sum(1 for m in h2h_home if m.get('btts', False))
+        over25_count = sum(1 for m in h2h_home if m.get('over25', False))
+        total_home_matches = len(h2h_home)
+        
+        # Construir narrativa con resumen de resultados
+        home_venue_analysis = f"""Cuando {home_team} ha jugado de local contra {away_team} (últimos {total_home_matches} partidos):
+{home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_home_matches} | Over 2.5: {over25_count}/{total_home_matches}
+
 - Promedio de goles: {home_team} {home_stats['avg_home_goals']:.1f} - {away_team} {home_stats['avg_away_goals']:.1f}
 - Promedio de tiros: {home_stats['avg_home_shots']:.1f} del {home_team} vs {home_stats['avg_away_shots']:.1f} del {away_team}
 - Promedio de tiros al arco: {home_stats['avg_home_shots_on_target']:.1f} del {home_team} vs {home_stats['avg_away_shots_on_target']:.1f} del {away_team}
@@ -2160,13 +2248,25 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
 - Promedio de tarjetas: {home_stats['avg_home_cards']:.1f} del {home_team} vs {home_stats['avg_away_cards']:.1f} del {away_team}
 """
     
-    # 3. ANÁLISIS CUANDO JUEGA DE VISITANTE
-    # Orden INVERTIDO: Equipo que fue local primero (away_team), luego el visitante (home_team)
+    # 3. ANÁLISIS CUANDO JUEGA DE VISITANTE CON RESUMEN DE RESULTADOS
     away_venue_analysis = ""
     if h2h_away:
         away_stats = stats.get("away_venue", {})
-        # CAMBIO CLAVE: Mostramos primero los datos del opponent (que fue local) y luego del team (que fue visitante)
-        away_venue_analysis = f"""Cuando {home_team} ha jugado de visitante contra {away_team} (últimos {len(h2h_away)} partidos):
+        
+        # 🎯 CALCULAR RESULTADOS (G-E-P, BTTS, Over 2.5)
+        # Nota: En h2h_away, el equipo que hoy es local (home_team) fue visitante
+        # Por lo tanto: team_goals = away_goals histórico, opponent_goals = home_goals histórico
+        wins = sum(1 for m in h2h_away if m['team_goals'] > m['opponent_goals'])
+        draws = sum(1 for m in h2h_away if m['team_goals'] == m['opponent_goals'])
+        losses = sum(1 for m in h2h_away if m['team_goals'] < m['opponent_goals'])
+        btts_count = sum(1 for m in h2h_away if m.get('btts', False))
+        over25_count = sum(1 for m in h2h_away if m.get('over25', False))
+        total_away_matches = len(h2h_away)
+        
+        # Construir narrativa con resumen de resultados
+        away_venue_analysis = f"""Cuando {home_team} ha jugado de visitante contra {away_team} (últimos {total_away_matches} partidos):
+{home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_away_matches} | Over 2.5: {over25_count}/{total_away_matches}
+
 - Promedio de goles: {away_team} {away_stats['avg_opponent_goals']:.1f} - {home_team} {away_stats['avg_team_goals']:.1f}
 - Promedio de tiros: {away_stats['avg_opponent_shots']:.1f} del {away_team} vs {away_stats['avg_team_shots']:.1f} del {home_team}
 - Promedio de tiros al arco: {away_stats['avg_opponent_shots_on_target']:.1f} del {away_team} vs {away_stats['avg_team_shots_on_target']:.1f} del {home_team}
@@ -2209,6 +2309,435 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         "conclusion": conclusion,
         "full_narrative": f"{summary}\n\n{home_venue_analysis}\n{away_venue_analysis}\n{prediction_analysis}\n\n{conclusion}"
     }
+# ============================================================================
+# 1. ENDPOINT: Guardar Best Bets (POST /api/best-bets/save)
+# ============================================================================
+
+@router.post("/api/best-bets/save")
+def save_best_bets(
+    season_id: int = Query(..., description="ID de la temporada"),
+    bets: List[Dict[str, Any]] = None
+):
+    """
+    Guarda las mejores apuestas en best_bets_history.
+    Se llama automáticamente después de generar el análisis.
+    
+    Body example:
+    [
+        {
+            "match_id": 5110,
+            "date": "2025-11-09",
+            "home_team": "West Ham",
+            "away_team": "Burnley",
+            "model": "weinston",
+            "bet_type": "OVER_25",
+            "prediction": "OVER",
+            "confidence": 0.95,
+            "historical_accuracy": 74.8,
+            "combined_score": 71.0,
+            "rank": 1,
+            "odds": 1.85
+        },
+        ...
+    ]
+    """
+    
+    with engine.begin() as conn:
+        inserted_count = 0
+        updated_count = 0
+        
+        for bet in bets:
+            # Extraer odds del sistema (si están disponibles)
+            odds = bet.get('odds')
+            
+            # Si no hay odds en el input, intentar obtener de BD
+            if odds is None:
+                odds_query = text("""
+                    SELECT 
+                        CASE 
+                            WHEN :bet_type = '1X2' AND :prediction = '1' THEN pp.min_odds_1
+                            WHEN :bet_type = '1X2' AND :prediction = 'X' THEN pp.min_odds_x
+                            WHEN :bet_type = '1X2' AND :prediction = '2' THEN pp.min_odds_2
+                            WHEN :bet_type = 'OVER_25' AND :prediction = 'OVER' THEN pp.min_odds_over25
+                            WHEN :bet_type = 'OVER_25' AND :prediction = 'UNDER' THEN pp.min_odds_under25
+                            WHEN :bet_type = 'BTTS' AND :prediction = 'YES' THEN pp.min_odds_btts_yes
+                            WHEN :bet_type = 'BTTS' AND :prediction = 'NO' THEN pp.min_odds_btts_no
+                            ELSE NULL
+                        END as odds
+                    FROM poisson_predictions pp
+                    WHERE pp.match_id = :match_id
+                """)
+                
+                odds_result = conn.execute(odds_query, {
+                    "match_id": bet['match_id'],
+                    "bet_type": bet['bet_type'],
+                    "prediction": bet['prediction']
+                }).scalar()
+                
+                odds = float(odds_result) if odds_result else None
+            
+            # Insertar o actualizar
+            upsert_query = text("""
+                INSERT INTO best_bets_history (
+                    match_id, season_id, date, home_team, away_team,
+                    model, bet_type, prediction,
+                    confidence, historical_accuracy, combined_score, rank, odds,
+                    created_at
+                ) VALUES (
+                    :match_id, :season_id, :date, :home_team, :away_team,
+                    :model, :bet_type, :prediction,
+                    :confidence, :historical_accuracy, :combined_score, :rank, :odds,
+                    NOW()
+                )
+                ON CONFLICT (match_id, model, bet_type) 
+                DO UPDATE SET
+                    prediction = EXCLUDED.prediction,
+                    confidence = EXCLUDED.confidence,
+                    historical_accuracy = EXCLUDED.historical_accuracy,
+                    combined_score = EXCLUDED.combined_score,
+                    rank = EXCLUDED.rank,
+                    odds = EXCLUDED.odds,
+                    created_at = NOW()
+                RETURNING (xmax = 0) AS inserted
+            """)
+            
+            result = conn.execute(upsert_query, {
+                "match_id": bet['match_id'],
+                "season_id": season_id,
+                "date": bet['date'],
+                "home_team": bet['home_team'],
+                "away_team": bet['away_team'],
+                "model": bet['model'].lower(),
+                "bet_type": bet['bet_type'],
+                "prediction": bet['prediction'],
+                "confidence": float(bet['confidence']),
+                "historical_accuracy": float(bet['historical_accuracy']),
+                "combined_score": float(bet['combined_score']),
+                "rank": int(bet['rank']),
+                "odds": odds
+            }).fetchone()
+            
+            if result[0]:  # xmax = 0 means it was an insert
+                inserted_count += 1
+            else:
+                updated_count += 1
+        
+        return {
+            "success": True,
+            "inserted": inserted_count,
+            "updated": updated_count,
+            "total": len(bets)
+        }
+
+# ============================================================================
+# 2. ENDPOINT: Validar Best Bets (POST /api/best-bets/validate)
+# ============================================================================
+
+@router.post("/api/best-bets/validate")
+def validate_best_bets(season_id: int = Query(..., description="ID de la temporada")):
+    """
+    Valida todas las best bets pendientes que ya tienen resultado.
+    Compara predicción vs resultado real y actualiza hit/actual_result.
+    """
+    
+    with engine.begin() as conn:
+        # Llamar a la función de validación
+        result = conn.execute(
+            text("SELECT * FROM validate_best_bets(:season_id)"),
+            {"season_id": season_id}
+        ).fetchone()
+        
+        validated_count = result[0]
+        hits = result[1]
+        misses = result[2]
+        
+        accuracy = (hits / validated_count * 100) if validated_count > 0 else 0
+        
+        return {
+            "success": True,
+            "validated": validated_count,
+            "hits": hits,
+            "misses": misses,
+            "accuracy": round(accuracy, 2)
+        }
+
+# ============================================================================
+# 3. ENDPOINT: Estadísticas de Best Bets (GET /api/best-bets/stats)
+# ============================================================================
+
+@router.get("/api/best-bets/stats")
+def get_best_bets_stats(
+    season_id: int = Query(..., description="ID de la temporada"),
+    date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)")
+):
+    """
+    Retorna estadísticas agregadas de las best bets.
+    """
+    
+    with engine.begin() as conn:
+        # Query base
+        where_clauses = ["season_id = :season_id", "validated_at IS NOT NULL"]
+        params = {"season_id": season_id}
+        
+        if date_from:
+            where_clauses.append("date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            where_clauses.append("date <= :date_to")
+            params["date_to"] = date_to
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # 1. Estadísticas generales
+        general_stats_query = text(f"""
+            SELECT 
+                COUNT(*) as total_bets,
+                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
+                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
+                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
+                ROUND(AVG(combined_score), 2) as avg_score,
+                SUM(profit_loss) as total_profit_loss,
+                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
+            FROM best_bets_with_results
+            WHERE {where_sql}
+        """)
+        
+        general = conn.execute(general_stats_query, params).mappings().one()
+        
+        # 2. Por tipo de apuesta
+        by_type_query = text(f"""
+            SELECT 
+                bet_type,
+                COUNT(*) as total,
+                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
+                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
+                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
+                SUM(profit_loss) as profit_loss,
+                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
+            FROM best_bets_with_results
+            WHERE {where_sql}
+            GROUP BY bet_type
+            ORDER BY accuracy_pct DESC
+        """)
+        
+        by_type = conn.execute(by_type_query, params).mappings().all()
+        
+        # 3. Por modelo
+        by_model_query = text(f"""
+            SELECT 
+                model,
+                COUNT(*) as total,
+                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
+                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
+                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
+                SUM(profit_loss) as profit_loss,
+                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
+            FROM best_bets_with_results
+            WHERE {where_sql}
+            GROUP BY model
+            ORDER BY accuracy_pct DESC
+        """)
+        
+        by_model = conn.execute(by_model_query, params).mappings().all()
+        
+        # 4. Por ranking
+        by_rank_query = text(f"""
+            SELECT 
+                rank,
+                COUNT(*) as total,
+                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
+                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
+                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
+                ROUND(AVG(combined_score), 2) as avg_score,
+                SUM(profit_loss) as profit_loss,
+                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
+            FROM best_bets_with_results
+            WHERE {where_sql}
+            GROUP BY rank
+            ORDER BY rank
+        """)
+        
+        by_rank = conn.execute(by_rank_query, params).mappings().all()
+        
+        # 5. Evolución temporal (por semana)
+        evolution_query = text(f"""
+            SELECT 
+                DATE_TRUNC('week', date) as week,
+                COUNT(*) as total,
+                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
+                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
+                SUM(profit_loss) as profit_loss,
+                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
+            FROM best_bets_with_results
+            WHERE {where_sql}
+            GROUP BY week
+            ORDER BY week
+        """)
+        
+        evolution = conn.execute(evolution_query, params).mappings().all()
+        
+        return {
+            "general": dict(general),
+            "by_type": [dict(row) for row in by_type],
+            "by_model": [dict(row) for row in by_model],
+            "by_rank": [dict(row) for row in by_rank],
+            "evolution": [
+                {
+                    **dict(row),
+                    "week": row["week"].strftime("%Y-%m-%d") if row["week"] else None
+                } 
+                for row in evolution
+            ]
+        }
+
+# ============================================================================
+# 4. ENDPOINT: Historial de Best Bets (GET /api/best-bets/history)
+# ============================================================================
+
+@router.get("/api/best-bets/history")
+def get_best_bets_history(
+    season_id: int = Query(..., description="ID de la temporada"),
+    limit: int = Query(50, description="Número máximo de registros"),
+    validated: Optional[bool] = Query(None, description="Filtrar por validadas (True/False/None)")
+):
+    """
+    Retorna el historial completo de best bets con sus resultados.
+    """
+    
+    with engine.begin() as conn:
+        where_clauses = ["season_id = :season_id"]
+        params = {"season_id": season_id, "limit": limit}
+        
+        if validated is not None:
+            if validated:
+                where_clauses.append("validated_at IS NOT NULL")
+            else:
+                where_clauses.append("validated_at IS NULL")
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        query = text(f"""
+            SELECT 
+                *
+            FROM best_bets_with_results
+            WHERE {where_sql}
+            ORDER BY date DESC, rank
+            LIMIT :limit
+        """)
+        
+        results = conn.execute(query, params).mappings().all()
+        
+        return [
+            {
+                **dict(row),
+                "date": row["date"].strftime("%Y-%m-%d") if row["date"] else None,
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "validated_at": row["validated_at"].isoformat() if row["validated_at"] else None
+            }
+            for row in results
+        ]
+# ============================================================================
+# H2H SCORING SYSTEM ENDPOINTS  
+# ============================================================================
+
+@router.get("/api/matches/{match_id}/h2h-scoring")
+def get_match_h2h_scoring(match_id: int):
+    """
+    Obtiene el análisis H2H Scoring para un partido específico.
+    """
+    from src.predictions.h2h_scoring_system import calculate_h2h_scoring
+    
+    with engine.begin() as conn:
+        match_query = text("""
+            SELECT home_team_id, away_team_id, season_id
+            FROM matches WHERE id = :match_id
+        """)
+        
+        match_info = conn.execute(match_query, {"match_id": match_id}).fetchone()
+        if not match_info:
+            raise HTTPException(status_code=404, detail="Partido no encontrado")
+        
+        result = calculate_h2h_scoring(
+            match_id=match_id,
+            home_team_id=match_info.home_team_id,
+            away_team_id=match_info.away_team_id,
+            season_id=match_info.season_id
+        )
+        
+        return result
+
+@router.get("/api/leagues/{season_id}/h2h-effectiveness")
+def get_league_h2h_effectiveness(season_id: int, min_score: int = Query(8)):
+    """
+    Estadísticas de efectividad del sistema H2H por liga y puntuación.
+    """
+    from src.predictions.h2h_scoring_system import get_league_effectiveness_stats
+    
+    result = get_league_effectiveness_stats(season_id, min_score)
+    return result    
+
+# ============================================================================
+# BETTING LINES STATISTICS ENDPOINTS
+# ============================================================================
+
+# AGREGAR ESTO AL FINAL DE TU api.py (después de todos los otros endpoints)
+
+@app.get("/api/betting-lines/stats")
+def get_betting_lines_stats(
+    season_id: int = Query(2, description="ID de la temporada"),
+    date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    window_type: str = Query("gameweek", description="Tipo de ventana: gameweek, weekly, monthly")
+):
+    """
+    Endpoint para estadísticas de betting lines
+    """
+    
+    with engine.begin() as conn:
+        where_clauses = ["m.season_id = :season_id", "blp.actual_total_shots IS NOT NULL"]
+        params = {"season_id": season_id}
+        
+        if date_from:
+            where_clauses.append("m.date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            where_clauses.append("m.date <= :date_to")
+            params["date_to"] = date_to
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Estadísticas generales (como en terminal)
+        stats_query = text(f"""
+            SELECT 
+                blp.model,
+                COUNT(*) as total,
+                ROUND(AVG(CASE WHEN blp.shots_hit THEN 100.0 ELSE 0.0 END), 1) as shots_accuracy,
+                ROUND(AVG(CASE WHEN blp.shots_on_target_hit THEN 100.0 ELSE 0.0 END), 1) as shots_ot_accuracy,
+                ROUND(AVG(CASE WHEN blp.corners_hit THEN 100.0 ELSE 0.0 END), 1) as corners_accuracy,
+                ROUND(AVG(CASE WHEN blp.cards_hit THEN 100.0 ELSE 0.0 END), 1) as cards_accuracy,
+                ROUND(AVG(CASE WHEN blp.fouls_hit THEN 100.0 ELSE 0.0 END), 1) as fouls_accuracy,
+                ROUND(AVG(
+                    (CASE WHEN blp.shots_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.shots_on_target_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.corners_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.cards_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.fouls_hit THEN 1.0 ELSE 0.0 END) / 5.0 * 100
+                ), 1) as overall_accuracy
+            FROM betting_lines_predictions blp
+            JOIN matches m ON m.id = blp.match_id
+            WHERE {where_sql}
+            GROUP BY blp.model
+        """)
+        
+        stats = conn.execute(stats_query, params).mappings().all()
+        
+        return {
+            "general_stats": [dict(row) for row in stats],
+            "evolution": [],  # Vacío por ahora, solo necesitas las stats generales
+            "window_type": window_type
+        }
+
 
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)

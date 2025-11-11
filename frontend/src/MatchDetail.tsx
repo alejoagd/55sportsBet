@@ -1,6 +1,7 @@
 import { useState, useEffect, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MatchH2HNarrative from './MatchH2HNarrative';
+import H2HScoring from './H2Hscoring';
 
 interface MatchStats {
   match_id: number;
@@ -355,6 +356,9 @@ export default function MatchDetail() {
 
         {/* 📊 NUEVO: Análisis de Enfrentamientos Directos */}
         <MatchH2HNarrative matchId={parseInt(matchId || '0')} />
+
+        {/* 🎯 NUEVO: H2H Scoring System */}
+        <H2HScoring matchId={parseInt(matchId || '0')} />
 
         {/* Predicciones de Estadísticas de Weinston */}
         <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-slate-700">
