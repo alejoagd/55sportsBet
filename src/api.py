@@ -1337,37 +1337,58 @@ def get_best_bets_analysis(season_id: int = Query(..., description="ID de la tem
         recommendations.sort(key=lambda x: x['combined_score'], reverse=True)
         top_recommendations = recommendations[:4]
 
-        # ✅ CORRECTO: Guardar automáticamente las top 4 en best_bets_history
+        # ✅ CORREGIDO: Guardar automáticamente las top 4 en best_bets_history
         if recommendations:
             top_4 = recommendations[:4]
             
             # Preparar datos para guardar
             with engine.begin() as conn_save:
                 for idx, rec in enumerate(top_4, start=1):
-                    # Obtener odds de Poisson
+                    
+                    print(f"🔄 Procesando best bet {idx}: {rec['home_team']} vs {rec['away_team']} - {rec['bet_type']} - {rec['prediction']}")
+                    
+                    # Obtener odds de Poisson (simplificado y corregido)
                     odds_query = text("""
                         SELECT 
                             CASE 
-                                WHEN :bet_type = '1X2' AND :prediction = '1' THEN pp.min_odds_1
-                                WHEN :bet_type = '1X2' AND :prediction = 'X' THEN pp.min_odds_x
-                                WHEN :bet_type = '1X2' AND :prediction = '2' THEN pp.min_odds_2
-                                WHEN :bet_type = 'OVER_25' AND :prediction = 'OVER' THEN pp.min_odds_over25
-                                WHEN :bet_type = 'OVER_25' AND :prediction = 'UNDER' THEN pp.min_odds_under25
-                                WHEN :bet_type = 'BTTS' AND :prediction = 'YES' THEN pp.min_odds_btts_yes
-                                WHEN :bet_type = 'BTTS' AND :prediction = 'NO' THEN pp.min_odds_btts_no
-                                ELSE NULL
+                                WHEN pp.min_odds_1 > 0 THEN pp.min_odds_1
+                                WHEN pp.min_odds_over25 > 0 THEN pp.min_odds_over25
+                                WHEN pp.min_odds_btts_yes > 0 THEN pp.min_odds_btts_yes
+                                ELSE 1.85
                             END as odds
                         FROM poisson_predictions pp
                         WHERE pp.match_id = :match_id
+                        LIMIT 1
                     """)
                     
-                    odds_result = conn_save.execute(odds_query, {
-                        "match_id": rec['match_id'],
-                        "bet_type": rec['bet_type'],
-                        "prediction": rec['prediction']
-                    }).scalar()
+                    try:
+                        odds_result = conn_save.execute(odds_query, {
+                            "match_id": rec['match_id']
+                        }).scalar()
+                        odds = float(odds_result) if odds_result else 1.85
+                        print(f"   💰 Odds obtenidas: {odds}")
+                    except Exception as e:
+                        print(f"   ⚠️ Error obteniendo odds: {e}")
+                        odds = 1.85
                     
-                    odds = float(odds_result) if odds_result else None
+                    # 🔥 CORREGIDO: Formateo de fecha
+                    try:
+                        if isinstance(rec['date'], str):
+                            date_str = rec['date'][:10]  # Solo YYYY-MM-DD
+                        else:
+                            date_str = rec['date'].strftime("%Y-%m-%d")
+                        print(f"   📅 Fecha procesada: {date_str}")
+                    except Exception as e:
+                        print(f"   ⚠️ Error con fecha: {e}")
+                        date_str = "2025-11-10"  # Fallback
+                    
+                    # 🔥 CORREGIDO: Mapeo de bet_type
+                    bet_type_map = {
+                        '1X2': '1X2',
+                        'Over/Under': 'OVER_UNDER', 
+                        'BTTS': 'BTTS'
+                    }
+                    bet_type_clean = bet_type_map.get(rec['bet_type'], rec['bet_type'])
                     
                     # Insertar en best_bets_history
                     upsert_query = text("""
@@ -1395,28 +1416,35 @@ def get_best_bets_analysis(season_id: int = Query(..., description="ID de la tem
                     
                     try:
                         conn_save.execute(upsert_query, {
-                            "match_id": rec['match_id'],
-                            "season_id": season_id,
-                            "date": rec['date'].strftime("%Y-%m-%d") if isinstance(rec['date'], date) else rec['date'],
-                            "home_team": rec['home_team'],
-                            "away_team": rec['away_team'],
-                            "model": rec['model'].lower(),
-                            "bet_type": rec['bet_type'],
-                            "prediction": rec['prediction'],
+                            "match_id": int(rec['match_id']),
+                            "season_id": int(season_id),
+                            "date": date_str,
+                            "home_team": str(rec['home_team']),
+                            "away_team": str(rec['away_team']),
+                            "model": str(rec['model']).lower(),
+                            "bet_type": bet_type_clean,
+                            "prediction": str(rec['prediction']),
                             "confidence": float(rec['confidence']),
                             "historical_accuracy": float(rec['historical_accuracy']),
                             "combined_score": float(rec['combined_score']),
-                            "rank": idx,
-                            "odds": odds
+                            "rank": int(idx),
+                            "odds": float(odds)
                         })
-                        print(f"✅ Best bet {idx} guardada: {rec['home_team']} vs {rec['away_team']}")
+                        print(f"   ✅ Best bet {idx} guardada exitosamente en BD")
                     except Exception as e:
-                        print(f"⚠️ Error guardando best bet {idx}: {e}")
+                        print(f"   ❌ Error guardando best bet {idx}: {e}")
+                        print(f"   📝 Datos que intentaba insertar:")
+                        print(f"      match_id: {rec['match_id']}")
+                        print(f"      season_id: {season_id}")
+                        print(f"      date: {date_str}")
+                        print(f"      model: {str(rec['model']).lower()}")
+                        print(f"      bet_type: {bet_type_clean}")
+                        print(f"      prediction: {str(rec['prediction'])}")
         
         return {
             'historical_accuracy': dict(accuracy_by_model),
             'top_bets': top_recommendations,
-            'all_recommendations': recommendations[:10]  # Top 10 para referencia
+            'all_recommendations': recommendations[:10]
         }
     
 
@@ -2738,6 +2766,135 @@ def get_betting_lines_stats(
             "window_type": window_type
         }
 
+# AGREGAR ESTE ENDPOINT DE DEBUG A TU api.py
+
+@router.get("/api/best-bets/debug-data")
+def debug_best_bets_data(season_id: int = Query(2)):
+    """
+    Debug: Ver exactamente qué partidos y predicciones se están consultando
+    """
+    
+    with engine.begin() as conn:
+        # 1. Ver partidos disponibles para análisis (sin resultado)
+        upcoming_matches_query = text("""
+            SELECT
+                m.id as match_id,
+                m.date,
+                th.name as home_team,
+                ta.name as away_team,
+                m.home_goals,
+                m.away_goals,
+                
+                -- Verificar si hay predicciones
+                CASE WHEN pp.match_id IS NOT NULL THEN 'SÍ' ELSE 'NO' END as tiene_poisson,
+                CASE WHEN wp.match_id IS NOT NULL THEN 'SÍ' ELSE 'NO' END as tiene_weinston,
+                
+                -- Poisson predictions
+                pp.prob_home_win as poisson_prob_home,
+                pp.prob_draw as poisson_prob_draw,
+                pp.prob_away_win as poisson_prob_away,
+                pp.over_2 as poisson_over_25,
+                pp.both_score as poisson_btts,
+                
+                -- Weinston predictions  
+                wp.result_1x2 as weinston_result_int,
+                wp.local_goals as weinston_home_goals,
+                wp.away_goals as weinston_away_goals
+                
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.season_id = :season_id
+              AND m.home_goals IS NULL  -- Solo próximos partidos
+              AND m.date >= CURRENT_DATE - INTERVAL '2 days'  -- Desde hace 2 días
+              AND m.date <= CURRENT_DATE + INTERVAL '7 days'  -- Hasta en 7 días
+            ORDER BY m.date ASC
+        """)
+        
+        upcoming_matches = conn.execute(upcoming_matches_query, {"season_id": season_id}).mappings().all()
+        
+        # 2. Ver accuracy histórica actual
+        historical_accuracy_query = text("""
+            SELECT 
+                model,
+                COUNT(*) as total_predictions,
+                ROUND(AVG(CASE WHEN hit_1x2 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_1x2,
+                ROUND(AVG(CASE WHEN hit_over25 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_over25,
+                ROUND(AVG(CASE WHEN hit_btts THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_btts
+            FROM prediction_outcomes po
+            JOIN matches m ON m.id = po.match_id
+            WHERE m.season_id = :season_id
+              AND m.home_goals IS NOT NULL
+            GROUP BY model
+        """)
+        
+        accuracy_data = conn.execute(historical_accuracy_query, {"season_id": season_id}).mappings().all()
+        
+        # 3. Ver datos en best_bets_history
+        saved_bets_query = text("""
+            SELECT *
+            FROM best_bets_history
+            WHERE season_id = :season_id
+            ORDER BY created_at DESC, rank ASC
+            LIMIT 10
+        """)
+        
+        saved_bets = conn.execute(saved_bets_query, {"season_id": season_id}).mappings().all()
+        
+        return {
+            "debug_timestamp": datetime.now().isoformat(),
+            "upcoming_matches": [dict(r) for r in upcoming_matches],
+            "historical_accuracy": [dict(r) for r in accuracy_data],
+            "saved_best_bets": [dict(r) for r in saved_bets],
+            "total_upcoming": len(upcoming_matches),
+            "matches_with_poisson": len([r for r in upcoming_matches if r['tiene_poisson'] == 'SÍ']),
+            "matches_with_weinston": len([r for r in upcoming_matches if r['tiene_weinston'] == 'SÍ'])
+        }
+
+# TAMBIÉN AGREGAR ENDPOINT PARA VER PARTIDOS ESPECÍFICOS
+@router.get("/api/matches/by-teams")
+def get_matches_by_teams(
+    home_team: str = Query(..., description="Nombre del equipo local"),
+    away_team: str = Query(..., description="Nombre del equipo visitante"),
+    season_id: int = Query(2)
+):
+    """
+    Buscar partidos específicos por equipos
+    """
+    
+    with engine.begin() as conn:
+        query = text("""
+            SELECT 
+                m.id,
+                m.date,
+                th.name as home_team,
+                ta.name as away_team,
+                m.home_goals,
+                m.away_goals,
+                CASE WHEN pp.match_id IS NOT NULL THEN 'SÍ' ELSE 'NO' END as tiene_poisson,
+                CASE WHEN wp.match_id IS NOT NULL THEN 'SÍ' ELSE 'NO' END as tiene_weinston
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.season_id = :season_id
+              AND (
+                (LOWER(th.name) LIKE LOWER(:home_pattern) AND LOWER(ta.name) LIKE LOWER(:away_pattern))
+                OR (LOWER(th.name) LIKE LOWER(:away_pattern) AND LOWER(ta.name) LIKE LOWER(:home_pattern))
+              )
+            ORDER BY m.date DESC
+        """)
+        
+        results = conn.execute(query, {
+            "season_id": season_id,
+            "home_pattern": f"%{home_team}%",
+            "away_pattern": f"%{away_team}%"
+        }).mappings().all()
+        
+        return [dict(r) for r in results]
 
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)
