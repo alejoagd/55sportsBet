@@ -3160,5 +3160,13 @@ def get_matches_by_teams(
         
         return [dict(r) for r in results]
 
+@app.get("/debug")
+def debug_info():
+    import os
+    return {
+        "database_url_exists": "DATABASE_URL" in os.environ,
+        "database_url_preview": os.getenv("DATABASE_URL", "NOT_SET")[:50] + "..." if os.getenv("DATABASE_URL") else "NOT_SET"
+    }        
+
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)
