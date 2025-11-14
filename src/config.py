@@ -17,7 +17,7 @@ class Settings:
         url = urlparse(DATABASE_URL)
         
         DB_HOST: str = url.hostname
-        DB_PORT: int = url.port
+        DB_PORT: int = url.port if url.port else 5432  # ✅ Usar 5432 como default si es None
         DB_NAME: str = url.path[1:]  # Quitar el / inicial
         DB_USER: str = url.username
         DB_PASS: str = url.password
