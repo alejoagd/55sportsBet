@@ -111,10 +111,11 @@ const [filters] = useState<Filters>({
     teams: TeamStats[],
     valueKey: keyof TeamStats,
     label: string,
-    isHome: boolean,
+    _isHome: boolean, // eslint-disable-line @typescript-eslint/no-unused-vars
     color: string
   ) => (
-    <div className="bg-slate-800 rounded-lg p-4">
+    
+    <div className="bg-slate-800 rounded-lg p-4" >
       <h3 className={`text-lg font-bold mb-3 ${color}`}>{title}</h3>
       <div className="space-y-2">
         {teams.map((team, idx) => (
