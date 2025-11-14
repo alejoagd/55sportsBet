@@ -16,7 +16,7 @@ app = FastAPI(title="Predictions API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[        
-        "https://55sports-bet-q25k.vercel.app/",  # Tu dominio de Vercel
+        "https://55sports-bet-q25k.vercel.app",  # Tu dominio de Vercel
         "http://localhost:5173",           # Para desarrollo local
         ],
     allow_credentials=True,
