@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BestBetsSection from './BestBetsSection';
+
 
 interface Match {
   match_id: number;

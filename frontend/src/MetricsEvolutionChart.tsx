@@ -65,7 +65,7 @@ export default function MetricsEvolutionChart() {
   const [selectedMetric, setSelectedMetric] = useState<string>('acc_1x2_pct');
   const [windowType, setWindowType] = useState<string>('gameweek');
   
-  const [filters, setFilters] = useState<Filters>({
+  const [filters] = useState<Filters>({
     season_id: 2,
     date_from: '2025-08-15',
     date_to: new Date().toISOString().split('T')[0]

@@ -1,6 +1,9 @@
 #Antes de ejecutar cualquier comando validar si estas con el environment activado , ejecutando el siguiente comando
 .\.venv\Scripts\Activate.ps1
 
+#ingresar a la base de datos de Render 
+psql $env:DATABASE_URL
+
 
 
 --------------------------------Cargar nuevos partidos, actualizar estadisticas y resultados predicciones----------------------------------

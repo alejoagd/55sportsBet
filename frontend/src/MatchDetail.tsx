@@ -320,7 +320,6 @@ export default function MatchDetail() {
   }
 
   const isFinished = match.home_goals !== null && match.away_goals !== null;
-  const isUpcoming = !isFinished;
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
