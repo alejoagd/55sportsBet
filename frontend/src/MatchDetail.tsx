@@ -264,9 +264,17 @@ export default function MatchDetail() {
           }`}>
             {line.prediction.toUpperCase()} {line.line}
           </span>
-          <span className={`text-[10px] ${confidenceColor} flex items-center gap-1`}>
-            {confidenceEmoji} {confidencePercent}%
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-slate-500">
+              Pred: {line.predicted_total.toFixed(1)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs">{confidenceEmoji}</span>
+            <span className={`text-[10px] font-bold ${confidenceColor}`}>
+              {confidencePercent}%
+            </span>
+          </div>
         </div>
       );
     }
@@ -274,107 +282,104 @@ export default function MatchDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900">
-        <div className="text-slate-400 text-xl">⏳ Cargando detalles...</div>
+      <div className="min-h-screen bg-slate-900 p-6">
+        <div className="animate-pulse max-w-7xl mx-auto">
+          <div className="h-8 bg-slate-700 rounded w-1/4 mb-6"></div>
+          <div className="space-y-4">
+            <div className="h-32 bg-slate-700 rounded"></div>
+            <div className="h-64 bg-slate-700 rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (error || !match) {
+  if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-900">
-        <div className="text-red-400 text-xl mb-4">❌ {error || 'Partido no encontrado'}</div>
-        <button
-          onClick={() => navigate('/')}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          ← Volver al Dashboard
-        </button>
+      <div className="min-h-screen bg-slate-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6">
+            <h2 className="text-red-400 text-2xl font-bold mb-4">Error</h2>
+            <p className="text-red-300">{error}</p>
+            <button
+              onClick={() => navigate('/')}
+              className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            >
+              Volver al Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const isFinished = match.home_goals !== null && match.home_goals !== undefined;
+  if (!match) {
+    return null;
+  }
+
+  const isFinished = match.home_goals !== null && match.away_goals !== null;
+  const isUpcoming = !isFinished;
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header con botón volver */}
-        <div className="flex items-center justify-between">
+        
+        {/* Header del partido */}
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 border border-slate-600">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+            className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             ← Volver al Dashboard
           </button>
-          <span className="text-slate-400 text-sm">
-            {formatMatchDate(match.date)}
-          </span>
-        </div>
-
-        {/* Marcador Principal */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-8 shadow-xl border border-slate-600">
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-8 items-center">
-            {/* Equipo Local */}
-            <div className="text-right">
-              <div className="text-3xl font-bold text-white mb-2">{match.home_team}</div>
-              {isFinished && (
-                <div className="text-6xl font-bold text-blue-400">{match.home_goals}</div>
+          
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <div className="text-3xl font-bold text-white mb-2">
+                {match.home_team} vs {match.away_team}
+              </div>
+              <div className="text-slate-300">
+                {formatMatchDate(match.date)}
+              </div>
+              {match.referee && (
+                <div className="text-slate-400 text-sm">
+                  Árbitro: {match.referee}
+                </div>
               )}
             </div>
-
-            {/* Separador / Marcador */}
-            <div className="flex flex-col items-center gap-2">
-              {isFinished ? (
-                <>
-                  <div className="text-4xl font-bold text-white">-</div>
-                  <div className="text-xs px-3 py-1 bg-green-500/20 text-green-400 rounded font-bold">
-                    FINALIZADO
-                  </div>
-                </>
-              ) : (
-                <div className="text-slate-400 text-lg font-semibold">vs</div>
-              )}
-            </div>
-
-            {/* Equipo Visitante */}
-            <div className="text-left">
-              <div className="text-3xl font-bold text-white mb-2">{match.away_team}</div>
-              {isFinished && (
-                <div className="text-6xl font-bold text-orange-400">{match.away_goals}</div>
-              )}
-            </div>
+            
+            {isFinished && (
+              <div className="bg-slate-900 rounded-lg p-4">
+                <div className="text-slate-400 text-sm mb-1">Resultado Final</div>
+                <div className="text-4xl font-bold text-center">
+                  <span className="text-blue-400">{match.home_goals}</span>
+                  <span className="text-slate-500 mx-3">-</span>
+                  <span className="text-orange-400">{match.away_goals}</span>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Árbitro */}
-          {match.referee && (
-            <div className="mt-6 pt-6 border-t border-slate-600 text-center text-slate-400">
-              👨‍⚖️ Árbitro: {match.referee}
-            </div>
-          )}
         </div>
 
-        {/* 📊 NUEVO: Análisis de Enfrentamientos Directos */}
-        <MatchH2HNarrative matchId={parseInt(matchId || '0')} />
+        {/* Análisis H2H */}
+        <MatchH2HNarrative matchId={Number(matchId)} />
 
-        {/* 🎯 NUEVO: H2H Scoring System */}
-        <H2HScoring matchId={parseInt(matchId || '0')} />
+        {/* 🎯 H2H SCORING SYSTEM - NUEVO */}
+        <H2HScoring matchId={Number(matchId)} />
 
-        {/* Predicciones de Estadísticas de Weinston */}
-        <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-slate-700">
-          <h2 className="text-2xl font-bold text-orange-400 mb-6 flex items-center gap-2">
-            📊 Predicciones de Estadísticas (Weinston)
-          </h2>
+        {/* Predicciones de Estadísticas Detalladas */}
+        <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-orange-500/20">
+          <h2 className="text-2xl font-bold text-orange-400 mb-6">📊 Predicciones de Estadísticas (Weinston)</h2>
           
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-700">
-                  <th className="py-3 px-4 text-left text-slate-400 font-medium">Stat</th>
-                  <th className="py-3 px-4 text-right text-blue-400 font-medium">{match.home_team}</th>
-                  <th className="py-3 px-4 text-right text-orange-400 font-medium">{match.away_team}</th>
-                  <th className="py-3 px-4 text-right text-slate-400 font-medium">Edge</th>
-                  <th className="py-3 px-4 text-center text-purple-400 font-medium">🎯 Betting Line</th>
+                  <th className="py-3 px-4 text-left text-slate-400 font-semibold">Estadística</th>
+                  <th className="py-3 px-4 text-right text-blue-400 font-semibold">{match.home_team}</th>
+                  <th className="py-3 px-4 text-right text-orange-400 font-semibold">{match.away_team}</th>
+                  <th className="py-3 px-4 text-center text-slate-400 font-semibold">Edge</th>
+                  <th className="py-3 px-4 text-center text-purple-400 font-semibold">🎯 Betting Line</th>
                 </tr>
               </thead>
               <tbody>

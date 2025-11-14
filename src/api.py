@@ -2670,30 +2670,294 @@ def get_best_bets_history(
 # ============================================================================
 
 @router.get("/api/matches/{match_id}/h2h-scoring")
-def get_match_h2h_scoring(match_id: int):
+def get_h2h_scoring(match_id: int):
     """
-    Obtiene el análisis H2H Scoring para un partido específico.
+    Endpoint específico para el sistema H2H Scoring.
+    Calcula qué tan efectivas han sido las predicciones en enfrentamientos directos.
     """
-    from src.predictions.h2h_scoring_system import calculate_h2h_scoring
     
     with engine.begin() as conn:
+        # 1. Obtener información del partido con conversiones de tipo correctas
         match_query = text("""
-            SELECT home_team_id, away_team_id, season_id
-            FROM matches WHERE id = :match_id
+            SELECT 
+                m.id,
+                th.name as home_team,
+                ta.name as away_team,
+                m.date,
+                -- Predicciones actuales con conversiones de tipo seguras
+                COALESCE(wp.shots_home::NUMERIC, 0) + COALESCE(wp.shots_away::NUMERIC, 0) as pred_total_shots,
+                COALESCE(wp.shots_target_home::NUMERIC, 0) + COALESCE(wp.shots_target_away::NUMERIC, 0) as pred_total_shots_on_target,
+                COALESCE(wp.fouls_home::NUMERIC, 0) + COALESCE(wp.fouls_away::NUMERIC, 0) as pred_total_fouls,
+                COALESCE(wp.cards_home::NUMERIC, 0) + COALESCE(wp.cards_away::NUMERIC, 0) as pred_total_cards,
+                COALESCE(wp.corners_home::NUMERIC, 0) + COALESCE(wp.corners_away::NUMERIC, 0) as pred_total_corners,
+                -- Convertir both_score a numeric si es text
+                CASE 
+                    WHEN wp.both_score IS NOT NULL THEN 
+                        CASE 
+                            WHEN wp.both_score::TEXT ~ '^[0-9]*\.?[0-9]+$' THEN wp.both_score::NUMERIC
+                            ELSE 0
+                        END
+                    ELSE 0
+                END as pred_btts,
+                COALESCE(wp.local_goals::NUMERIC, 0) + COALESCE(wp.away_goals::NUMERIC, 0) as pred_total_goals
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.id = :match_id
         """)
         
-        match_info = conn.execute(match_query, {"match_id": match_id}).fetchone()
+        match_info = conn.execute(match_query, {"match_id": match_id}).mappings().first()
+        
         if not match_info:
-            raise HTTPException(status_code=404, detail="Partido no encontrado")
+            return {"error": "Partido no encontrado"}
         
-        result = calculate_h2h_scoring(
-            match_id=match_id,
-            home_team_id=match_info.home_team_id,
-            away_team_id=match_info.away_team_id,
-            season_id=match_info.season_id
-        )
+        # 2. Buscar enfrentamientos directos históricos
+        h2h_query = text("""
+            WITH direct_matches AS (
+                SELECT 
+                    m.*,
+                    th.name as home_team_name,
+                    ta.name as away_team_name,
+                    COALESCE(ms.home_shots::NUMERIC, 0) as home_shots,
+                    COALESCE(ms.away_shots::NUMERIC, 0) as away_shots,
+                    COALESCE(ms.home_shots::NUMERIC, 0) + COALESCE(ms.away_shots::NUMERIC, 0) as total_shots,
+                    COALESCE(ms.home_shots_on_target::NUMERIC, 0) as home_shots_on_target,
+                    COALESCE(ms.away_shots_on_target::NUMERIC, 0) as away_shots_on_target,
+                    COALESCE(ms.home_shots_on_target::NUMERIC, 0) + COALESCE(ms.away_shots_on_target::NUMERIC, 0) as total_shots_on_target,
+                    COALESCE(ms.home_fouls::NUMERIC, 0) as home_fouls,
+                    COALESCE(ms.away_fouls::NUMERIC, 0) as away_fouls,
+                    COALESCE(ms.home_fouls::NUMERIC, 0) + COALESCE(ms.away_fouls::NUMERIC, 0) as total_fouls,
+                    COALESCE(ms.home_yellow_cards::NUMERIC, 0) + COALESCE(ms.home_red_cards::NUMERIC, 0) as home_cards,
+                    COALESCE(ms.away_yellow_cards::NUMERIC, 0) + COALESCE(ms.away_red_cards::NUMERIC, 0) as away_cards,
+                    COALESCE(ms.home_yellow_cards::NUMERIC, 0) + COALESCE(ms.home_red_cards::NUMERIC, 0) + 
+                    COALESCE(ms.away_yellow_cards::NUMERIC, 0) + COALESCE(ms.away_red_cards::NUMERIC, 0) as total_cards,
+                    COALESCE(ms.home_corners::NUMERIC, 0) as home_corners,
+                    COALESCE(ms.away_corners::NUMERIC, 0) as away_corners,
+                    COALESCE(ms.home_corners::NUMERIC, 0) + COALESCE(ms.away_corners::NUMERIC, 0) as total_corners,
+                    CASE 
+                        WHEN COALESCE(m.home_goals, 0) > 0 AND COALESCE(m.away_goals, 0) > 0 THEN 1 
+                        ELSE 0 
+                    END as btts,
+                    CASE 
+                        WHEN (COALESCE(m.home_goals, 0) + COALESCE(m.away_goals, 0)) > 2.5 THEN 1 
+                        ELSE 0 
+                    END as over25
+                FROM matches m
+                JOIN teams th ON th.id = m.home_team_id
+                JOIN teams ta ON ta.id = m.away_team_id
+                LEFT JOIN match_stats ms ON ms.match_id = m.id
+                WHERE m.id != :match_id
+                  AND m.home_goals IS NOT NULL  -- Solo partidos finalizados
+                  AND (
+                    (th.name = :home_team AND ta.name = :away_team) OR
+                    (th.name = :away_team AND ta.name = :home_team)
+                  )
+                ORDER BY m.date DESC
+                LIMIT 12
+            )
+            SELECT * FROM direct_matches
+        """)
         
-        return result
+        h2h_matches = conn.execute(h2h_query, {
+            "match_id": match_id,
+            "home_team": match_info["home_team"],
+            "away_team": match_info["away_team"]
+        }).mappings().all()
+        
+        if len(h2h_matches) < 3:
+            return {
+                "error": f"Pocos datos H2H: solo {len(h2h_matches)} partidos",
+                "total_h2h_matches": len(h2h_matches)
+            }
+        
+        # 3. Definir líneas de apuestas estándar
+        betting_lines = {
+            "tiros": 24.5,
+            "tiros_al_arco": 8.5,
+            "faltas": 22.5,
+            "tarjetas": 4.5,
+            "corners": 10.5
+        }
+        
+        # 4. Función helper para convertir valores a float de forma segura
+        def safe_float(value, default=0.0):
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+        
+        # 5. Calcular H2H Scoring para cada estadística
+        predictions = {}
+        
+        # TIROS TOTALES
+        pred_shots = safe_float(match_info.get("pred_total_shots"))
+        if pred_shots > 0:
+            line = betting_lines["tiros"]
+            prediction = "OVER" if pred_shots > line else "UNDER"
+            
+            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_shots")) > 0]
+            if valid_matches:
+                if prediction == "OVER":
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots")) > line)
+                else:
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots")) < line)
+                
+                predictions["tiros"] = {
+                    "prediction": prediction,
+                    "predicted_total": pred_shots,
+                    "line": line,
+                    "hit_count": hits,
+                    "valid_matches": len(valid_matches),
+                    "score": hits,
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                }
+        
+        # TIROS AL ARCO
+        pred_shots_ot = safe_float(match_info.get("pred_total_shots_on_target"))
+        if pred_shots_ot > 0:
+            line = betting_lines["tiros_al_arco"]
+            prediction = "OVER" if pred_shots_ot > line else "UNDER"
+            
+            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_shots_on_target")) > 0]
+            if valid_matches:
+                if prediction == "OVER":
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots_on_target")) > line)
+                else:
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots_on_target")) < line)
+                
+                predictions["tiros_al_arco"] = {
+                    "prediction": prediction,
+                    "predicted_total": pred_shots_ot,
+                    "line": line,
+                    "hit_count": hits,
+                    "valid_matches": len(valid_matches),
+                    "score": hits,
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                }
+        
+        # FALTAS TOTALES
+        pred_fouls = safe_float(match_info.get("pred_total_fouls"))
+        if pred_fouls > 0:
+            line = betting_lines["faltas"]
+            prediction = "OVER" if pred_fouls > line else "UNDER"
+            
+            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_fouls")) > 0]
+            if valid_matches:
+                if prediction == "OVER":
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_fouls")) > line)
+                else:
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_fouls")) < line)
+                
+                predictions["faltas"] = {
+                    "prediction": prediction,
+                    "predicted_total": pred_fouls,
+                    "line": line,
+                    "hit_count": hits,
+                    "valid_matches": len(valid_matches),
+                    "score": hits,
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                }
+        
+        # TARJETAS TOTALES
+        pred_cards = safe_float(match_info.get("pred_total_cards"))
+        if pred_cards > 0:
+            line = betting_lines["tarjetas"]
+            prediction = "OVER" if pred_cards > line else "UNDER"
+            
+            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_cards")) >= 0]  # >=0 porque puede ser 0
+            if valid_matches:
+                if prediction == "OVER":
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_cards")) > line)
+                else:
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_cards")) < line)
+                
+                predictions["tarjetas"] = {
+                    "prediction": prediction,
+                    "predicted_total": pred_cards,
+                    "line": line,
+                    "hit_count": hits,
+                    "valid_matches": len(valid_matches),
+                    "score": hits,
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                }
+        
+        # CORNERS TOTALES
+        pred_corners = safe_float(match_info.get("pred_total_corners"))
+        if pred_corners > 0:
+            line = betting_lines["corners"]
+            prediction = "OVER" if pred_corners > line else "UNDER"
+            
+            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_corners")) > 0]
+            if valid_matches:
+                if prediction == "OVER":
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_corners")) > line)
+                else:
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_corners")) < line)
+                
+                predictions["corners"] = {
+                    "prediction": prediction,
+                    "predicted_total": pred_corners,
+                    "line": line,
+                    "hit_count": hits,
+                    "valid_matches": len(valid_matches),
+                    "score": hits,
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                }
+        
+        # BTTS
+        pred_btts = safe_float(match_info.get("pred_btts"))
+        prediction = "YES" if pred_btts >= 0.5 else "NO"
+        
+        valid_matches = [m for m in h2h_matches if m.get("btts") is not None]
+        if valid_matches:
+            if prediction == "YES":
+                hits = sum(1 for m in valid_matches if safe_float(m.get("btts")) == 1)
+            else:
+                hits = sum(1 for m in valid_matches if safe_float(m.get("btts")) == 0)
+            
+            predictions["btts"] = {
+                "prediction": prediction,
+                "hit_count": hits,
+                "valid_matches": len(valid_matches),
+                "score": hits,
+                "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+            }
+        
+        # OVER/UNDER 2.5 GOLES
+        pred_total_goals = safe_float(match_info.get("pred_total_goals"))
+        if pred_total_goals > 0:
+            prediction = "OVER" if pred_total_goals > 2.5 else "UNDER"
+            
+            valid_matches = [m for m in h2h_matches if m.get("over25") is not None]
+            if valid_matches:
+                if prediction == "OVER":
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("over25")) == 1)
+                else:
+                    hits = sum(1 for m in valid_matches if safe_float(m.get("over25")) == 0)
+                
+                predictions["goles"] = {
+                    "prediction": f"{prediction} 2.5",
+                    "line": 2.5,
+                    "hit_count": hits,
+                    "valid_matches": len(valid_matches),
+                    "score": hits,
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                }
+        
+        # 6. Calcular confianza general (promedio de todos los scores)
+        scores = [p["score"] for p in predictions.values() if p.get("score") is not None]
+        overall_confidence = sum(scores) / len(scores) if scores else 0
+        
+        return {
+            "match_id": match_id,
+            "total_h2h_matches": len(h2h_matches),
+            "predictions": predictions,
+            "h2h_matches": [dict(m) for m in h2h_matches],
+            "overall_confidence": round(overall_confidence, 2)
+        }
 
 @router.get("/api/leagues/{season_id}/h2h-effectiveness")
 def get_league_h2h_effectiveness(season_id: int, min_score: int = Query(8)):
