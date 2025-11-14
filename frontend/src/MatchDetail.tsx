@@ -105,8 +105,9 @@ export default function MatchDetail() {
     setLoading(true);
     setError(null);
     try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/matches/${matchId}/details`
+        `${API_URL}/api/matches/${matchId}/details`
       );
       
       if (!response.ok) {
@@ -126,8 +127,9 @@ export default function MatchDetail() {
   // 🎯 FETCH BETTING LINES
   const fetchBettingLines = async () => {
     try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/betting-lines/match/${matchId}?model=weinston`
+        `${API_URL}/api/betting-lines/match/${matchId}?model=weinston`
       );
       
       if (response.ok) {

@@ -6,3 +6,7 @@ python-dotenv>=1.0
 scipy>=1.11
 typer>=0.12
 tqdm>=4.66
+fastapi
+uvicorn[standard]
+numpy
+pandas

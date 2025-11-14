@@ -53,8 +53,9 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
     setLoading(true);
     setError(null);
     try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/matches/${matchId}/h2h-analysis`
+        `${API_URL}/api/matches/${matchId}/h2h-analysis`
       );
 
       if (!response.ok) {

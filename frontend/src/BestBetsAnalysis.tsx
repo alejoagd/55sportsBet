@@ -107,8 +107,9 @@ export default function BestBetsAnalysis() {
     setError(null);
     try {
       console.log('📊 Fetching stats...');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/best-bets/stats?season_id=${seasonId}`
+        `${API_URL}/api/best-bets/stats?season_id=${seasonId}`
       );
       
       if (!response.ok) {
@@ -134,8 +135,9 @@ export default function BestBetsAnalysis() {
                             '&validated=false';
       
       console.log('📋 Fetching history...');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/best-bets/history?season_id=${seasonId}&limit=50${validatedParam}`
+        `${API_URL}/api/best-bets/history?season_id=${seasonId}&limit=50${validatedParam}`
       );
       
       if (response.ok) {
@@ -151,8 +153,9 @@ export default function BestBetsAnalysis() {
   const handleValidate = async () => {
     setValidating(true);
     try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/best-bets/validate?season_id=${seasonId}`,
+        `${API_URL}/api/best-bets/validate?season_id=${seasonId}`,
         { method: 'POST' }
       );
       const result = await response.json();

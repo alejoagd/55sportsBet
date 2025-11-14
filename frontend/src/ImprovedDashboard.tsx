@@ -58,8 +58,9 @@ export default function ImprovedDashboard() {
     setLoading(true);
     setError(null);
     try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const upcomingResponse = await fetch(
-        `http://localhost:8000/api/matches/upcoming?season_id=${seasonId}&limit=10`
+        `${API_URL}/api/matches/upcoming?season_id=${seasonId}&limit=10`
       );
       
       if (!upcomingResponse.ok) {
@@ -71,7 +72,7 @@ export default function ImprovedDashboard() {
       setUpcomingMatches(upcomingData);
 
       const recentResponse = await fetch(
-        `http://localhost:8000/api/matches/recent-results?season_id=${seasonId}&num_matches=20`
+        `${API_URL}/api/matches/recent-results?season_id=${seasonId}&num_matches=20`
       );
       
       if (!recentResponse.ok) {

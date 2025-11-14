@@ -34,8 +34,9 @@ export default function H2HEffectivenessDashboard({ seasonId }: H2HEffectiveness
   const fetchEffectivenessData = async () => {
     setLoading(true);
     try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/leagues/${seasonId}/h2h-effectiveness?min_score=${minScore}`
+        `${API_URL}/api/leagues/${seasonId}/h2h-effectiveness?min_score=${minScore}`
       );
 
       if (response.ok) {
@@ -52,8 +53,9 @@ export default function H2HEffectivenessDashboard({ seasonId }: H2HEffectiveness
   const runBulkAnalysis = async () => {
     try {
       setLoading(true);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `http://localhost:8000/api/leagues/${seasonId}/h2h-bulk-analysis`,
+        `${API_URL}/api/leagues/${seasonId}/h2h-bulk-analysis`,
         { method: 'POST' }
       );
 
