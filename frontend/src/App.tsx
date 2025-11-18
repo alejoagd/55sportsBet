@@ -1,4 +1,4 @@
-// App.tsx - Versión Responsive
+// App.tsx - Versión Responsive CORREGIDA
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import PredictionsDashboard from "./predictionsDashboard";
 import MetricsEvolutionChart from "./MetricsEvolutionChart";
@@ -8,7 +8,6 @@ import MatchDetail from './MatchDetail';
 import BestBetsSection from './BestBetsSection';
 import { ResponsiveWrapper, ResponsiveNav, useIsMobile } from './ResponsiveWrapper';
 import './mobile-responsive.css';
-
 
 // Si usas TypeScript estricto, puedes exportar estos tipos también
 export interface AppFilters {
@@ -61,6 +60,18 @@ function Navigation() {
                 {label}
               </Link>
             ))}
+            {/* Estadísticas 2 */}
+            <Link
+              to="/statistics2"
+              className={`nav-link ${
+                isActive('/statistics2') 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              } ${isMobile ? 'rounded-md' : 'px-6 py-2 rounded-lg font-medium transition-all'}`}
+            >
+              <span className="mr-2">📊</span>
+              Stats 2
+            </Link>
           </ResponsiveNav>
         </div>
       </div>
@@ -79,11 +90,23 @@ function App() {
           <main className={`main-container`}>
             <Routes>
               <Route path="/" element={<ImprovedDashboard />} />
-              <Route path="/predictions" element={<PredictionsDashboard />} />
               <Route path="/best-bets" element={<BestBetsSection />} />
               <Route path="/evolution" element={<MetricsEvolutionChart />} />
               <Route path="/statistics" element={<TeamStatistics />} />
-              <Route path="/match/:id" element={<MatchDetail />} />
+              <Route path="/statistics2" element={<PredictionsDashboard />} />
+              {/* ✅ CORREGIDO: Cambiado de :id a :matchId */}
+              <Route path="/match/:matchId" element={<MatchDetail />} />
+              
+              {/* Ruta 404 */}
+              <Route path="*" element={
+                <div className="flex flex-col items-center justify-center h-96 text-slate-400">
+                  <div className="text-6xl mb-4">404</div>
+                  <div className="text-xl">Página no encontrada</div>
+                  <Link to="/" className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Volver al Dashboard
+                  </Link>
+                </div>
+              } />
             </Routes>
           </main>
         </div>
