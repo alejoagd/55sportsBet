@@ -1,0 +1,291 @@
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+
+/* Breakpoints principales */
+@media (max-width: 768px) {
+  /* === NAVEGACIÓN === */
+  .nav-container {
+    padding: 0 8px !important;
+    height: auto !important;
+    min-height: 60px;
+  }
+
+  .nav-links {
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100%;
+    padding: 8px 0;
+  }
+
+  .nav-link {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .nav-link.active {
+    background: #3b82f6 !important;
+  }
+
+  /* === LAYOUT PRINCIPAL === */
+  .main-container {
+    padding: 12px !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* === CARDS === */
+  .card {
+    padding: 12px !important;
+    margin: 8px 0 !important;
+    border-radius: 8px !important;
+  }
+
+  .card-title {
+    font-size: 18px !important;
+    margin-bottom: 8px !important;
+    line-height: 1.3 !important;
+  }
+
+  /* === BOTONES === */
+  .button-primary {
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+    min-height: 44px !important; /* Tamaño mínimo táctil */
+    width: 100% !important;
+    margin: 4px 0 !important;
+  }
+
+  .button-secondary {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    min-height: 40px !important;
+  }
+
+  /* === TABS === */
+  .tabs-container {
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    padding-bottom: 8px !important;
+  }
+
+  .tab-button {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    min-width: 120px !important;
+    flex-shrink: 0 !important;
+    margin-right: 4px !important;
+  }
+
+  /* === ESTADÍSTICAS === */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .stats-item {
+    padding: 12px !important;
+    text-align: center !important;
+  }
+
+  .stats-value {
+    font-size: 24px !important;
+    font-weight: bold !important;
+  }
+
+  .stats-label {
+    font-size: 12px !important;
+    margin-top: 4px !important;
+  }
+
+  /* === PARTIDOS === */
+  .match-item {
+    padding: 12px !important;
+    margin: 8px 0 !important;
+  }
+
+  .match-teams {
+    font-size: 14px !important;
+    text-align: center !important;
+    margin: 8px 0 !important;
+  }
+
+  .vs-text {
+    font-size: 12px !important;
+    margin: 0 8px !important;
+  }
+
+  /* === PREDICCIONES === */
+  .prediction-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .prediction-model {
+    padding: 8px !important;
+    border-radius: 6px !important;
+  }
+
+  .prediction-value {
+    font-size: 16px !important;
+    font-weight: bold !important;
+  }
+
+  /* === MÉTRICAS === */
+  .metrics-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .metric-card {
+    padding: 12px !important;
+    text-align: center !important;
+  }
+
+  .metric-percentage {
+    font-size: 20px !important;
+    font-weight: bold !important;
+    color: #10b981 !important;
+  }
+
+  /* === GRÁFICOS === */
+  .chart-container {
+    height: 300px !important;
+    margin: 12px 0 !important;
+  }
+
+  /* === TEXTO === */
+  .text-sm-mobile {
+    font-size: 12px !important;
+  }
+
+  .text-base-mobile {
+    font-size: 14px !important;
+  }
+
+  .text-lg-mobile {
+    font-size: 16px !important;
+  }
+
+  .text-xl-mobile {
+    font-size: 18px !important;
+  }
+
+  /* === ESPACIADO === */
+  .p-mobile {
+    padding: 8px !important;
+  }
+
+  .m-mobile {
+    margin: 8px !important;
+  }
+
+  .gap-mobile {
+    gap: 8px !important;
+  }
+
+  /* === UTILIDADES === */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .show-mobile {
+    display: block !important;
+  }
+
+  .flex-col-mobile {
+    flex-direction: column !important;
+  }
+
+  .text-center-mobile {
+    text-align: center !important;
+  }
+
+  .w-full-mobile {
+    width: 100% !important;
+  }
+}
+
+/* ===== BREAKPOINT EXTRA PEQUEÑO ===== */
+@media (max-width: 480px) {
+  .nav-link {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    min-height: 36px !important;
+  }
+
+  .card-title {
+    font-size: 16px !important;
+  }
+
+  .button-primary {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .main-container {
+    padding: 8px !important;
+  }
+
+  .stats-value {
+    font-size: 20px !important;
+  }
+
+  .prediction-value {
+    font-size: 14px !important;
+  }
+}
+
+/* ===== MEJORAS ESPECÍFICAS PARA COMPONENTES ===== */
+
+/* Navegación horizontal en móvil */
+@media (max-width: 768px) {
+  .horizontal-nav {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 4px !important;
+    padding: 8px !important;
+    background: #1e293b !important;
+    border-radius: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .horizontal-nav::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .horizontal-nav::-webkit-scrollbar-track {
+    background: #334155;
+    border-radius: 2px;
+  }
+
+  .horizontal-nav::-webkit-scrollbar-thumb {
+    background: #64748b;
+    border-radius: 2px;
+  }
+}
+
+/* Mejoras para inputs y formularios */
+@media (max-width: 768px) {
+  .form-input {
+    padding: 12px !important;
+    font-size: 16px !important; /* Evita zoom en iOS */
+    width: 100% !important;
+    border-radius: 8px !important;
+  }
+
+  .form-label {
+    font-size: 14px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .form-group {
+    margin-bottom: 12px !important;
+  }
+}
