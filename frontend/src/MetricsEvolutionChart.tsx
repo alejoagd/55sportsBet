@@ -92,8 +92,8 @@ export default function MetricsEvolutionChart() {
       if (filters.date_to) {
         params.append('date_to', filters.date_to);
       }
-      
-      const response = await fetch(`http://localhost:8000/api/predictions/evolution?${params}`);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/predictions/evolution?${params}`);
       const result: EvolutionData = await response.json();
       setData(result);
     } catch (error) {

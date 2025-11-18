@@ -81,7 +81,8 @@ const [filters] = useState<Filters>({
         ...(filters.date_to && { date_to: filters.date_to })
       });
 
-      const response = await fetch(`http://localhost:8000/api/team-statistics?${params}`);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/team-statistics?${params}`);
       const result = await response.json();
       setData(result);
     } catch (error) {
