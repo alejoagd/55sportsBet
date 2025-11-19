@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
+import { useAdminMode } from './Hooks/useAdminMode';
 
 interface Match {
   match_id: number;
@@ -49,6 +49,7 @@ export default function ImprovedDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [seasonId] = useState(2);
+  const { isAdmin } = useAdminMode();
 
   useEffect(() => {
     fetchData();
@@ -457,25 +458,29 @@ export default function ImprovedDashboard() {
                 Premier League - Temporada 2025/2026
               </p>
             </div>
-            <button
-              onClick={async () => {
-                if (confirm('¿Recalcular todos los aciertos? Esto puede tardar unos segundos.')) {
-                  try {
-                    const response = await fetch(`http://localhost:8000/api/recalculate-outcomes?season_id=${seasonId}`, {
-                      method: 'POST'
-                    });
-                    const data = await response.json();
-                    alert(`✅ Recalculados ${data.inserted_count} registros`);
-                    fetchData(); // Recargar los datos
-                  } catch (error) {
-                    alert('❌ Error al recalcular');
+        {/* ✅ SOLO MOSTRAR SI ES ADMIN */}
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  if (confirm('¿Recalcular todos los aciertos?')) {
+                    try {
+                      const response = await fetch(
+                        `http://localhost:8000/api/recalculate-outcomes?season_id=${seasonId}`, 
+                        { method: 'POST' }
+                      );
+                      const data = await response.json();
+                      alert(`✅ Recalculados ${data.inserted_count} registros`);
+                      fetchData();
+                    } catch (error) {
+                      alert('❌ Error al recalcular');
+                    }
                   }
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
-            >
-              🔄 Recalcular Aciertos
-            </button>
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              >
+                🔄 Recalcular Aciertos
+              </button>
+            )}
           </div>
         </div>
 

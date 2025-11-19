@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AdminOnly } from './AdminButton';
 
 interface BestBet {
   match_id: number;
@@ -122,12 +123,14 @@ export default function BestBetsSection() {
               <p className="text-slate-400 text-sm">Basado en análisis de rendimiento histórico</p>
             </div>
           </div>
+          <AdminOnly hideCompletely={true}>
           <button
             onClick={fetchBestBets}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-semibold"
           >
             🔄 Actualizar
           </button>
+          </AdminOnly>
         </div>
 
         {/* Accuracy histórica */}

@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Target, Award, CheckCircle, XCircle } from 'lucide-react';
+import { AdminOnly } from './AdminButton';
 
 interface GeneralStats {
   total_bets: number;
@@ -298,6 +299,7 @@ export default function BestBetsAnalysis() {
               </p>
             </div>
           </div>
+          <AdminOnly hideCompletely={true}>
           <button
             onClick={handleValidate}
             disabled={validating}
@@ -305,6 +307,7 @@ export default function BestBetsAnalysis() {
           >
             {validating ? '⏳ Validando...' : '🔄 Validar Resultados'}
           </button>
+          </AdminOnly>
         </div>
       </div>
 
