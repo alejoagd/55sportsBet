@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
+import LeagueSwitcher from './Leagueswitcher';
 
 interface Match {
   match_id: number;
@@ -48,12 +49,34 @@ export default function ImprovedDashboard() {
   const [recentMatches, setRecentMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [seasonId] = useState(2);
+  const [currentLeagueId, setCurrentLeagueId] = useState(1);
+  const [seasonId, setSeasonId] = useState(2);
   const { isAdmin } = useAdminMode();
 
+  // Actualizar season_id cuando cambia la liga
   useEffect(() => {
-    fetchData();
-  }, []);
+    const updateSeasonForLeague = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${API_URL}/api/leagues/${currentLeagueId}`);
+
+        if (response.ok) {
+          const leagueData = await response.json();
+          setSeasonId(leagueData.seasonId);
+        }
+      } catch (error) {
+        console.error('Error obteniendo season_id:', error);
+      }
+    };
+
+    updateSeasonForLeague();
+  }, [currentLeagueId]);
+
+  useEffect(() => {
+    if (seasonId) {
+      fetchData();
+    }
+  }, [seasonId]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -443,90 +466,107 @@ export default function ImprovedDashboard() {
     );
   }
 
+// ═══════════════════════════════════════════════════════════════════
+// CORRECCIÓN DEL return EN ImprovedDashboard.tsx
+// Reemplaza desde la línea 446 hasta el final (línea 532)
+// ═══════════════════════════════════════════════════════════════════
+
   return (
-    <div className="min-h-screen bg-slate-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <>
+      {/* ✨ SELECTOR DE LIGAS - DEBE IR AQUÍ ARRIBA */}
+      <LeagueSwitcher 
+        currentLeagueId={currentLeagueId}
+        onLeagueChange={(leagueId) => {
+          setCurrentLeagueId(leagueId);
+          setLoading(true);
+        }}
+      />
 
-        {/* Header */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                📊 Dashboard de Predicciones
-              </h1>
-              <p className="text-slate-300">
-                Premier League - Temporada 2025/2026
-              </p>
-            </div>
-        {/* ✅ SOLO MOSTRAR SI ES ADMIN */}
-            {isAdmin && (
-              <button
-                onClick={async () => {
-                  if (confirm('¿Recalcular todos los aciertos?')) {
-                    try {
-                      const response = await fetch(
-                        `http://localhost:8000/api/recalculate-outcomes?season_id=${seasonId}`, 
-                        { method: 'POST' }
-                      );
-                      const data = await response.json();
-                      alert(`✅ Recalculados ${data.inserted_count} registros`);
-                      fetchData();
-                    } catch (error) {
-                      alert('❌ Error al recalcular');
+      {/* CONTENIDO DEL DASHBOARD */}
+      <div className="min-h-screen bg-slate-900 p-6">
+        <div className="max-w-7xl mx-auto space-y-8">
+
+          {/* Header */}
+          <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">
+                  📊 Dashboard de Predicciones
+                </h1>
+                <p className="text-slate-300">
+                  Premier League - Temporada 2025/2026
+                </p>
+              </div>
+              {/* ✅ SOLO MOSTRAR SI ES ADMIN */}
+              {isAdmin && (
+                <button
+                  onClick={async () => {
+                    if (confirm('¿Recalcular todos los aciertos?')) {
+                      try {
+                        const response = await fetch(
+                          `http://localhost:8000/api/recalculate-outcomes?season_id=${seasonId}`, 
+                          { method: 'POST' }
+                        );
+                        const data = await response.json();
+                        alert(`✅ Recalculados ${data.inserted_count} registros`);
+                        fetchData();
+                      } catch (error) {
+                        alert('❌ Error al recalcular');
+                      }
                     }
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-              >
-                🔄 Recalcular Aciertos
-              </button>
-            )}
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  🔄 Recalcular Aciertos
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Próximos Partidos */}
+          {upcomingMatches.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-white">
+                  🔮 Próximos Partidos
+                </h2>
+                <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
+                  {upcomingMatches.length} partidos
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {upcomingMatches.map((match) => renderMatchCard(match, false))}
+              </div>
+            </section>
+          )}
+
+          {/* Resultados Recientes */}
+          {recentMatches.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-white">
+                  📋 Resultados Recientes
+                </h2>
+                <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
+                  {recentMatches.length} partidos
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recentMatches.map((match) => renderMatchCard(match, true))}
+              </div>
+            </section>
+          )}
+
+          {/* Sin datos */}
+          {upcomingMatches.length === 0 && recentMatches.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-slate-400 text-lg">
+                No hay partidos disponibles
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Próximos Partidos */}
-        {upcomingMatches.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-white">
-                🔮 Próximos Partidos
-              </h2>
-              <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
-                {upcomingMatches.length} partidos
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {upcomingMatches.map((match) => renderMatchCard(match, false))}
-            </div>
-          </section>
-        )}
-
-        {/* Resultados Recientes */}
-        {recentMatches.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-white">
-                📋 Resultados Recientes
-              </h2>
-              <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
-                {recentMatches.length} partidos
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {recentMatches.map((match) => renderMatchCard(match, true))}
-            </div>
-          </section>
-        )}
-
-        {/* Sin datos */}
-        {upcomingMatches.length === 0 && recentMatches.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-slate-400 text-lg">
-              No hay partidos disponibles
-            </div>
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 }

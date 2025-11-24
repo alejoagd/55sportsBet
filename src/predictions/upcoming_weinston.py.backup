@@ -1,21 +1,8 @@
+# src/predictions/upcoming_weinston.py
 from __future__ import annotations
 import math
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 from sqlalchemy import text
-from .league_context import LeagueContext  # ← NUEVO IMPORT
-
-# src/predictions/upcoming_weinston.py
-"""
-Predicciones Weinston con soporte multi-liga.
-
-CAMBIOS PRINCIPALES:
-1. Importa LeagueContext
-2. Todas las funciones auxiliares reciben league_ctx y filtran por league_id
-3. predict_and_upsert_weinston acepta league_ctx opcional
-4. Logs mejorados mostrando información de liga
-"""
-
-
 
 def _poisson_pmf(lam: float, k: int) -> float:
     if lam <= 0:
@@ -41,93 +28,66 @@ def _aggregate_probs(lh: float, la: float, max_goals: int = 12) -> Dict[str, flo
 
     return {"pH": home, "pD": draw, "pA": away, "pO25": over25, "pBTTS": btts}
 
-
-def _load_weinston_ratings(
-    conn, 
-    season_id: int,
-    league_ctx: Optional[LeagueContext] = None  # ← NUEVO PARÁMETRO
-) -> Dict[int, Dict[str, float]]:
-    """
-    Carga los ratings de Weinston FILTRADO POR LIGA.
-    
-    Args:
-        conn: Conexión a BD
-        season_id: ID de la temporada
-        league_ctx: Contexto de liga (se carga si no se provee)
-    """
-    if league_ctx is None:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-    
-    league_id = league_ctx.league_id
-    
-    # ⚠️ CAMBIO CRÍTICO: Filtrar por league_id
+def _load_weinston_ratings(conn, season_id: int) -> Dict[int, Dict[str, float]]:
+    """Carga los ratings de Weinston desde weinston_ratings"""
     q = text("""
         SELECT team_id, atk_home, def_home, atk_away, def_away
         FROM weinston_ratings
         WHERE season_id = :season_id
-          AND league_id = :league_id  -- ← FILTRO AGREGADO
     """)
-    
     ratings = {}
-    for row in conn.execute(q, {"season_id": season_id, "league_id": league_id}):
+    for row in conn.execute(q, {"season_id": season_id}):
         ratings[int(row.team_id)] = {
             "atk_home": float(row.atk_home),
             "def_home": float(row.def_home),
             "atk_away": float(row.atk_away),
             "def_away": float(row.def_away),
         }
-    
-    print(f"   📊 Ratings cargados para {len(ratings)} equipos")
     return ratings
 
+def _load_league_params(conn, season_id: int) -> Tuple[float, float, float]:
+    """Carga mu_home, mu_away, home_adv desde weinston_params"""
+    try:
+        q = text("""
+            SELECT mu_home, mu_away, home_adv 
+            FROM weinston_params 
+            WHERE season_id = :sid
+        """)
+        row = conn.execute(q, {"sid": season_id}).fetchone()
+        
+        if row and row.mu_home is not None:
+            return float(row.mu_home), float(row.mu_away), float(row.home_adv)
+    except Exception as e:
+        print(f"⚠️  Error al cargar parámetros: {e}")
+    
+    print(f"⚠️  No hay parámetros Weinston para season {season_id}, usando fallback...")
+    try:
+        q_fb = text("""
+            SELECT 
+                COALESCE(AVG(home_goals), 1.3) as avg_h, 
+                COALESCE(AVG(away_goals), 1.1) as avg_a
+            FROM matches
+            WHERE season_id = :sid 
+              AND home_goals IS NOT NULL 
+              AND away_goals IS NOT NULL
+        """)
+        row_fb = conn.execute(q_fb, {"sid": season_id}).fetchone()
+        mu_home = float(row_fb.avg_h) if row_fb else 1.3
+        mu_away = float(row_fb.avg_a) if row_fb else 1.1
+        home_adv = 1.2
+        print(f"   Fallback: μ_home={mu_home:.2f}, μ_away={mu_away:.2f}, HFA={home_adv:.2f}")
+        return mu_home, mu_away, home_adv
+    except Exception as e:
+        print(f"⚠️  Error en fallback: {e}, usando defaults")
+        return 1.3, 1.1, 1.2
 
-def _load_league_params(
-    conn, 
-    season_id: int,
-    league_ctx: Optional[LeagueContext] = None  # ← NUEVO PARÁMETRO
-) -> Tuple[float, float, float]:
+def _load_team_stat_profiles(conn, season_id: int, n_recent: int = 20) -> Tuple[Dict, Dict]:
     """
-    Carga parámetros de liga usando LeagueContext.
-    
-    Prioridad:
-    1. weinston_params (específico por temporada)
-    2. league_parameters (promedio de liga)
-    3. Cálculo dinámico de la temporada
+    Carga perfiles estadísticos de equipos.
+    IMPORTANTE: Usa home_shots, away_shots, etc. (nombres correctos de tu esquema)
     """
-    if league_ctx is None:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-    
-    # Usar los parámetros ya cargados por LeagueContext
-    mu_home = league_ctx.avg_home_goals
-    mu_away = league_ctx.avg_away_goals
-    home_adv = league_ctx.hfa
-    
-    return mu_home, mu_away, home_adv
-
-
-def _load_team_stat_profiles(
-    conn, 
-    season_id: int, 
-    n_recent: int = 20,
-    league_ctx: Optional[LeagueContext] = None  # ← NUEVO PARÁMETRO
-) -> Tuple[Dict, Dict]:
-    """
-    Carga perfiles estadísticos de equipos FILTRADO POR LIGA.
-    
-    Args:
-        conn: Conexión a BD
-        season_id: ID de la temporada
-        n_recent: Número de partidos recientes
-        league_ctx: Contexto de liga (se carga si no se provee)
-    """
-    if league_ctx is None:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-    
-    league_id = league_ctx.league_id
-    
     profiles = {}
     
-    # ⚠️ CAMBIO CRÍTICO: Filtrar por league_id en la query
     q = text("""
         WITH team_stats AS (
             SELECT 
@@ -145,9 +105,8 @@ def _load_team_stat_profiles(
                 ms.away_corners as corners_against,
                 m.date
             FROM matches m
-            JOIN seasons s ON s.id = m.season_id
             JOIN match_stats ms ON ms.match_id = m.id
-            WHERE s.league_id = :league_id  -- ← FILTRO AGREGADO
+            WHERE m.season_id = :sid
               AND m.home_goals IS NOT NULL
             
             UNION ALL
@@ -167,9 +126,8 @@ def _load_team_stat_profiles(
                 ms.home_corners as corners_against,
                 m.date
             FROM matches m
-            JOIN seasons s ON s.id = m.season_id
             JOIN match_stats ms ON ms.match_id = m.id
-            WHERE s.league_id = :league_id  -- ← FILTRO AGREGADO
+            WHERE m.season_id = :sid
               AND m.away_goals IS NOT NULL
         ),
         recent_stats AS (
@@ -195,7 +153,7 @@ def _load_team_stat_profiles(
         GROUP BY team_id, location
     """)
     
-    rows = conn.execute(q, {"league_id": league_id, "n_recent": n_recent}).fetchall()
+    rows = conn.execute(q, {"sid": season_id, "n_recent": n_recent}).fetchall()
     
     for row in rows:
         team_id = int(row.team_id)
@@ -219,7 +177,6 @@ def _load_team_stat_profiles(
         profiles[team_id]["corners"][f"{prefix}_for"] = float(row.avg_corners_for or 0)
         profiles[team_id]["corners"][f"{prefix}_against"] = float(row.avg_corners_against or 0)
     
-    # ⚠️ CAMBIO: Filtrar league_means por liga también
     q_league = text("""
         SELECT 
             AVG(ms.home_shots) as avg_shots,
@@ -229,11 +186,10 @@ def _load_team_stat_profiles(
             AVG(ms.home_corners) as avg_corners
         FROM match_stats ms
         JOIN matches m ON m.id = ms.match_id
-        JOIN seasons s ON s.id = m.season_id
-        WHERE s.league_id = :league_id  -- ← FILTRO AGREGADO
+        WHERE m.season_id = :sid
     """)
     
-    row_league = conn.execute(q_league, {"league_id": league_id}).fetchone()
+    row_league = conn.execute(q_league, {"sid": season_id}).fetchone()
     
     league_means = {
         "shots": float(row_league.avg_shots or 12.0),
@@ -243,10 +199,7 @@ def _load_team_stat_profiles(
         "corners": float(row_league.avg_corners or 5.0)
     }
     
-    print(f"   📈 Perfiles estadísticos cargados para {len(profiles)} equipos")
-    
     return profiles, league_means
-
 
 def _exp_stat(stat: str, home_id: int, away_id: int, profiles: Dict, league_means: Dict) -> Tuple[float, float]:
     """Combina ataque y defensa: 60% for + 40% against"""
@@ -264,7 +217,6 @@ def _exp_stat(stat: str, home_id: int, away_id: int, profiles: Dict, league_mean
     away_val = 0.6 * away_for + 0.4 * home_against
     
     return home_val, away_val
-
 
 def _calculate_weinston_lambdas(
     home_team_id: int, away_team_id: int,
@@ -284,51 +236,24 @@ def _calculate_weinston_lambdas(
     
     return float(lam_home), float(lam_away)
 
-
-def predict_and_upsert_weinston(
-    conn, 
-    season_id: int, 
-    match_ids: List[int], 
-    threshold: float = 0.5,
-    league_ctx: Optional[LeagueContext] = None  # ← NUEVO PARÁMETRO
-) -> None:
-    """
-    Genera predicciones Weinston para partidos futuros DE UNA LIGA.
-    
-    Args:
-        conn: Conexión a la base de datos
-        season_id: ID de la temporada
-        match_ids: Lista de IDs de partidos a predecir
-        threshold: Umbral para clasificaciones binarias (default: 0.5)
-        league_ctx: Contexto de liga (se carga automáticamente si no se provee)
-    """
-    # ✅ NUEVO: Cargar contexto de liga
-    if league_ctx is None:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-    
-    print(f"\n🎯 Generando predicciones Weinston")
-    print(f"   Liga: {league_ctx.league_name}")
-    print(f"   Temporada: {league_ctx.season_year}")
-    print(f"   Partidos a predecir: {len(match_ids)}")
-    
-    # ✅ CAMBIO: Pasar league_ctx a todas las funciones auxiliares
-    ratings = _load_weinston_ratings(conn, season_id, league_ctx=league_ctx)
-    mu_home, mu_away, home_adv = _load_league_params(conn, season_id, league_ctx=league_ctx)
-    
-    print(f"   🔢 Parámetros: μ_home={mu_home:.3f}, μ_away={mu_away:.3f}, HFA={home_adv:.3f}")
+def predict_and_upsert_weinston(conn, season_id: int, match_ids: List[int], threshold: float = 0.5) -> None:
+    ratings = _load_weinston_ratings(conn, season_id)
+    mu_home, mu_away, home_adv = _load_league_params(conn, season_id)
     
     try:
-        profiles, league_means = _load_team_stat_profiles(conn, season_id, n_recent=20, league_ctx=league_ctx)
+        profiles, league_means = _load_team_stat_profiles(conn, season_id, n_recent=20)
         use_profiles = True
+        print(f"✓ Perfiles estadísticos cargados para {len(profiles)} equipos")
     except Exception as e:
-        print(f"   ⚠️  No se pudieron cargar perfiles: {e}")
-        print(f"   ⚠️  Usando estimaciones basadas en lambdas")
+        print(f"⚠️  No se pudieron cargar perfiles: {e}")
+        print(f"⚠️  Usando estimaciones basadas en lambdas")
         profiles, league_means = {}, {}
         use_profiles = False
     
     q_matches = text("SELECT id, home_team_id, away_team_id FROM matches WHERE id = ANY(:ids)")
     matches = conn.execute(q_matches, {"ids": match_ids}).fetchall()
 
+    # 🔥 ACTUALIZADO: Agregar las columnas de probabilidades
     upsert = text("""
         INSERT INTO weinston_predictions
             (match_id, local_goals, away_goals, result_1x2, over_2, both_score,
@@ -353,11 +278,11 @@ def predict_and_upsert_weinston(
             win_corners = EXCLUDED.win_corners
     """)
 
-    predictions_saved = 0
     for mid, home_id, away_id in matches:
         lh, la = _calculate_weinston_lambdas(home_id, away_id, ratings, mu_home, mu_away, home_adv)
         pr = _aggregate_probs(lh, la)
 
+        # 🔥 IMPORTANTE: Usar >= para consistencia con evaluate.py
         if pr["pH"] >= pr["pD"] and pr["pH"] >= pr["pA"]:
             r1x2 = 1
         elif pr["pD"] >= pr["pH"] and pr["pD"] >= pr["pA"]:
@@ -365,6 +290,7 @@ def predict_and_upsert_weinston(
         else:
             r1x2 = 2
 
+        # 🔥 IMPORTANTE: Mantener >= 0.5 (igual que en evaluate.py)
         over2 = "OVER" if pr["pO25"] >= threshold else "UNDER"
         btts  = "YES"  if pr["pBTTS"] >= threshold else "NO"
 
@@ -383,14 +309,17 @@ def predict_and_upsert_weinston(
         
         wc = "HOME" if coh > coa else ("AWAY" if coa > coh else "TIE")
 
+        # 🔥 ACTUALIZADO: Guardar también las probabilidades numéricas
         conn.execute(upsert, {
             "mid": int(mid), "lg": lh, "ag": la, "r1x2": int(r1x2),
             "over2": over2, "btts": btts,
+            # Nuevas columnas de probabilidades
             "pH": float(pr["pH"]),
             "pD": float(pr["pD"]),
             "pA": float(pr["pA"]),
             "pO25": float(pr["pO25"]),
             "pBTTS": float(pr["pBTTS"]),
+            # Estadísticas
             "sh": float(sh), "sa": float(sa),
             "sth": float(sth), "sta": float(sta),
             "fh": float(fh), "fa": float(fa),
@@ -398,6 +327,3 @@ def predict_and_upsert_weinston(
             "coh": float(coh), "coa": float(coa),
             "wc": wc,
         })
-        predictions_saved += 1
-    
-    print(f"   ✅ {predictions_saved} predicciones guardadas en weinston_predictions")

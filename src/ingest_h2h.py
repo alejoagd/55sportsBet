@@ -18,7 +18,7 @@ PG_DSN = settings.sqlalchemy_url
 
 EXCEL_PATH_DEFAULT = "../data/H2H.xlsx"
 
-LEAGUE_ID_DEFAULT = 1  # Premier League en tu tabla teams/seasons
+LEAGUE_ID_DEFAULT = 2  # Valida la liga en tu tabla teams/seasons
 
 
 # ===============================

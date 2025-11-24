@@ -31,19 +31,23 @@ def _pf(v):
         return float(np.asarray(v).astype(float).item())
 
 def save_ratings(season_id: int, team_ids, atk_home, def_home, atk_away, def_away):
+    # 0) Obtener league_id del season
+    with SessionLocal() as s:
+        league_id = s.execute(
+            text("SELECT league_id FROM seasons WHERE id = :sid"),
+            {"sid": season_id}
+        ).scalar()
+    
     # 1) normaliza a listas de float nativo
-    to_py = lambda arr: [ _pf(x) for x in list(arr) ]  # list(...) rompe la relación con numpy/pandas
-    atk_home = to_py(atk_home)
-    def_home = to_py(def_home)
-    atk_away = to_py(atk_away)
-    def_away = to_py(def_away)
-    team_ids = [ int(x) for x in list(team_ids) ]
-
+    to_py = lambda arr: [ _pf(x) for x in list(arr) ]
+    # ... resto del código igual ...
+    
     # 2) arma los registros con tipos puros
     rows = [
         {
             "season_id": int(season_id),
             "team_id": tid,
+            "league_id": int(league_id),  # ← AGREGAR ESTO
             "atk_home": atk_home[i],
             "def_home": def_home[i],
             "atk_away": atk_away[i],
@@ -53,10 +57,11 @@ def save_ratings(season_id: int, team_ids, atk_home, def_home, atk_away, def_awa
     ]
 
     upsert_sql = text("""
-        INSERT INTO weinston_ratings (season_id, team_id, atk_home, def_home, atk_away, def_away)
-        VALUES (:season_id, :team_id, :atk_home, :def_home, :atk_away, :def_away)
+        INSERT INTO weinston_ratings (season_id, team_id, league_id, atk_home, def_home, atk_away, def_away)
+        VALUES (:season_id, :team_id, :league_id, :atk_home, :def_home, :atk_away, :def_away)
         ON CONFLICT (season_id, team_id) DO UPDATE
-        SET atk_home = EXCLUDED.atk_home,
+        SET league_id = EXCLUDED.league_id,  -- ← AGREGAR ESTO
+            atk_home = EXCLUDED.atk_home,
             def_home = EXCLUDED.def_home,
             atk_away = EXCLUDED.atk_away,
             def_away = EXCLUDED.def_away
@@ -74,17 +79,52 @@ def _league_means(s: Session, season_id: int):
               .filter(Match.season_id==season_id).one()
     return float(mh or 1.3), float(ma or 1.1)
 
+
 def _dataset(s: Session, season_id: int):
+    """
+    Obtiene dataset de entrenamiento filtrando SOLO equipos de la liga correspondiente.
+    
+    ✅MULTI-LIGA: Ahora obtiene team_ids solo de los equipos que participan 
+    en partidos de este season_id, evitando mezclar ligas.
+
+    """
+    # Obtener partidos terminados del season
     rows = s.query(Match.home_team_id, Match.away_team_id,
                    Match.home_goals, Match.away_goals)\
             .filter(Match.season_id==season_id,
                     Match.home_goals.isnot(None),
                     Match.away_goals.isnot(None)).all()
-    team_ids = [t.id for t in s.query(Team.id).order_by(Team.id)]
+    
+    # ✅ CORRECCIÓN: Obtener SOLO equipos que participan en esta temporada
+    # Unión de equipos locales y visitantes de este season_id
+    team_ids_query = s.query(Team.id)\
+        .filter(Team.id.in_(
+            s.query(Match.home_team_id).filter(Match.season_id==season_id)
+            .union(
+                s.query(Match.away_team_id).filter(Match.season_id==season_id)
+            )
+        ))\
+        .order_by(Team.id)
+    
+    team_ids = [t.id for t in team_ids_query]
+    
+    # Validación: asegurar que tenemos al menos algunos equipos
+    if len(team_ids) < 2:
+        raise ValueError(f"season_id={season_id} tiene menos de 2 equipos. Verifica los datos.")
+    
+    print(f"📊 Dataset: {len(team_ids)} equipos únicos para season_id={season_id}")
+    
+    # Crear índice de equipos
     idx = {tid:i for i,tid in enumerate(team_ids)}
-    H = np.array([idx[r[0]] for r in rows]); A = np.array([idx[r[1]] for r in rows])
-    HG = np.array([r[2] for r in rows], float); AG = np.array([r[3] for r in rows], float)
+    
+    # Arrays de índices y goles
+    H = np.array([idx[r[0]] for r in rows])
+    A = np.array([idx[r[1]] for r in rows])
+    HG = np.array([r[2] for r in rows], float)
+    AG = np.array([r[3] for r in rows], float)
+    
     return team_ids, H, A, HG, AG
+
 
 def fit_weinston(s: Session, season_id: int) -> FitResult:
     team_ids, H, A, HG, AG = _dataset(s, season_id)
@@ -117,11 +157,8 @@ def fit_weinston(s: Session, season_id: int) -> FitResult:
                    options={"gtol":1e-6,"xtol":1e-6,"maxiter":500})
     aL,dH,aA,dA,mu_h,mu_a,hadv = unp(res.x)
     
-    # Guardar ratings Y parámetros
-    #save_ratings(season_id, team_ids, aL, dH, aA, dA)
-    #save_league_params(season_id, mu_h, mu_a, hadv, res.fun)  # ← AGREGAR ESTA LÍNEA
-    
     return FitResult(team_ids, aL, dH, aA, dA, float(mu_h), float(mu_a), float(hadv), float(res.fun))
+
 
 def save_league_params(season_id: int, mu_home: float, mu_away: float, home_adv: float, loss: float):
     """
@@ -155,4 +192,4 @@ def save_league_params(season_id: int, mu_home: float, mu_away: float, home_adv:
             "loss": float(loss)
         })
     
-    print(f"✓ Parámetros guardados: μ_home={mu_home:.3f}, μ_away={mu_away:.3f}, HFA={home_adv:.3f}, loss={loss:.2f}")
+    print(f"✅ Parámetros guardados: μ_home={mu_home:.3f}, μ_away={mu_away:.3f}, HFA={home_adv:.3f}, loss={loss:.2f}")

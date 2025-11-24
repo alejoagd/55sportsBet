@@ -255,13 +255,78 @@ def bulk(
     from src.config import settings
 
     def _norm(s: str) -> str:
-        return (s or "").strip().lower()
+        """Normaliza nombre de equipo: lowercase, sin espacios extras, sin acentos"""
+        if not s:
+            return ""
+        
+        import unicodedata
+        
+        # Lowercase y strip
+        s = s.strip().lower()
+        
+        # Remover acentos
+        s = ''.join(
+            c for c in unicodedata.normalize('NFD', s)
+            if unicodedata.category(c) != 'Mn'
+        )
+        
+        # Normalizar espacios múltiples
+        s = ' '.join(s.split())
+        
+        return s
 
     engine = create_engine(settings.sqlalchemy_url)
 
     with engine.connect() as conn:
-        rows = conn.execute(text("SELECT id, name FROM teams")).fetchall()  # ajusta si tu esquema difiere
+        # Obtener league_id del season
+        league_query = text("""
+            SELECT league_id FROM seasons WHERE id = :season_id
+        """)
+        league_id = conn.execute(league_query, {"season_id": season_id}).scalar()
+        
+        if not league_id:
+            raise ValueError(f"season_id={season_id} no tiene league_id asignado")
+        
+        # Cargar equipos de esa liga
+        query = text("""
+            SELECT DISTINCT t.id, t.name
+            FROM teams t
+            JOIN matches m ON (m.home_team_id = t.id OR m.away_team_id = t.id)
+            JOIN seasons s ON s.id = m.season_id
+            WHERE s.league_id = :league_id
+            ORDER BY t.name
+        """)
+        rows = conn.execute(query, {"league_id": league_id}).fetchall()
+        
     team_id_by_name = {_norm(name): tid for tid, name in rows}
+
+    # ═══════════════════════════════════════════════════════════
+    # DEBUG: Mostrar mapeo completo
+    # ═══════════════════════════════════════════════════════════
+    print("\n" + "="*70)
+    print(f"  MAPEO DE EQUIPOS (Total: {len(team_id_by_name)})")
+    print("="*70)
+    for name, tid in sorted(team_id_by_name.items()):
+        print(f"  '{name}' → {tid}")
+    print("="*70 + "\n")
+
+    # DEBUG: Verificar equipos específicos del CSV
+    test_teams = ['villarreal', 'mallorca', 'real sociedad', 'alaves']
+    print("🔍 VERIFICACIÓN DE EQUIPOS DEL CSV:")
+    for team in test_teams:
+        if team in team_id_by_name:
+            print(f"  ✅ '{team}' → ID {team_id_by_name[team]}")
+        else:
+            print(f"  ❌ '{team}' → NO ENCONTRADO")
+            # Buscar similares
+            similares = [k for k in team_id_by_name.keys() if team[:4] in k or k[:4] in team]
+            if similares:
+                print(f"     Similares: {similares}")
+    print("="*70 + "\n")
+    # ═══════════════════════════════════════════════════════════
+    
+    print(f"\n✅ {len(team_id_by_name)} equipos de {league} mapeados")
+    print(f"   Liga ID: {league_id}, Season ID: {season_id}")
 
     unknown = []
     for idx, row in df.iterrows():

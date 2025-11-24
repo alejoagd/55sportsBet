@@ -62,31 +62,45 @@ def calculate_h2h_scoring(
         }
 
 def _get_weinston_predictions(conn: Connection, match_id: int) -> Optional[Dict[str, Any]]:
-    """Obtiene las predicciones de Weinston para un partido"""
+    """
+    Obtiene las predicciones de Weinston para un partido.
+    
+    ✅ CORREGIDO: Lee los thresholds de league_parameters según la liga del partido
+    """
     query = text("""
         SELECT 
-            local_goals,
-            away_goals,
-            over_2,
-            both_score,
-            shots_home,
-            shots_away,
-            shots_target_home,
-            shots_target_away,
-            fouls_home,
-            fouls_away,
-            cards_home,
-            cards_away,
-            corners_home,
-            corners_away
-        FROM weinston_predictions
-        WHERE match_id = :match_id
+            wp.local_goals,
+            wp.away_goals,
+            wp.over_2,
+            wp.both_score,
+            wp.shots_home,
+            wp.shots_away,
+            wp.shots_target_home,
+            wp.shots_target_away,
+            wp.fouls_home,
+            wp.fouls_away,
+            wp.cards_home,
+            wp.cards_away,
+            wp.corners_home,
+            wp.corners_away,
+            -- ✅ NUEVO: Obtener thresholds de league_parameters
+            lp.betting_line_shots,
+            lp.betting_line_shots_ot,
+            lp.betting_line_fouls,
+            lp.betting_line_cards,
+            lp.betting_line_corners
+        FROM weinston_predictions wp
+        JOIN matches m ON m.id = wp.match_id
+        JOIN seasons s ON s.id = m.season_id
+        JOIN league_parameters lp ON lp.league_id = s.league_id
+        WHERE wp.match_id = :match_id
     """)
     
     result = conn.execute(query, {"match_id": match_id}).fetchone()
     if not result:
         return None
     
+    # Calcular totales predichos
     total_goals = float(result.local_goals) + float(result.away_goals)
     total_shots = float(result.shots_home) + float(result.shots_away)
     total_shots_target = float(result.shots_target_home) + float(result.shots_target_away)
@@ -94,36 +108,43 @@ def _get_weinston_predictions(conn: Connection, match_id: int) -> Optional[Dict[
     total_cards = float(result.cards_home) + float(result.cards_away)
     total_corners = float(result.corners_home) + float(result.corners_away)
     
+    # ✅ Usar thresholds de league_parameters
+    line_shots = float(result.betting_line_shots)
+    line_shots_ot = float(result.betting_line_shots_ot)
+    line_fouls = float(result.betting_line_fouls)
+    line_cards = float(result.betting_line_cards)
+    line_corners = float(result.betting_line_corners)
+    
     return {
         "goles": {
             "predicted_total": total_goals,
-            "line": 2.5,
+            "line": 2.5,  # Este sí es universal
             "prediction": "OVER_2_5" if total_goals >= 2.5 else "UNDER_2_5"
         },
         "tiros": {
             "predicted_total": total_shots,
-            "line": 24.5,
-            "prediction": "OVER_24_5" if total_shots >= 24.5 else "UNDER_24_5"
+            "line": line_shots,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_shots}" if total_shots >= line_shots else f"UNDER_{line_shots}"
         },
         "tiros_al_arco": {
             "predicted_total": total_shots_target,
-            "line": 8.5,
-            "prediction": "OVER_8_5" if total_shots_target >= 8.5 else "UNDER_8_5"
+            "line": line_shots_ot,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_shots_ot}" if total_shots_target >= line_shots_ot else f"UNDER_{line_shots_ot}"
         },
         "faltas": {
             "predicted_total": total_fouls,
-            "line": 22.5,
-            "prediction": "OVER_22_5" if total_fouls >= 22.5 else "UNDER_22_5"
+            "line": line_fouls,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_fouls}" if total_fouls >= line_fouls else f"UNDER_{line_fouls}"
         },
         "tarjetas": {
             "predicted_total": total_cards,
-            "line": 4.5,
-            "prediction": "OVER_4_5" if total_cards >= 4.5 else "UNDER_4_5"
+            "line": line_cards,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_cards}" if total_cards >= line_cards else f"UNDER_{line_cards}"
         },
         "corners": {
             "predicted_total": total_corners,
-            "line": 10.5,
-            "prediction": "OVER_10_5" if total_corners >= 10.5 else "UNDER_10_5"
+            "line": line_corners,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_corners}" if total_corners >= line_corners else f"UNDER_{line_corners}"
         },
         "btts": {
             "prediction": result.both_score  # "YES" o "NO"

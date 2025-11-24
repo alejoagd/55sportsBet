@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminOnly } from './AdminButton';
+import ScoreRangeEffectiveness from './Scorerangeeffectiveness';
 
 interface BestBet {
   match_id: number;
@@ -175,6 +176,11 @@ export default function BestBetsSection() {
           )}
         </div>
       </div>
+
+      {/* ✨ NUEVO: Efectividad por Rangos de Score */}
+      <ScoreRangeEffectiveness 
+        seasonId={seasonId}
+      />
 
       {/* Top 4 Apuestas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

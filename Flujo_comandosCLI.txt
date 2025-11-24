@@ -81,8 +81,8 @@ python -m src.scripts.update_predictions
 5. **🔄 RETRAIN** - Re-entrenar modelo Weinston con nuevos datos
 
 #### **Flujos Automáticos:**
-6. **🚀 COMPLETE** - Flujo PRE-partidos (FIXTURES → RETRAIN → PREDICT)
-7. **📊 FINISH** - Flujo POST-partidos (RESULTS → EVALUATE)
+6. **🚀 COMPLETE** - Flujo completo nueva jornada (fixtures + retrain + predict + betting lines )
+7. **📊 FINISH** - Flujo completo post-partidos (results + evaluate + validate betting)
 
 ### **Ventajas:**
 - ✅ Valida archivos CSV antes de cargar

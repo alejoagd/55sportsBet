@@ -1,20 +1,8 @@
-# src/predictions/upcoming_poisson.py
-"""
-Predicciones Poisson con soporte multi-liga.
-
-CAMBIOS:
-1. Importa LeagueContext
-2. predict_and_upsert_poisson acepta league_ctx opcional
-3. Pasa league_ctx a load_team_strengths
-4. Muestra información de la liga en logs
-"""
-
 from __future__ import annotations
 import math
-from typing import List, Dict, Optional
+from typing import List, Tuple, Dict
 from sqlalchemy import text
 from .upcoming_core import load_team_strengths
-from .league_context import LeagueContext  # ← NUEVO IMPORT
 
 # --- [NUEVO] helper de cuotas ----------------------------------------------
 # colchón opcional sobre la cuota justa; 0.03 = +3%. Pon 0.0 si no quieres margen.
@@ -34,7 +22,6 @@ def _poisson_pmf(lam: float, k: int) -> float:
     if lam <= 0:
         return 1.0 if k == 0 else 0.0
     return math.exp(-lam) * (lam ** k) / math.factorial(k)
-
 
 def _aggregate_probs(lh: float, la: float, max_goals: int = 12) -> Dict[str, float]:
     """Suma de la matriz Poisson truncada (0..max_goals) con cola en el último bucket."""
@@ -70,37 +57,8 @@ def _aggregate_probs(lh: float, la: float, max_goals: int = 12) -> Dict[str, flo
         "pBTTS": btts, "pNBTS": nbtts,
     }
 
-
-def predict_and_upsert_poisson(
-    conn, 
-    season_id: int, 
-    match_ids: List[int],
-    league_ctx: Optional[LeagueContext] = None  # ← NUEVO PARÁMETRO
-) -> None:
-    """
-    Genera predicciones Poisson para partidos futuros DE UNA LIGA.
-    
-    Args:
-        conn: Conexión a la base de datos
-        season_id: ID de la temporada
-        match_ids: Lista de IDs de partidos a predecir
-        league_ctx: Contexto de liga (se carga automáticamente si no se provee)
-    """
-    # ✅ NUEVO: Cargar contexto de liga
-    if league_ctx is None:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-    
-    print(f"\n🎯 Generando predicciones Poisson")
-    print(f"   Liga: {league_ctx.league_name}")
-    print(f"   Temporada: {league_ctx.season_year}")
-    print(f"   Partidos a predecir: {len(match_ids)}")
-    
-    # ✅ CAMBIO: Pasar league_ctx a load_team_strengths
-    strengths, lg_home_gf, lg_away_gf, HFA = load_team_strengths(
-        conn, season_id, league_ctx=league_ctx
-    )
-    
-    print(f"   Equipos con fortalezas: {len(strengths)}")
+def predict_and_upsert_poisson(conn, season_id: int, match_ids: List[int]) -> None:
+    strengths, lg_home_gf, lg_away_gf, HFA = load_team_strengths(conn, season_id)
 
     q_matches = text("""
         SELECT id, home_team_id, away_team_id
@@ -150,29 +108,24 @@ def predict_and_upsert_poisson(
             min_odds_btts_no    = EXCLUDED.min_odds_btts_no
     """)
 
-    predictions_saved = 0
     for mid, h, a in rows:
-        sh = strengths.get(h)
-        sa = strengths.get(a)
-        
+        sh = strengths.get(h); sa = strengths.get(a)
         if not sh or not sa:
-            # Equipos sin historial en esta liga: usar promedios de liga
             lam_h = lg_home_gf * HFA
             lam_a = lg_away_gf
         else:
-            # Equipos con historial: usar fortalezas específicas
             lam_h = lg_home_gf * sh["attack_home"] * sa["defense_away"] * HFA
             lam_a = lg_away_gf * sa["attack_away"] * sh["defense_home"]
 
-        probs = _aggregate_probs(lam_h, lam_a)
+        probs = _aggregate_probs(lam_h, lam_a)  # <-- pH, pD, pA, pO25, pU25, pBTTS, pNBTS
 
-        # Calcular las cuotas a partir de las probabilidades
+        # calcula las cuotas a partir de las probabilidades
         odds = {
-            "odds1":    _odds(probs.get("pH")),
-            "oddsX":    _odds(probs.get("pD")),
-            "odds2":    _odds(probs.get("pA")),
-            "oddsO25":  _odds(probs.get("pO25")),
-            "oddsU25":  _odds(probs.get("pU25")),
+            "odds1":   _odds(probs.get("pH")),
+            "oddsX":   _odds(probs.get("pD")),
+            "odds2":   _odds(probs.get("pA")),
+            "oddsO25": _odds(probs.get("pO25")),
+            "oddsU25": _odds(probs.get("pU25")),
             "oddsBTTS": _odds(probs.get("pBTTS")),
             "oddsNBTS": _odds(probs.get("pNBTS")),
         }
@@ -181,9 +134,6 @@ def predict_and_upsert_poisson(
             "mid": int(mid),
             "ehg": float(lam_h),
             "eag": float(lam_a),
-            **probs,  # pH, pD, pA, pO25, pU25, pBTTS, pNBTS
-            **odds    # odds1, oddsX, odds2, oddsO25, oddsU25, oddsBTTS, oddsNBTS
+            **probs,    # pH, pD, pA, pO25, pU25, pBTTS, pNBTS
+            **odds      # odds1, oddsX, odds2, oddsO25, oddsU25, oddsBTTS, oddsNBTS
         })
-        predictions_saved += 1
-    
-    print(f"   ✅ {predictions_saved} predicciones guardadas en poisson_predictions")

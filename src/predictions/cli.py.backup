@@ -1,31 +1,13 @@
+# src/predictions/cli.py
 from __future__ import annotations
 import typer
 from typing import Optional, List
 from sqlalchemy import create_engine, text
 from src.config import settings
-from src.db import engine
-from src.db import SessionLocal
-from src.weinston.fit import fit_weinston, save_ratings, save_league_params
 from sqlalchemy import text
-
-# src/predictions/cli.py
-"""
-CLI refactorizado con soporte multi-liga.
-
-CAMBIOS PRINCIPALES:
-1. Importa LeagueContext
-2. Comando 'upcoming' muestra información de liga y pasa league_ctx
-3. Comando 'evaluate' muestra información de liga
-4. Logs mejorados con información contextual
-"""
-
-
-
-# Importar LeagueContext
-try:
-    from .league_context import LeagueContext
-except ImportError:
-    from src.predictions.league_context import LeagueContext
+from typing import Optional, List
+import click
+from src.db import engine
 
 # Poisson
 try:
@@ -42,8 +24,8 @@ except ImportError:
 
 app = typer.Typer(help="Predicciones pre-partido (Escenario 2)")
 
-
 @app.command("upcoming")
+
 def upcoming(
     season_id: int = typer.Option(..., help="Season a usar"),
     date_from: Optional[str] = typer.Option(None, "--from", help="YYYY-MM-DD"),
@@ -54,29 +36,15 @@ def upcoming(
     """
     Genera predicciones para partidos FUTUROS (sin resultados).
     Usa strengths de equipos (histórico) -> Poisson -> (opcional) Weinston.
-    
-    Ahora con soporte multi-liga: cada liga usa sus propios parámetros.
     """
     engine = create_engine(settings.sqlalchemy_url)
 
     try:
         with engine.begin() as conn:
-            # ✅ NUEVO: Cargar y mostrar contexto de liga
-            league_ctx = LeagueContext.from_season(conn, season_id)
-            
-            typer.echo(f"\n{'='*70}")
-            typer.echo(f"  GENERANDO PREDICCIONES")
-            typer.echo(f"{'='*70}")
-            typer.echo(f"\n🏆 Liga: {league_ctx.league_name}")
-            typer.echo(f"📅 Temporada: {league_ctx.season_year}")
-            typer.echo(f"📊 Promedios: {league_ctx.avg_home_goals:.2f} (H) / {league_ctx.avg_away_goals:.2f} (A)")
-            typer.echo(f"🏠 HFA: {league_ctx.hfa:.2f}\n")
-            
             # Obtener los matches objetivo
             ids: List[int]
             if match_ids:
                 ids = match_ids
-                typer.echo(f"🎯 Partidos especificados manualmente: {len(ids)}")
             else:
                 q = text("""
                     SELECT id FROM matches
@@ -86,40 +54,29 @@ def upcoming(
                     ORDER BY date
                 """)
                 ids = [r[0] for r in conn.execute(q, {"sid": season_id, "dfrom": date_from, "dto": date_to})]
-                
-                if date_from or date_to:
-                    typer.echo(f"🎯 Partidos en rango de fechas: {len(ids)}")
-                else:
-                    typer.echo(f"🎯 Todos los partidos de la temporada: {len(ids)}")
 
+            typer.echo(f"Partidos a predecir: {len(ids)} (season_id={season_id})")
             if not ids:
-                typer.echo("\n⚠️  No hay partidos que coincidan con los filtros dados.")
+                typer.echo("No hay partidos que coincidan con los filtros dados.")
                 return
 
             model_set = {m.strip().lower() for m in models.split(",") if m.strip()}
-            
-            typer.echo(f"\n📋 Modelos a ejecutar: {', '.join(model_set).upper()}\n")
 
-            # ✅ CAMBIO: Pasar league_ctx a las funciones de predicción
             if "poisson" in model_set:
-                predict_and_upsert_poisson(conn, season_id, ids, league_ctx=league_ctx)
-                typer.echo("\n✅ Poisson completado")
+                from .upcoming_poisson import predict_and_upsert_poisson
+                predict_and_upsert_poisson(conn, season_id, ids)
+                typer.echo("✔ Poisson actualizado.")
 
             if "weinston" in model_set:
-                predict_and_upsert_weinston(conn, season_id, ids, league_ctx=league_ctx)
-                typer.echo("\n✅ Weinston completado")
+                from .upcoming_weinston import predict_and_upsert_weinston
+                predict_and_upsert_weinston(conn, season_id, ids)
+                typer.echo("✔ Weinston actualizado.")
 
-        typer.echo(f"\n{'='*70}")
-        typer.echo("  ✅ PREDICCIONES GENERADAS EXITOSAMENTE")
-        typer.echo(f"{'='*70}\n")
-        
+        typer.echo("✅ Predicciones generadas/actualizadas.")
     except Exception as e:
-        typer.echo(f"\n{'='*70}")
-        typer.echo(f"  ❌ ERROR EN PREDICCIONES")
-        typer.echo(f"{'='*70}")
-        typer.echo(f"\n{str(e)}\n")
+        # Log simple para ver cualquier problema
+        typer.echo(f"❌ Error en upcoming: {e}")
         raise
-
 
 @app.command("score")
 def score(
@@ -132,14 +89,10 @@ def score(
     """
     Actualiza wp.error comparando predicción vs. goles reales del match.
     """
+    from src.db import engine
+
     if metric not in {"rmse", "mae"}:
         raise typer.BadParameter("metric debe ser rmse o mae")
-
-    # ✅ NUEVO: Mostrar contexto de liga
-    with engine.begin() as conn:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-        typer.echo(f"\n🏆 Liga: {league_ctx.league_name} ({league_ctx.season_year})")
-        typer.echo(f"📊 Calculando {metric.upper()}...\n")
 
     base = """
     UPDATE weinston_predictions AS wp
@@ -167,9 +120,9 @@ def score(
         params["ids"] = match_ids
 
     with engine.begin() as conn:
-        result = conn.execute(text(sql), params)
-        typer.echo(f"✅ {metric.upper()} actualizado para {result.rowcount} predicciones\n")
+        conn.execute(text(sql), params)
 
+    typer.echo("✓ weinston.error actualizado.")
 
 @app.command("evaluate")
 def evaluate_cmd(
@@ -180,19 +133,6 @@ def evaluate_cmd(
     over_thresh: float = typer.Option(0.5, help="Umbral Poisson OVER 2.5"),
     btts_thresh: float = typer.Option(0.5, help="Umbral Poisson BTTS YES"),
 ):
-    """
-    Evalúa el rendimiento de las predicciones contra resultados reales.
-    """
-    # ✅ NUEVO: Mostrar contexto de liga
-    with engine.begin() as conn:
-        league_ctx = LeagueContext.from_season(conn, season_id)
-        
-        typer.echo(f"\n{'='*70}")
-        typer.echo(f"  EVALUANDO PREDICCIONES")
-        typer.echo(f"{'='*70}")
-        typer.echo(f"\n🏆 Liga: {league_ctx.league_name}")
-        typer.echo(f"📅 Temporada: {league_ctx.season_year}\n")
-    
     from .evaluate import evaluate as eval_fn
     counts = eval_fn(
         season_id=season_id,
@@ -202,134 +142,11 @@ def evaluate_cmd(
         pick_over_thresh=over_thresh,
         pick_btts_thresh=btts_thresh,
     )
-    
-    typer.echo(f"\n✅ Evaluados: Poisson={counts['poisson']}, Weinston={counts['weinston']}\n")
-
-@app.command("fit")
-def fit_weinston_cmd(
-    season_id: int = typer.Option(..., help="Season a entrenar"),
-):
-    """
-    Entrena el modelo Weinston para una temporada.
-    Calcula ratings de equipos (atk/def home/away) y parámetros de liga (mu_home, mu_away, home_adv).
-    Guarda todo en weinston_ratings y weinston_params.
-    
-    ✅ Multi-Liga: Los parámetros se guardan específicos por season_id.
-    """
-
-    
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 1. Obtener información de la liga/temporada
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    with SessionLocal() as s:
-        # Obtener info de la temporada
-        info_query = text("""
-            SELECT 
-                s.id,
-                s.year_start,
-                s.year_end,
-                l.name as league_name,
-                l.id as league_id,
-                COUNT(m.id) as total_matches
-            FROM seasons s
-            LEFT JOIN leagues l ON l.id = s.league_id
-            LEFT JOIN matches m ON m.season_id = s.id 
-                AND m.home_goals IS NOT NULL 
-                AND m.away_goals IS NOT NULL
-            WHERE s.id = :season_id
-            GROUP BY s.id, s.year_start, s.year_end, l.name, l.id
-        """)
-        
-        info = s.execute(info_query, {"season_id": season_id}).fetchone()
-        
-        if not info:
-            typer.echo(f"❌ Season ID {season_id} no encontrado")
-            raise typer.Exit(1)
-        
-        league_name = info.league_name or "Unknown League"
-        total_matches = info.total_matches or 0
-        year_range = f"{info.year_start}/{info.year_end}" if info.year_end else str(info.year_start)
-    
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 2. Validación
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    typer.echo("\n" + "="*70)
-    typer.echo(f"  🔄 ENTRENAMIENTO WEINSTON")
-    typer.echo("="*70)
-    typer.echo(f"  Liga: {league_name}")
-    typer.echo(f"  Temporada: {year_range} (Season ID: {season_id})")
-    typer.echo(f"  Partidos terminados: {total_matches}")
-    typer.echo("="*70 + "\n")
-    
-    if total_matches < 10:
-        typer.echo(f"⚠️  Advertencia: Solo hay {total_matches} partidos terminados")
-        typer.echo(f"   Se recomienda al menos 10-20 partidos para un entrenamiento confiable")
-        
-        if not typer.confirm("¿Continuar de todos modos?"):
-            typer.echo("❌ Entrenamiento cancelado")
-            raise typer.Exit(0)
-    
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 3. Entrenar el modelo
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    typer.echo(f"🔄 Entrenando modelo Weinston...")
-    
-    try:
-        with SessionLocal() as s:
-            result = fit_weinston(s, season_id)
-            
-            # Guardar ratings de equipos
-            save_ratings(
-                season_id=season_id,
-                team_ids=result.team_ids,
-                atk_home=result.atk_home,
-                def_home=result.def_home,
-                atk_away=result.atk_away,
-                def_away=result.def_away
-            )
-            
-            # Guardar parámetros de liga
-            save_league_params(
-                season_id=season_id,
-                mu_home=result.mu_home,
-                mu_away=result.mu_away,
-                home_adv=result.home_adv,
-                loss=result.loss
-            )
-            
-            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            # 4. Mostrar resultados
-            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            
-            typer.echo("\n" + "="*70)
-            typer.echo(f"  ✅ MODELO ENTRENADO EXITOSAMENTE")
-            typer.echo("="*70)
-            typer.echo(f"  Liga: {league_name}")
-            typer.echo(f"  Temporada: {year_range}")
-            typer.echo(f"")
-            typer.echo(f"  📊 Equipos entrenados: {len(result.team_ids)}")
-            typer.echo(f"  📈 μ_home (goles local): {result.mu_home:.3f}")
-            typer.echo(f"  📉 μ_away (goles visit): {result.mu_away:.3f}")
-            typer.echo(f"  🏠 Home Advantage: {result.home_adv:.3f}")
-            typer.echo(f"  🎯 Loss (error): {result.loss:.4f}")
-            typer.echo("="*70 + "\n")
-            
-            typer.echo(f"💾 Parámetros guardados en:")
-            typer.echo(f"   • weinston_ratings (season_id={season_id})")
-            typer.echo(f"   • weinston_params (season_id={season_id})")
-            typer.echo("")
-            
-    except Exception as e:
-        typer.echo(f"\n❌ Error entrenando Weinston: {e}")
-        import traceback
-        traceback.print_exc()
-        raise typer.Exit(1)    
+    typer.echo(f"✓ Evaluados: Poisson={counts['poisson']}, Weinston={counts['weinston']}")
 
 
 # --- Callback raíz para aceptar opciones sin subcomando ---
+
 
 @app.callback(invoke_without_command=True)
 def main(
@@ -360,82 +177,119 @@ def main(
         pick_over_thresh=over_thresh,
         pick_btts_thresh=btts_thresh,
     )
-    typer.echo(f"✅ Evaluados: Poisson={counts['poisson']}, Weinston={counts['weinston']}")
+    typer.echo(f"✓ Evaluados: Poisson={counts['poisson']}, Weinston={counts['weinston']}")
 
 
-# =====================================================================
-# COMANDOS DE BETTING LINES (mantienen estructura original)
-# =====================================================================
 
-@app.command("betting-lines")
-def betting_lines(
+
+@app.command("fit")
+def fit_weinston_cmd(
+    season_id: int = typer.Option(..., help="Season a entrenar"),
+):
+    """
+    Entrena el modelo Weinston para una temporada.
+    Calcula ratings de equipos (atk/def home/away) y parámetros de liga (mu_home, mu_away, home_adv).
+    Guarda todo en weinston_ratings y weinston_params.
+    """
+    from src.db import SessionLocal
+    from src.weinston.fit import fit_weinston, save_ratings, save_league_params
+    
+    typer.echo(f"🔄 Entrenando modelo Weinston para season_id={season_id}...")
+    
+    try:
+        with SessionLocal() as s:
+            result = fit_weinston(s, season_id)
+            
+            # Guardar ratings
+            save_ratings(
+                season_id=season_id,
+                team_ids=result.team_ids,
+                atk_home=result.atk_home,
+                def_home=result.def_home,
+                atk_away=result.atk_away,
+                def_away=result.def_away
+            )
+            
+            # Guardar parámetros de liga
+            save_league_params(
+                season_id=season_id,
+                mu_home=result.mu_home,
+                mu_away=result.mu_away,
+                home_adv=result.home_adv,
+                loss=result.loss
+            )
+            
+            typer.echo(f"✅ Modelo entrenado exitosamente!")
+            typer.echo(f"   📊 Equipos: {len(result.team_ids)}")
+            typer.echo(f"   📈 μ_home: {result.mu_home:.3f}")
+            typer.echo(f"   📉 μ_away: {result.mu_away:.3f}")
+            typer.echo(f"   🏠 Home Advantage: {result.home_adv:.3f}")
+            typer.echo(f"   🎯 Loss: {result.loss:.2f}")
+            
+    except Exception as e:
+        typer.echo(f"❌ Error entrenando Weinston: {e}")
+        raise
+
+# ============================================================================
+# COMANDOS CLI PARA BETTING LINES
+# ============================================================================
+
+@app.command("betting-lines-generate")
+def betting_lines_generate(
     season_id: int = typer.Option(..., help="ID de la temporada"),
     date_from: str = typer.Option(..., "--from", help="Fecha desde (YYYY-MM-DD)"),
     date_to: str = typer.Option(..., "--to", help="Fecha hasta (YYYY-MM-DD)"),
-    model: str = typer.Option("weinston", help="Modelo a usar: weinston o poisson"),
 ):
     """
-    Genera líneas de apuesta para estadísticas (tiros, corners, tarjetas, faltas)
+    Genera predicciones de líneas de apuesta (Over/Under) para partidos sin resultado
     
     Ejemplo:
-        python -m src.predictions.cli betting-lines --season-id 2 --from 2024-12-20 --to 2024-12-31
+        python -m src.predictions.cli betting-lines-generate --season-id 2 --from 2024-12-01 --to 2024-12-31
     """
-    if model.lower() not in ['weinston', 'poisson']:
-        typer.echo("❌ Modelo debe ser 'weinston' o 'poisson'")
-        raise typer.Exit(code=1)
+    from datetime import datetime
+    
+    # Configuración de líneas (pueden ajustarse basándose en análisis histórico)
+    BETTING_LINES = {
+        'shots': 24.5,
+        'shots_on_target': 8.5,
+        'corners': 10.5,
+        'cards': 4.5,
+        'fouls': 22.5
+    }
     
     typer.echo(f"\n{'='*70}")
-    typer.echo(f"  GENERANDO BETTING LINES - {model.upper()}")
+    typer.echo(f"  GENERANDO BETTING LINES")
     typer.echo(f"{'='*70}\n")
     typer.echo(f"Season: {season_id}")
-    typer.echo(f"Rango: {date_from} a {date_to}\n")
+    typer.echo(f"Rango: {date_from} a {date_to}")
+    typer.echo(f"Líneas: Tiros={BETTING_LINES['shots']}, Corners={BETTING_LINES['corners']}, Tarjetas={BETTING_LINES['cards']}\n")
     
     with engine.begin() as conn:
-        # Query para obtener partidos y sus predicciones
-        if model.lower() == 'weinston':
-            matches_query = text("""
-                SELECT 
-                    m.id as match_id,
-                    wp.shots_home,
-                    wp.shots_away,
-                    wp.shots_target_home,
-                    wp.shots_target_away,
-                    wp.corners_home,
-                    wp.corners_away,
-                    wp.cards_home,
-                    wp.cards_away,
-                    wp.fouls_home,
-                    wp.fouls_away
-                FROM matches m
-                JOIN weinston_predictions wp ON wp.match_id = m.id
-                WHERE m.season_id = :season_id
-                  AND m.date BETWEEN :date_from AND :date_to
-                  AND m.home_goals IS NULL
-                ORDER BY m.date
-            """)
-        else:  # poisson
-            typer.echo("⚠️  Betting lines con Poisson aún no implementado completamente")
-            typer.echo("   Usando predicciones de Weinston como referencia\n")
-            matches_query = text("""
-                SELECT 
-                    m.id as match_id,
-                    wp.shots_home,
-                    wp.shots_away,
-                    wp.shots_target_home,
-                    wp.shots_target_away,
-                    wp.corners_home,
-                    wp.corners_away,
-                    wp.cards_home,
-                    wp.cards_away,
-                    wp.fouls_home,
-                    wp.fouls_away
-                FROM matches m
-                JOIN weinston_predictions wp ON wp.match_id = m.id
-                WHERE m.season_id = :season_id
-                  AND m.date BETWEEN :date_from AND :date_to
-                  AND m.home_goals IS NULL
-                ORDER BY m.date
-            """)
+        # Obtener partidos sin resultado con predicciones Weinston
+        matches_query = text("""
+            SELECT 
+                m.id as match_id,
+                m.date,
+                
+                -- Predicciones Weinston (estadísticas)
+                wp.shots_home,
+                wp.shots_away,
+                wp.shots_target_home,
+                wp.shots_target_away,
+                wp.corners_home,
+                wp.corners_away,
+                wp.cards_home,
+                wp.cards_away,
+                wp.fouls_home,
+                wp.fouls_away
+                
+            FROM matches m
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            WHERE m.season_id = :season_id
+              AND m.date BETWEEN :date_from AND :date_to
+              AND m.home_goals IS NULL
+            ORDER BY m.date
+        """)
         
         matches = conn.execute(matches_query, {
             "season_id": season_id,
@@ -444,43 +298,45 @@ def betting_lines(
         }).mappings().all()
         
         if not matches:
-            typer.echo("⚠️  No se encontraron partidos en el rango especificado")
+            typer.echo("❌ No hay partidos sin resultado en el rango de fechas")
             return
-        
-        typer.echo(f"📊 Partidos encontrados: {len(matches)}\n")
         
         generated_count = 0
         
         for match in matches:
+            if match['shots_home'] is None:
+                typer.echo(f"⚠️  Match {match['match_id']}: No tiene predicciones Weinston, saltando...")
+                continue
+            
             # Calcular totales predichos
-            predicted_shots = match['shots_home'] + match['shots_away']
-            predicted_shots_ot = match['shots_target_home'] + match['shots_target_away']
-            predicted_corners = match['corners_home'] + match['corners_away']
-            predicted_cards = match['cards_home'] + match['cards_away']
-            predicted_fouls = match['fouls_home'] + match['fouls_away']
+            predicted_shots = float(match['shots_home'] or 0) + float(match['shots_away'] or 0)
+            predicted_shots_ot = float(match['shots_target_home'] or 0) + float(match['shots_target_away'] or 0)
+            predicted_corners = float(match['corners_home'] or 0) + float(match['corners_away'] or 0)
+            predicted_cards = float(match['cards_home'] or 0) + float(match['cards_away'] or 0)
+            predicted_fouls = float(match['fouls_home'] or 0) + float(match['fouls_away'] or 0)
             
-            # Definir líneas estándar (se pueden ajustar según el mercado)
-            shots_line = round(predicted_shots * 0.95, 1)  # Línea ligeramente por debajo de la predicción
-            shots_ot_line = round(predicted_shots_ot * 0.95, 1)
-            corners_line = round(predicted_corners * 0.95, 1)
-            cards_line = round(predicted_cards * 0.95, 1)
-            fouls_line = round(predicted_fouls * 0.95, 1)
-            
-            # Determinar predicción (over/under)
+            # Calcular predicciones y confianza
+            shots_line = BETTING_LINES['shots']
             shots_prediction = 'over' if predicted_shots > shots_line else 'under'
+            shots_confidence = min(abs(predicted_shots - shots_line) / 10.0, 1.0)
+            
+            shots_ot_line = BETTING_LINES['shots_on_target']
             shots_ot_prediction = 'over' if predicted_shots_ot > shots_ot_line else 'under'
+            shots_ot_confidence = min(abs(predicted_shots_ot - shots_ot_line) / 5.0, 1.0)
+            
+            corners_line = BETTING_LINES['corners']
             corners_prediction = 'over' if predicted_corners > corners_line else 'under'
+            corners_confidence = min(abs(predicted_corners - corners_line) / 5.0, 1.0)
+            
+            cards_line = BETTING_LINES['cards']
             cards_prediction = 'over' if predicted_cards > cards_line else 'under'
+            cards_confidence = min(abs(predicted_cards - cards_line) / 3.0, 1.0)
+            
+            fouls_line = BETTING_LINES['fouls']
             fouls_prediction = 'over' if predicted_fouls > fouls_line else 'under'
+            fouls_confidence = min(abs(predicted_fouls - fouls_line) / 8.0, 1.0)
             
-            # Calcular confidence (basado en la diferencia entre predicción y línea)
-            shots_confidence = min(abs(predicted_shots - shots_line) / shots_line * 100, 100)
-            shots_ot_confidence = min(abs(predicted_shots_ot - shots_ot_line) / shots_ot_line * 100, 100)
-            corners_confidence = min(abs(predicted_corners - corners_line) / corners_line * 100, 100)
-            cards_confidence = min(abs(predicted_cards - cards_line) / cards_line * 100, 100)
-            fouls_confidence = min(abs(predicted_fouls - fouls_line) / fouls_line * 100, 100)
-            
-            # Insertar o actualizar en betting_lines_predictions
+            # Insertar o actualizar
             insert_query = text("""
                 INSERT INTO betting_lines_predictions (
                     match_id, model,
@@ -489,16 +345,16 @@ def betting_lines(
                     predicted_total_corners, corners_line, corners_prediction, corners_confidence,
                     predicted_total_cards, cards_line, cards_prediction, cards_confidence,
                     predicted_total_fouls, fouls_line, fouls_prediction, fouls_confidence
-                )
-                VALUES (
-                    :match_id, :model,
+                ) VALUES (
+                    :match_id, 'weinston',
                     :predicted_shots, :shots_line, :shots_prediction, :shots_confidence,
                     :predicted_shots_ot, :shots_ot_line, :shots_ot_prediction, :shots_ot_confidence,
                     :predicted_corners, :corners_line, :corners_prediction, :corners_confidence,
                     :predicted_cards, :cards_line, :cards_prediction, :cards_confidence,
                     :predicted_fouls, :fouls_line, :fouls_prediction, :fouls_confidence
                 )
-                ON CONFLICT (match_id, model) DO UPDATE SET
+                ON CONFLICT (match_id, model) 
+                DO UPDATE SET
                     predicted_total_shots = EXCLUDED.predicted_total_shots,
                     shots_line = EXCLUDED.shots_line,
                     shots_prediction = EXCLUDED.shots_prediction,
@@ -524,7 +380,6 @@ def betting_lines(
             
             conn.execute(insert_query, {
                 "match_id": match['match_id'],
-                "model": model.lower(),
                 "predicted_shots": predicted_shots,
                 "shots_line": shots_line,
                 "shots_prediction": shots_prediction,
@@ -549,7 +404,7 @@ def betting_lines(
             
             generated_count += 1
         
-        typer.echo(f"\n✅ Betting lines generadas: {generated_count}/{len(matches)} partidos\n")
+        typer.echo(f"\n✅ Betting lines generadas: {generated_count}/{len(matches)} partidos")
 
 
 @app.command("betting-lines-validate")

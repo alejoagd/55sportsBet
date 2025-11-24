@@ -9,6 +9,7 @@ from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
 from datetime import datetime, date
 import math
+from pydantic import BaseModel
 
 app = FastAPI(title="Predictions API")
 
@@ -23,6 +24,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Models para las respuestas
+# ──────────────────────────────────────────────────────────────────
+
+class LeagueResponse(BaseModel):
+    id: int
+    name: str
+    emoji: str
+    seasonId: int
+    upcomingCount: int
+
+class LeagueDetailResponse(BaseModel):
+    id: int
+    name: str
+    emoji: str
+    seasonId: int
+    seasonYear: str
+    upcomingCount: int
+    totalMatches: int
+    completedMatches: int
+
+class ScoreRangeStats(BaseModel):
+    range_label: str
+    min_score: int
+    max_score: int
+    total_bets: int
+    hits: int
+    accuracy: float
+    roi: float
+    avg_odds: float
+    confidence_level: str  # "MUY ALTA", "ALTA", "MEDIA", "BAJA", "MUY BAJA"
+    recommendation: str
+
+class ScoreRangesResponse(BaseModel):
+    ranges: List[ScoreRangeStats]
+    best_range: ScoreRangeStats
+    total_analyzed: int
+    overall_accuracy: float
+    recommendation_text: str
 
 # Crear engine directamente
 engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True)
@@ -1450,31 +1490,271 @@ def get_best_bets_analysis(season_id: int = Query(..., description="ID de la tem
             'all_recommendations': recommendations[:10]
         }
     
-
-@router.post("/api/betting-lines/generate")
-def generate_betting_lines_predictions(season_id: int = Query(...)):
+@app.get("/api/best-bets/score-ranges", response_model=ScoreRangesResponse)
+def get_score_range_effectiveness(
+    season_id: Optional[int] = Query(None, description="Filtrar por temporada"),
+    league_id: Optional[int] = Query(None, description="Filtrar por liga"),
+    min_bets: int = Query(5, description="Mínimo de apuestas para considerar el rango")
+):
     """
-    Genera predicciones de líneas de apuesta (Over/Under) para todos los partidos sin resultado
+    Analiza la efectividad de las apuestas según rangos de Score.
     
-    Líneas de apuesta estándar (basadas en Premier League):
-    - Tiros totales: 24.5
-    - Tiros a puerta: 8.5
-    - Corners: 10.5
-    - Tarjetas: 4.5
-    - Faltas: 22.5
+    Divide los scores en rangos y calcula:
+    - Accuracy (% de aciertos)
+    - ROI (retorno de inversión)
+    - Número de apuestas por rango
+    
+    Útil para determinar el umbral óptimo de confianza.
     """
-    
-    # Configuración de líneas (pueden ajustarse basándose en análisis histórico)
-    BETTING_LINES = {
-        'shots': 24.5,
-        'shots_on_target': 8.5,
-        'corners': 10.5,
-        'cards': 4.5,
-        'fouls': 22.5
-    }
     
     with engine.begin() as conn:
-        # Obtener partidos sin resultado
+        # Query principal: obtener apuestas con sus resultados
+        query = text("""
+            WITH best_bets_data AS (
+                SELECT 
+                    bb.match_id,
+                    bb.bet_type,
+                    bb.prediction,
+                    bb.confidence,
+                    bb.score,
+                    bb.h2h_score,
+                    bb.odds,
+                    m.home_goals,
+                    m.away_goals,
+                    ms.home_shots + ms.away_shots as total_shots,
+                    ms.home_shots_on_target + ms.away_shots_on_target as total_shots_ot,
+                    ms.home_corners + ms.away_corners as total_corners,
+                    ms.home_fouls + ms.away_fouls as total_fouls,
+                    COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0) +
+                    COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0) as total_cards,
+                    
+                    -- Determinar si acertó
+                    CASE bb.bet_type
+                        WHEN 'RESULT' THEN
+                            CASE bb.prediction
+                                WHEN '1' THEN CASE WHEN m.home_goals > m.away_goals THEN 1 ELSE 0 END
+                                WHEN 'X' THEN CASE WHEN m.home_goals = m.away_goals THEN 1 ELSE 0 END
+                                WHEN '2' THEN CASE WHEN m.home_goals < m.away_goals THEN 1 ELSE 0 END
+                            END
+                        WHEN 'OVER_UNDER_GOALS' THEN
+                            CASE 
+                                WHEN bb.prediction LIKE 'OVER%' THEN
+                                    CASE WHEN (m.home_goals + m.away_goals) > 2.5 THEN 1 ELSE 0 END
+                                WHEN bb.prediction LIKE 'UNDER%' THEN
+                                    CASE WHEN (m.home_goals + m.away_goals) < 2.5 THEN 1 ELSE 0 END
+                            END
+                        WHEN 'BTTS' THEN
+                            CASE bb.prediction
+                                WHEN 'YES' THEN CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN 1 ELSE 0 END
+                                WHEN 'NO' THEN CASE WHEN m.home_goals = 0 OR m.away_goals = 0 THEN 1 ELSE 0 END
+                            END
+                        -- Agregar más tipos según necesites
+                        ELSE 0
+                    END as hit
+                    
+                FROM best_bets_history bb
+                JOIN matches m ON m.id = bb.match_id
+                LEFT JOIN match_stats ms ON ms.match_id = m.id
+                WHERE m.home_goals IS NOT NULL  -- Solo partidos finalizados
+                  AND bb.score IS NOT NULL
+                  AND bb.odds IS NOT NULL
+                  {:season_filter}
+                  {:league_filter}
+            )
+            SELECT 
+                -- Definir rangos de score
+                CASE 
+                    WHEN score >= 90 THEN '90-100'
+                    WHEN score >= 80 THEN '80-90'
+                    WHEN score >= 70 THEN '70-80'
+                    WHEN score >= 60 THEN '60-70'
+                    WHEN score >= 50 THEN '50-60'
+                    ELSE '0-50'
+                END as score_range,
+                
+                CASE 
+                    WHEN score >= 90 THEN 90
+                    WHEN score >= 80 THEN 80
+                    WHEN score >= 70 THEN 70
+                    WHEN score >= 60 THEN 60
+                    WHEN score >= 50 THEN 50
+                    ELSE 0
+                END as min_score,
+                
+                CASE 
+                    WHEN score >= 90 THEN 100
+                    WHEN score >= 80 THEN 90
+                    WHEN score >= 70 THEN 80
+                    WHEN score >= 60 THEN 70
+                    WHEN score >= 50 THEN 60
+                    ELSE 50
+                END as max_score,
+                
+                COUNT(*) as total_bets,
+                SUM(hit) as hits,
+                ROUND(AVG(CASE WHEN hit = 1 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy,
+                AVG(odds) as avg_odds,
+                
+                -- Calcular ROI (asumiendo apuesta unitaria de $1)
+                ROUND(
+                    (SUM(CASE WHEN hit = 1 THEN (odds - 1) ELSE -1 END) / COUNT(*)) * 100, 
+                    2
+                ) as roi
+                
+            FROM best_bets_data
+            GROUP BY score_range, min_score, max_score
+            HAVING COUNT(*) >= :min_bets
+            ORDER BY min_score DESC
+        """.replace(
+            "{:season_filter}", 
+            "AND m.season_id = :season_id" if season_id else ""
+        ).replace(
+            "{:league_filter}",
+            "AND m.season_id IN (SELECT id FROM seasons WHERE league_id = :league_id)" if league_id else ""
+        ))
+        
+        params = {"min_bets": min_bets}
+        if season_id:
+            params["season_id"] = season_id
+        if league_id:
+            params["league_id"] = league_id
+        
+        results = conn.execute(query, params).mappings().all()
+        
+        if not results:
+            return ScoreRangesResponse(
+                ranges=[],
+                best_range=None,
+                total_analyzed=0,
+                overall_accuracy=0,
+                recommendation_text="No hay suficientes datos para analizar"
+            )
+        
+        # Procesar resultados
+        ranges = []
+        total_bets = 0
+        total_hits = 0
+        
+        for row in results:
+            accuracy = float(row["accuracy"])
+            roi = float(row["roi"])
+            
+            # Determinar nivel de confianza
+            if accuracy >= 80:
+                confidence_level = "MUY ALTA"
+                recommendation = "✅ Apostar con alta confianza"
+            elif accuracy >= 70:
+                confidence_level = "ALTA"
+                recommendation = "✅ Apostar con confianza moderada"
+            elif accuracy >= 60:
+                confidence_level = "MEDIA"
+                recommendation = "⚠️ Apostar con precaución"
+            elif accuracy >= 50:
+                confidence_level = "BAJA"
+                recommendation = "⚠️ No recomendado"
+            else:
+                confidence_level = "MUY BAJA"
+                recommendation = "❌ Evitar"
+            
+            ranges.append(ScoreRangeStats(
+                range_label=row["score_range"],
+                min_score=row["min_score"],
+                max_score=row["max_score"],
+                total_bets=row["total_bets"],
+                hits=row["hits"],
+                accuracy=accuracy,
+                roi=roi,
+                avg_odds=round(float(row["avg_odds"]), 2),
+                confidence_level=confidence_level,
+                recommendation=recommendation
+            ))
+            
+            total_bets += row["total_bets"]
+            total_hits += row["hits"]
+        
+        # Encontrar el mejor rango (mayor ROI positivo)
+        best_range = max(
+            [r for r in ranges if r.roi > 0], 
+            key=lambda x: x.roi,
+            default=ranges[0] if ranges else None
+        )
+        
+        overall_accuracy = (total_hits / total_bets * 100) if total_bets > 0 else 0
+        
+        # Generar recomendación
+        if best_range and best_range.accuracy >= 70:
+            recommendation_text = (
+                f"💡 Apostar en Score ≥ {best_range.min_score}: "
+                f"{best_range.accuracy:.1f}% aciertos, ROI {best_range.roi:+.1f}%"
+            )
+        else:
+            recommendation_text = "⚠️ No hay rangos con suficiente confiabilidad"
+        
+        return ScoreRangesResponse(
+            ranges=ranges,
+            best_range=best_range,
+            total_analyzed=total_bets,
+            overall_accuracy=round(overall_accuracy, 2),
+            recommendation_text=recommendation_text
+        )
+    
+
+# ═══════════════════════════════════════════════════════════════════
+# FIX COMPLETO: Betting Lines por Liga
+# Reemplaza la función generate_betting_lines_predictions en api.py
+# ═══════════════════════════════════════════════════════════════════
+
+@app.post("/api/betting-lines/generate")  # ✅ CAMBIO: @app en vez de @router
+def generate_betting_lines_predictions(season_id: int = Query(...)):
+    """
+    Genera predicciones de líneas de apuesta usando los thresholds de league_parameters.
+    
+    ✅ CORREGIDO: Lee betting lines de league_parameters por liga
+    """
+    
+    with engine.begin() as conn:
+        # 1️⃣ OBTENER BETTING LINES DE league_parameters
+        league_lines_query = text("""
+            SELECT 
+                lp.betting_line_shots,
+                lp.betting_line_shots_ot,
+                lp.betting_line_corners,
+                lp.betting_line_cards,
+                lp.betting_line_fouls
+            FROM seasons s
+            JOIN league_parameters lp ON lp.league_id = s.league_id
+            WHERE s.id = :season_id
+            LIMIT 1
+        """)
+        
+        league_lines_result = conn.execute(
+            league_lines_query, 
+            {"season_id": season_id}
+        ).mappings().first()
+        
+        if not league_lines_result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No se encontraron parámetros para season {season_id}"
+            )
+        
+        # ✅ Usar valores de league_parameters
+        BETTING_LINES = {
+            'shots': float(league_lines_result['betting_line_shots']),
+            'shots_on_target': float(league_lines_result['betting_line_shots_ot']),
+            'corners': float(league_lines_result['betting_line_corners']),
+            'cards': float(league_lines_result['betting_line_cards']),
+            'fouls': float(league_lines_result['betting_line_fouls'])
+        }
+        
+        print(f"📊 Betting Lines para season {season_id}:")
+        print(f"   Shots: {BETTING_LINES['shots']}")
+        print(f"   Shots OT: {BETTING_LINES['shots_on_target']}")
+        print(f"   Corners: {BETTING_LINES['corners']}")
+        print(f"   Cards: {BETTING_LINES['cards']}")
+        print(f"   Fouls: {BETTING_LINES['fouls']}")
+        
+        # 2️⃣ OBTENER PARTIDOS SIN RESULTADO
         matches_query = text("""
             SELECT 
                 m.id as match_id,
@@ -1482,11 +1762,7 @@ def generate_betting_lines_predictions(season_id: int = Query(...)):
                 th.name as home_team,
                 ta.name as away_team,
                 
-                -- Predicciones Poisson
-                pp.expected_home_goals as poisson_home_goals,
-                pp.expected_away_goals as poisson_away_goals,
-                
-                -- Predicciones Weinston (estadísticas)
+                -- Predicciones Weinston
                 wp.shots_home as weinston_shots_home,
                 wp.shots_away as weinston_shots_away,
                 wp.shots_target_home as weinston_shots_on_target_home,
@@ -1501,7 +1777,6 @@ def generate_betting_lines_predictions(season_id: int = Query(...)):
             FROM matches m
             JOIN teams th ON th.id = m.home_team_id
             JOIN teams ta ON ta.id = m.away_team_id
-            LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
             LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
             WHERE m.season_id = :season_id
               AND m.home_goals IS NULL
@@ -1513,18 +1788,17 @@ def generate_betting_lines_predictions(season_id: int = Query(...)):
         
         generated_predictions = []
         
+        # 3️⃣ CALCULAR PREDICCIONES
         for match in matches:
             match_id = match['match_id']
             
-            # WEINSTON: Calcular totales predichos
             if match['weinston_shots_home'] is not None:
                 # Tiros
                 predicted_shots = float(match['weinston_shots_home'] or 0) + float(match['weinston_shots_away'] or 0)
                 shots_line = BETTING_LINES['shots']
                 shots_prediction = 'over' if predicted_shots > shots_line else 'under'
-                # Confianza: distancia normalizada del umbral (0-1)
                 shots_distance = abs(predicted_shots - shots_line)
-                shots_confidence = min(shots_distance / 10.0, 1.0)  # Normalizar a 0-1
+                shots_confidence = min(shots_distance / 10.0, 1.0)
                 
                 # Tiros a puerta
                 predicted_shots_ot = float(match['weinston_shots_on_target_home'] or 0) + float(match['weinston_shots_on_target_away'] or 0)
@@ -1554,7 +1828,7 @@ def generate_betting_lines_predictions(season_id: int = Query(...)):
                 fouls_distance = abs(predicted_fouls - fouls_line)
                 fouls_confidence = min(fouls_distance / 8.0, 1.0)
                 
-                # Insertar o actualizar predicciones
+                # Insertar o actualizar
                 insert_query = text("""
                     INSERT INTO betting_lines_predictions (
                         match_id, model,
@@ -1592,8 +1866,7 @@ def generate_betting_lines_predictions(season_id: int = Query(...)):
                         predicted_total_fouls = EXCLUDED.predicted_total_fouls,
                         fouls_line = EXCLUDED.fouls_line,
                         fouls_prediction = EXCLUDED.fouls_prediction,
-                        fouls_confidence = EXCLUDED.fouls_confidence,
-                        updated_at = CURRENT_TIMESTAMP
+                        fouls_confidence = EXCLUDED.fouls_confidence
                 """)
                 
                 conn.execute(insert_query, {
@@ -1620,50 +1893,14 @@ def generate_betting_lines_predictions(season_id: int = Query(...)):
                     "fouls_confidence": fouls_confidence
                 })
                 
-                generated_predictions.append({
-                    'match_id': match_id,
-                    'home_team': match['home_team'],
-                    'away_team': match['away_team'],
-                    'date': str(match['date']),
-                    'predictions': {
-                        'shots': {
-                            'predicted': round(predicted_shots, 2),
-                            'line': shots_line,
-                            'prediction': shots_prediction,
-                            'confidence': round(shots_confidence * 100, 1)
-                        },
-                        'shots_on_target': {
-                            'predicted': round(predicted_shots_ot, 2),
-                            'line': shots_ot_line,
-                            'prediction': shots_ot_prediction,
-                            'confidence': round(shots_ot_confidence * 100, 1)
-                        },
-                        'corners': {
-                            'predicted': round(predicted_corners, 2),
-                            'line': corners_line,
-                            'prediction': corners_prediction,
-                            'confidence': round(corners_confidence * 100, 1)
-                        },
-                        'cards': {
-                            'predicted': round(predicted_cards, 2),
-                            'line': cards_line,
-                            'prediction': cards_prediction,
-                            'confidence': round(cards_confidence * 100, 1)
-                        },
-                        'fouls': {
-                            'predicted': round(predicted_fouls, 2),
-                            'line': fouls_line,
-                            'prediction': fouls_prediction,
-                            'confidence': round(fouls_confidence * 100, 1)
-                        }
-                    }
-                })
+                generated_predictions.append(match_id)
         
         return {
-            'betting_lines': BETTING_LINES,
-            'total_matches': len(matches),
-            'predictions_generated': len(generated_predictions),
-            'predictions': generated_predictions
+            "message": "Betting lines generadas correctamente",
+            "season_id": season_id,
+            "betting_lines": BETTING_LINES,
+            "matches_processed": len(generated_predictions),
+            "match_ids": generated_predictions
         }
 
 
@@ -2774,14 +3011,39 @@ def get_h2h_scoring(match_id: int):
                 "total_h2h_matches": len(h2h_matches)
             }
         
-        # 3. Definir líneas de apuestas estándar
-        betting_lines = {
-            "tiros": 24.5,
-            "tiros_al_arco": 8.5,
-            "faltas": 22.5,
-            "tarjetas": 4.5,
-            "corners": 10.5
-        }
+        # 3. ✅ Obtener betting lines de league_parameters
+        league_lines_query = text("""
+            SELECT 
+                lp.betting_line_shots,
+                lp.betting_line_shots_ot,
+                lp.betting_line_fouls,
+                lp.betting_line_cards,
+                lp.betting_line_corners
+            FROM matches m
+            JOIN seasons s ON s.id = m.season_id
+            JOIN league_parameters lp ON lp.league_id = s.league_id
+            WHERE m.id = :match_id
+        """)
+        
+        league_lines = conn.execute(league_lines_query, {"match_id": match_id}).mappings().first()
+        
+        if not league_lines:
+            # Fallback a valores por defecto si no hay parámetros
+            betting_lines = {
+                "tiros": 24.5,
+                "tiros_al_arco": 8.5,
+                "faltas": 22.5,
+                "tarjetas": 4.5,
+                "corners": 10.5
+            }
+        else:
+            betting_lines = {
+                "tiros": float(league_lines["betting_line_shots"]),
+                "tiros_al_arco": float(league_lines["betting_line_shots_ot"]),
+                "faltas": float(league_lines["betting_line_fouls"]),
+                "tarjetas": float(league_lines["betting_line_cards"]),
+                "corners": float(league_lines["betting_line_corners"])
+            }
         
         # 4. Función helper para convertir valores a float de forma segura
         def safe_float(value, default=0.0):
@@ -3169,7 +3431,154 @@ def debug_info():
     return {
         "database_url_exists": "DATABASE_URL" in os.environ,
         "database_url_preview": os.getenv("DATABASE_URL", "NOT_SET")[:50] + "..." if os.getenv("DATABASE_URL") else "NOT_SET"
-    }        
+    }
+# ──────────────────────────────────────────────────────────────────
+# Endpoints nuevos multiliga
+# ──────────────────────────────────────────────────────────────────
+@app.get("/api/leagues/active", response_model=List[LeagueResponse])
+def get_active_leagues():
+    """
+    Retorna ligas activas con la season correcta (la que tiene partidos próximos).
+    
+    ✅ CORREGIDO: Usa ROW_NUMBER() para seleccionar la season con más partidos próximos
+    """
+    query = text("""
+        WITH ranked_seasons AS (
+            SELECT 
+                l.id as league_id,
+                l.name as league_name,
+                s.id as season_id,
+                COUNT(DISTINCT m.id) FILTER (
+                    WHERE m.home_goals IS NULL 
+                      AND m.away_goals IS NULL 
+                      AND m.date >= CURRENT_DATE
+                ) as upcoming_count,
+                ROW_NUMBER() OVER (
+                    PARTITION BY l.id 
+                    ORDER BY COUNT(DISTINCT m.id) FILTER (
+                        WHERE m.home_goals IS NULL 
+                          AND m.away_goals IS NULL
+                    ) DESC,
+                    s.year_start DESC
+                ) as rn
+            FROM leagues l
+            JOIN seasons s ON s.league_id = l.id
+            LEFT JOIN matches m ON m.season_id = s.id
+            WHERE s.year_start >= 2024
+            GROUP BY l.id, l.name, s.id, s.year_start
+            HAVING COUNT(DISTINCT m.id) FILTER (
+                WHERE m.home_goals IS NULL 
+                  AND m.away_goals IS NULL
+            ) > 0
+        )
+        SELECT 
+            league_id as id,
+            league_name as name,
+            CASE league_id
+                WHEN 1 THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'  -- Premier League
+                WHEN 2 THEN '🇪🇸'  -- La Liga
+                WHEN 3 THEN '🇮🇹'  -- Serie A
+                WHEN 4 THEN '🇩🇪'  -- Bundesliga
+                WHEN 5 THEN '🇫🇷'  -- Ligue 1
+                ELSE '⚽'
+            END as emoji,
+            season_id,
+            upcoming_count
+        FROM ranked_seasons
+        WHERE rn = 1  -- Solo la season con más partidos próximos por liga
+        ORDER BY league_id
+    """)
+    
+    with engine.begin() as conn:
+        result = conn.execute(query).fetchall()
+    
+    return [
+        LeagueResponse(
+            id=row.id,
+            name=row.name,
+            emoji=row.emoji,
+            seasonId=row.season_id,
+            upcomingCount=row.upcoming_count
+        )
+        for row in result
+    ]
+
+
+@app.get("/api/leagues/{league_id}", response_model=LeagueDetailResponse)
+def get_league_detail(league_id: int):
+    """
+    Retorna información detallada de una liga específica.
+    
+    ✅ CORREGIDO: Retorna la season con partidos próximos
+    """
+    query = text("""
+        WITH active_season AS (
+            SELECT 
+                s.id as season_id,
+                s.year_start,
+                s.year_end,
+                COUNT(DISTINCT m.id) FILTER (
+                    WHERE m.home_goals IS NULL 
+                      AND m.away_goals IS NULL 
+                      AND m.date >= CURRENT_DATE
+                ) as upcoming_count
+            FROM seasons s
+            LEFT JOIN matches m ON m.season_id = s.id
+            WHERE s.league_id = :league_id
+              AND s.year_start >= 2024
+            GROUP BY s.id, s.year_start, s.year_end
+            HAVING COUNT(DISTINCT m.id) FILTER (
+                WHERE m.home_goals IS NULL 
+                  AND m.away_goals IS NULL
+            ) > 0
+            ORDER BY upcoming_count DESC, s.year_start DESC
+            LIMIT 1
+        )
+        SELECT 
+            l.id,
+            l.name,
+            CASE l.id
+                WHEN 1 THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'
+                WHEN 2 THEN '🇪🇸'
+                WHEN 3 THEN '🇮🇹'
+                WHEN 4 THEN '🇩🇪'
+                WHEN 5 THEN '🇫🇷'
+                ELSE '⚽'
+            END as emoji,
+            a.season_id,
+            CONCAT(a.year_start, '/', a.year_end) as season_year,
+            a.upcoming_count,
+            COUNT(DISTINCT m.id) as total_matches,
+            COUNT(DISTINCT m.id) FILTER (
+                WHERE m.home_goals IS NOT NULL 
+                  AND m.away_goals IS NOT NULL
+            ) as completed_matches
+        FROM leagues l
+        CROSS JOIN active_season a
+        LEFT JOIN matches m ON m.season_id = a.season_id
+        WHERE l.id = :league_id
+        GROUP BY l.id, l.name, a.season_id, a.year_start, a.year_end, a.upcoming_count
+    """)
+    
+    with engine.begin() as conn:
+        result = conn.execute(query, {"league_id": league_id}).fetchone()
+    
+    if not result:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Liga {league_id} no encontrada o sin partidos próximos"
+        )
+    
+    return LeagueDetailResponse(
+        id=result.id,
+        name=result.name,
+        emoji=result.emoji,
+        seasonId=result.season_id,
+        seasonYear=result.season_year,
+        upcomingCount=result.upcoming_count,
+        totalMatches=result.total_matches,
+        completedMatches=result.completed_matches
+    )
 
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)
