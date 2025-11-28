@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 import os
 from urllib.parse import quote_plus
 
-env_file = os.getenv('ENV_FILE', '.env')
-load_dotenv(env_file, override=True)
+# Solo cargar .env si DATABASE_URL no está definido (desarrollo local)
+if not os.getenv('DATABASE_URL'):
+    env_file = os.getenv('ENV_FILE', '.env')
+    load_dotenv(env_file, override=True)
 
 @dataclass
 class Settings:
