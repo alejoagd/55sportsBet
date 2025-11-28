@@ -5,50 +5,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from typing import Dict, Tuple, Optional
 from datetime import datetime
-import os
-from dotenv import load_dotenv
-import pathlib
-
-# ✅ SOLUCIÓN: Usar ruta absoluta basada en la ubicación del script
-SCRIPT_DIR = pathlib.Path(__file__).parent.absolute()
-# Si el script está en src/, subir un nivel a la raíz
-#PROJECT_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == 'src' else SCRIPT_DIR
-if SCRIPT_DIR.name == 'ingest' and SCRIPT_DIR.parent.name == 'src':
-    PROJECT_ROOT = SCRIPT_DIR.parent.parent  # src/ingest/ -> raíz
-elif SCRIPT_DIR.name == 'src':
-    PROJECT_ROOT = SCRIPT_DIR.parent  # src/ -> raíz
-else:
-    PROJECT_ROOT = SCRIPT_DIR  # Ya estamos en la raíz
-
-# Determinar qué .env usar
-ENV_FILE = os.getenv('ENV_FILE', '.env')
-ENV_PATH = PROJECT_ROOT / ENV_FILE
-
-print("=" * 60)
-print("🔍 VERIFICACIÓN DE ARCHIVOS")
-print("=" * 60)
-print(f"Directorio del script: {SCRIPT_DIR}")
-print(f"Directorio del proyecto: {PROJECT_ROOT}")
-print(f"Variable ENV_FILE: {ENV_FILE}")
-print(f"Ruta completa: {ENV_PATH}")
-print(f"¿Archivo existe? {ENV_PATH.exists()}")
-print("=" * 60)
-print()
-
-if not ENV_PATH.exists():
-    print(f"❌ ERROR: No se encontró {ENV_PATH}")
-    print(f"❌ Verifica que el archivo exista en: {PROJECT_ROOT}")
-    print()
-    print("Archivos .env encontrados en el proyecto:")
-    for env_file in PROJECT_ROOT.rglob('.env*'):
-        print(f"  - {env_file}")
-    exit(1)
-
-# Cargar el .env correcto
-load_dotenv(ENV_PATH)
-print(f"✅ Archivo cargado: {ENV_PATH}")
-print()
-
 from config import settings
 
 # No necesitamos config, usamos PG_DSN directamente
@@ -63,54 +19,11 @@ app = typer.Typer()
 # Conexión a PostgreSQL - ⚠️ IMPORTANTE: Ajusta con tus credenciales
 PG_DSN = settings.sqlalchemy_url
 
-#EXCEL_PATH_DEFAULT = "../data/H2H_Laliga.xlsx"  # ⬅️ AJUSTAR RUTA
-EXCEL_PATH_DEFAULT = str(PROJECT_ROOT / "data" / "H2H_Laliga.xlsx") 
+EXCEL_PATH_DEFAULT = "../data/H2H_Laliga.xlsx"  # ⬅️ AJUSTAR RUTA
 
 # ⬅️ IMPORTANTE: ID de La Liga en tu base de datos
 # Según tu captura, league_id = 2 para La Liga
 LEAGUE_ID_LA_LIGA = 2  # ⬅️ YA ESTÁ CORRECTO
-
-# Verificación de BD
-print("=" * 60)
-print("🔍 VERIFICACIÓN DE BASE DE DATOS")
-print("=" * 60)
-print(f"Host: {settings.DB_HOST}")
-print(f"Port: {settings.DB_PORT}")
-print(f"Database: {settings.DB_NAME}")
-print(f"User: {settings.DB_USER}")
-print("=" * 60)
-print()
-
-# Advertencia si es localhost
-if settings.DB_HOST in ['localhost', '127.0.0.1', '::1']:
-    print("⚠️  ¡ADVERTENCIA! Estás apuntando a LOCALHOST")
-    print("⚠️  Para usar PRODUCCIÓN, ejecuta:")
-    print()
-    print("    PowerShell:")
-    print("    $env:ENV_FILE='.env.production'; python ingest_h2h_laliga.py ingest")
-    print()
-    print("    CMD:")
-    print("    set ENV_FILE=.env.production && python ingest_h2h_laliga.py ingest")
-    print()
-    print("    Linux/Mac:")
-    print("    ENV_FILE=.env.production python ingest_h2h_laliga.py ingest")
-    print()
-    respuesta = input("¿Continuar con LOCALHOST de todos modos? (s/N): ")
-    if respuesta.lower() != 's':
-        print("❌ Operación cancelada")
-        exit(0)
-else:
-    print("✅ Apuntando a BASE DE DATOS DE PRODUCCIÓN")
-    print(f"✅ {settings.DB_HOST}")
-    print()
-    respuesta = input("⚠️  ¿CONFIRMAS que quieres MODIFICAR LA BD DE PRODUCCIÓN? (s/N): ")
-    if respuesta.lower() != 's':
-        print("❌ Operación cancelada por seguridad")
-        exit(0)
-
-print()
-print("🚀 Continuando con la carga de datos...")
-print()
 
 
 # ===============================

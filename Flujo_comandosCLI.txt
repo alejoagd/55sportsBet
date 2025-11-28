@@ -52,6 +52,14 @@ python -m src.predictions.cli upcoming --season-id 2 --from 2025-08-15 --to 2025
 # 3. Evaluar resultados (solo partidos terminados)
 python -m src.predictions.cli evaluate --season-id 2 --from 2025-08-15 --to 2025-10-05
 
+-------upload excel h2h2
+#para cargar el archivo de excel dependiendo si se va a subir a produccion o a la base de datos local , definir el archivo (.env)localhost y (.env.production)produccion
+$env:ENV_FILE=".env.production"; python src\ingest_h2h_laliga.py
+
+#Cuando se va a subir el h2h para produccion se debe deshabilitar el load_dotenv que se encuentra en config.py y el import tambien comentarlo para que tome los valores de produccion de la bd
+#Despues de realizar ese proceso se debera volver a habilitar par que no se reviente el frontend
+
+
 ------------------------------------------------------------------------------------------GUIA ORGANIZADA --------------------------
 # Guía de Comandos CLI - 55sportsBet
 

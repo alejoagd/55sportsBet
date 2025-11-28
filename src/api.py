@@ -3466,10 +3466,7 @@ def get_active_leagues():
             LEFT JOIN matches m ON m.season_id = s.id
             WHERE s.year_start >= 2024
             GROUP BY l.id, l.name, s.id, s.year_start
-            HAVING COUNT(DISTINCT m.id) FILTER (
-                WHERE m.home_goals IS NULL 
-                  AND m.away_goals IS NULL
-            ) > 0
+            HAVING COUNT(DISTINCT m.id) > 0
         )
         SELECT 
             league_id as id,
@@ -3527,10 +3524,7 @@ def get_league_detail(league_id: int):
             WHERE s.league_id = :league_id
               AND s.year_start >= 2024
             GROUP BY s.id, s.year_start, s.year_end
-            HAVING COUNT(DISTINCT m.id) FILTER (
-                WHERE m.home_goals IS NULL 
-                  AND m.away_goals IS NULL
-            ) > 0
+            HAVING COUNT(DISTINCT m.id) > 0
             ORDER BY upcoming_count DESC, s.year_start DESC
             LIMIT 1
         )

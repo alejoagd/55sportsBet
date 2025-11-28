@@ -8,11 +8,6 @@ Puebla varias tablas:
 - matches (incluye home/away_goals, FTR, HTHG/HTAG/HTR, referee, season_id opcional)
 - match_stats (stats de disparos, faltas, corners, tarjetas y totales)
 
-CAMBIOS:
-- Manejo correcto del campo "Referee":
-  * Premier League: Tiene columna "Referee" → se usa el valor
-  * La Liga y otras: NO tienen columna "Referee" → se asigna "Sin arbitro"
-
 Uso:
   python -m src.ingest.load_unified run data/raw/"E0 (61).csv" --league "Premier League" --div E0 --season-id 2024
 """
@@ -97,19 +92,6 @@ def _upsert_match(s: Session, date: datetime, home_id: int, away_id: int, row: d
         ).scalar_one_or_none()
     )
 
-    # ═══════════════════════════════════════════════════════════════════
-    # MANEJO DEL CAMPO REFEREE
-    # ═══════════════════════════════════════════════════════════════════
-    # Premier League: Tiene columna "Referee" con valores
-    # La Liga y otras: NO tienen columna "Referee" → usar "Sin arbitro"
-    referee_value = "Sin arbitro"  # Valor por defecto
-    
-    if "Referee" in row and pd.notna(row.get("Referee")):
-        # Si la columna existe y tiene un valor
-        ref_str = str(row.get("Referee")).strip()
-        if ref_str and ref_str.lower() not in ['nan', 'none', '']:
-            referee_value = ref_str
-    
     payload = {
         "season_id": season_id,
         "date": date.date(),
@@ -121,7 +103,7 @@ def _upsert_match(s: Session, date: datetime, home_id: int, away_id: int, row: d
         "halftime_homegoal": _to_int(row.get("HTHG")),
         "halftime_awaygoal": _to_int(row.get("HTAG")),
         "halftime_result": (str(row.get("HTR")).strip() if pd.notna(row.get("HTR")) else None),
-        "referee": referee_value,  # Siempre tendrá un valor (real o "Sin arbitro")
+        "referee": (str(row.get("Referee")).strip() if pd.notna(row.get("Referee")) else None),
     }
 
     if existing:
@@ -170,13 +152,6 @@ def run(
     season_id: int | None = typer.Option(None, help="season_id a asignar (opcional)"),
     dayfirst: bool = typer.Option(True, help="Fechas dd/mm/yyyy"),
 ):
-    """
-    Carga un CSV unificado y puebla las tablas de la base de datos.
-    
-    Maneja automáticamente:
-    - Ligas CON columna Referee (Premier League): usa el valor
-    - Ligas SIN columna Referee (La Liga, etc.): asigna "Sin arbitro"
-    """
     df = pd.read_csv(csv)
 
     if "Div" in df.columns and div:
@@ -185,10 +160,6 @@ def run(
     if "Date" not in df.columns:
         raise typer.BadParameter("CSV debe incluir columna 'Date'")
     df["Date"] = pd.to_datetime(df["Date"], dayfirst=dayfirst, errors="coerce")
-
-    # Verificar si el CSV tiene columna Referee
-    has_referee = "Referee" in df.columns
-    typer.echo(f"ℹ️  CSV tiene columna 'Referee': {'Sí' if has_referee else 'No (se usará \"Sin arbitro\")'}")
 
     with SessionLocal() as s:
         lg_id = _get_or_create_league(s, league)
@@ -209,7 +180,7 @@ def run(
             _upsert_match_stats(s, mid, r)
 
         s.commit()
-        typer.echo(f"✅ OK: cargado {len(df)} filas (liga={league}, div={div}, season_id={season_id})")
+        typer.echo(f"OK: cargado {len(df)} filas (liga={league}, div={div}, season_id={season_id})")
 
 if __name__ == "__main__":
     app()

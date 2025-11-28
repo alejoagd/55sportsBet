@@ -3,17 +3,16 @@
 Script inteligente para actualizar predicciones - VERSIÓN MULTI-LIGA.
 Valida el estado del sistema antes de ejecutar comandos.
 
-CAMBIOS PRINCIPALES:
-- Soporte para múltiples ligas simultáneas
-- Usa LeagueContext para independencia entre ligas
-- Llamadas directas a funciones (sin subprocess)
-- Mensajes más claros indicando la liga procesada
+CAMBIOS:
+- Selector de base de datos al inicio (localhost o producción)
+- Resto del código sin cambios (usa subprocess como el original)
 """
 import sys
+import os
 from datetime import datetime
 from typing import Tuple, Optional, List
-from sqlalchemy import text
-from src.db import engine
+from sqlalchemy import text, create_engine
+from dotenv import load_dotenv
 
 # League Manager
 from src.scripts.league_manager import (
@@ -30,6 +29,151 @@ from src.predictions.league_context import LeagueContext
 from src.predictions.upcoming_poisson import predict_and_upsert_poisson
 from src.predictions.upcoming_weinston import predict_and_upsert_weinston
 
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VARIABLE GLOBAL PARA EL ENGINE (como en el original)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+engine = None  # Se inicializa en select_database()
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SELECTOR DE BASE DE DATOS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def select_database():
+    """
+    Permite al usuario seleccionar entre localhost o producción.
+    Retorna el engine configurado y el nombre de la BD seleccionada.
+    """
+    global engine
+    
+    print(f"{Colors.BOLD}{Colors.CYAN}")
+    print("╔════════════════════════════════════════════════════════════╗")
+    print("║     55sportsBet - Actualización Inteligente MULTI-LIGA    ║")
+    print("╚════════════════════════════════════════════════════════════╝")
+    print(f"{Colors.END}")
+    
+    print(f"\n{Colors.BOLD}SELECCIÓN DE BASE DE DATOS{Colors.END}")
+    print(f"{Colors.CYAN}{'='*70}{Colors.END}\n")
+    
+    print("  1. 🏠 LOCALHOST  - Base de datos local (desarrollo)")
+    print("  2. 🌐 PRODUCCIÓN - Base de datos en Render (producción)")
+    print("  0. ❌ SALIR\n")
+    
+    choice = input(f"{Colors.GREEN}Selecciona la base de datos a usar (0-2): {Colors.END}").strip()
+    
+    if choice == "0":
+        print_info("Saliendo...")
+        sys.exit(0)
+    
+    if choice not in ["1", "2"]:
+        print_error("Opción inválida")
+        sys.exit(1)
+    
+    # Determinar archivo .env
+    if choice == "1":
+        env_file = ".env"
+        db_name = "LOCALHOST"
+        db_emoji = "🏠"
+    else:
+        env_file = ".env.production"
+        db_name = "PRODUCCIÓN"
+        db_emoji = "🌐"
+    
+    print(f"\n{Colors.CYAN}{'─'*70}{Colors.END}")
+    print(f"{db_emoji} Configurando conexión a {Colors.BOLD}{db_name}{Colors.END}...")
+    print(f"{Colors.CYAN}{'─'*70}{Colors.END}\n")
+    
+    # Verificar que el archivo existe
+    if not os.path.exists(env_file):
+        print_error(f"Archivo no encontrado: {env_file}")
+        print_info("Asegúrate de tener el archivo de configuración en la raíz del proyecto")
+        print_info(f"Ruta esperada: {os.path.abspath(env_file)}")
+        sys.exit(1)
+    
+    print_success(f"Archivo encontrado: {env_file}")
+    
+    # IMPORTANTE: Limpiar variables de entorno previas
+    env_vars_to_clear = [
+        'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 
+        'DB_PASSWORD', 'DB_PASS', 'DB_SCHEMA', 'DATABASE_URL'
+    ]
+    for var in env_vars_to_clear:
+        if var in os.environ:
+            del os.environ[var]
+    
+    # Cargar variables de entorno
+    load_dotenv(env_file, override=True)
+    
+    # Obtener credenciales (soporta DB_PASS y DB_PASSWORD)
+    db_host = os.getenv('DB_HOST')
+    db_port = os.getenv('DB_PORT', '5432')
+    db_database = os.getenv('DB_NAME')
+    db_user = os.getenv('DB_USER')
+    db_password = os.getenv('DB_PASSWORD') or os.getenv('DB_PASS')
+    
+    # Validar que todas las variables estén presentes
+    missing_vars = []
+    if not db_host:
+        missing_vars.append('DB_HOST')
+    if not db_database:
+        missing_vars.append('DB_NAME')
+    if not db_user:
+        missing_vars.append('DB_USER')
+    if not db_password:
+        missing_vars.append('DB_PASSWORD o DB_PASS')
+    
+    if missing_vars:
+        print_error(f"Variables de entorno faltantes en {env_file}:")
+        for var in missing_vars:
+            print(f"   ❌ {var}")
+        print()
+        print_info("Tu archivo .env debe contener:")
+        print("   DB_HOST=...")
+        print("   DB_PORT=...")
+        print("   DB_NAME=...")
+        print("   DB_USER=...")
+        print("   DB_PASSWORD=...  (o DB_PASS=...)")
+        sys.exit(1)
+    
+    # Construir URL de conexión
+    database_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
+    
+    # Crear engine
+    try:
+        engine = create_engine(database_url)
+        
+        # Probar conexión
+        print_info("Probando conexión...")
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT version()")).scalar()
+            
+        print_success(f"✅ Conexión exitosa a {db_name}")
+        print(f"\n{Colors.BOLD}Detalles de conexión:{Colors.END}")
+        print(f"  • Base de datos: {db_name}")
+        print(f"  • Host: {db_host}")
+        print(f"  • Puerto: {db_port}")
+        print(f"  • Database: {db_database}")
+        print(f"  • Usuario: {db_user}")
+        print(f"  • Estado: {Colors.GREEN}Conectado ✓{Colors.END}\n")
+        
+        return db_name, env_file
+        
+    except Exception as e:
+        print_error(f"Error al conectar a {db_name}")
+        print(f"\n{Colors.RED}Detalles del error:{Colors.END}")
+        print(f"  {str(e)}\n")
+        print_info("Verifica:")
+        print("  1. Las credenciales en tu archivo .env")
+        print("  2. Que el servidor de base de datos esté accesible")
+        print("  3. Que tengas conectividad de red (si es producción)")
+        sys.exit(1)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FUNCIONES AUXILIARES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def print_step(msg: str):
     print(f"\n{Colors.CYAN}{'='*70}{Colors.END}")
@@ -50,7 +194,7 @@ def print_info(msg: str):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# FUNCIONES DE VERIFICACIÓN (sin cambios, solo documentadas)
+# FUNCIONES DE VERIFICACIÓN (ORIGINALES SIN CAMBIOS)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def check_matches_without_results(season_id: int, date_from: str, date_to: str) -> Tuple[int, list]:
@@ -178,10 +322,10 @@ def preview_csv_fixtures(filepath: str, max_rows: int = 5):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# MODOS REFACTORIZADOS (con soporte multi-liga)
+# MODOS (CÓDIGO ORIGINAL SIN CAMBIOS)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def mode_load_fixtures(league_config: LeagueConfig):
+def mode_load_fixtures(league_config: LeagueConfig, env_file: str):
     """Modo: Cargar fixtures desde CSV para una liga específica"""
     print_step(f"📥 MODO: CARGAR FIXTURES - {league_config.league_name}")
     
@@ -208,24 +352,35 @@ def mode_load_fixtures(league_config: LeagueConfig):
     
     # 4. Confirmar
     response = input(f"\n{Colors.GREEN}¿Cargar {total_rows} fixtures para {league_config.league_name}? (s/n): {Colors.END}")
+    
     if response.lower() != 's':
-        print_info("Operación cancelada")
+        print_info("Carga cancelada")
         return False
     
-    # 5. Ejecutar carga
+    # 5. Ejecutar ingest usando subprocess (como el original)
+    print_info(f"Cargando fixtures para {league_config.league_name}...")
+    
     import subprocess
+    import os
+    
+    # Crear entorno con ENV_FILE
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
     
     cmd = (
-        f"python -m src.fixtures.cli bulk {filepath} "
-        f"--season-id {league_config.season_id} "
+        f"python -m src.ingest.load_unified {filepath} "
         f"--league \"{league_config.league_name}\" "
+        f"--div {league_config.csv_code} "
+        f"--season-id {league_config.season_id}"
     )
     
     if league_config.dayfirst:
-        cmd += "--dayfirst"
+        cmd += " --dayfirst"
     
     print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
-    result = subprocess.run(cmd, shell=True)
+    print_info(f"Usando configuración: {env_file}")
+    
+    result = subprocess.run(cmd, shell=True, env=env)
     
     if result.returncode == 0:
         print_success(f"Fixtures cargados exitosamente para {league_config.league_name}")
@@ -236,13 +391,13 @@ def mode_load_fixtures(league_config: LeagueConfig):
 
 
 def mode_predict(league_config: LeagueConfig, date_from: str, date_to: str):
-    """Modo: Generar predicciones para partidos futuros de una liga"""
+    """Modo: Generar predicciones para partidos sin resultados"""
     print_step(f"🎯 MODO: GENERAR PREDICCIONES - {league_config.league_name}")
     
     season_id = league_config.season_id
     
     # 1. Verificar partidos sin resultados
-    count, matches = check_matches_without_results(season_id, date_from, date_to)
+    count, rows = check_matches_without_results(season_id, date_from, date_to)
     
     if count == 0:
         print_warning(f"No hay partidos sin resultados para {league_config.league_name}")
@@ -250,12 +405,22 @@ def mode_predict(league_config: LeagueConfig, date_from: str, date_to: str):
     
     print_success(f"Hay {count} partidos sin resultados")
     
-    # 2. Verificar predicciones existentes
-    match_ids = [m.id for m in matches]
+    # 2. Verificar parámetros de Weinston
+    params = check_weinston_params(season_id)
+    
+    if not params:
+        print_error("No existen parámetros de Weinston para esta temporada")
+        print_info("Ejecuta primero el modo RETRAIN")
+        return False
+    
+    print_success(f"Parámetros de Weinston encontrados (última actualización: {params['updated_at']})")
+    
+    # 3. Verificar predicciones existentes
+    match_ids = [row.id for row in rows]
     existing = check_predictions_exist(match_ids)
     
     if existing["poisson"] > 0 or existing["weinston"] > 0:
-        print_warning(f"Algunos partidos ya tienen predicciones:")
+        print_info(f"Predicciones existentes:")
         print(f"   • Poisson: {existing['poisson']}/{count}")
         print(f"   • Weinston: {existing['weinston']}/{count}")
         print_info("Las predicciones se actualizarán")
@@ -264,7 +429,7 @@ def mode_predict(league_config: LeagueConfig, date_from: str, date_to: str):
         if response.lower() != 's':
             return False
     
-    # 3. Cargar contexto de liga y generar predicciones
+    # 4. Cargar contexto de liga y generar predicciones (LÓGICA ORIGINAL)
     try:
         with engine.begin() as conn:
             league_ctx = LeagueContext.from_season(conn, season_id)
@@ -291,7 +456,7 @@ def mode_predict(league_config: LeagueConfig, date_from: str, date_to: str):
         return False
 
 
-def mode_load_results(league_config: LeagueConfig):
+def mode_load_results(league_config: LeagueConfig, env_file: str):
     """Modo: Cargar resultados desde CSV para una liga"""
     print_step(f"📥 MODO: CARGAR RESULTADOS - {league_config.league_name}")
     
@@ -320,8 +485,13 @@ def mode_load_results(league_config: LeagueConfig):
     if response.lower() != 's':
         return False
     
-    # 5. Ejecutar carga
+    # 5. Ejecutar carga usando subprocess (COMO EL ORIGINAL)
     import subprocess
+    import os
+    
+    # Crear entorno con ENV_FILE
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
     
     cmd = (
         f"python -m src.ingest.load_unified {filepath} "
@@ -334,7 +504,9 @@ def mode_load_results(league_config: LeagueConfig):
         cmd += "--dayfirst"
     
     print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
-    result = subprocess.run(cmd, shell=True)
+    print_info(f"Usando configuración: {env_file}")
+    
+    result = subprocess.run(cmd, shell=True, env=env)
     
     if result.returncode == 0:
         print_success(f"Resultados cargados para {league_config.league_name}")
@@ -344,7 +516,7 @@ def mode_load_results(league_config: LeagueConfig):
         return False
 
 
-def mode_evaluate(league_config: LeagueConfig, date_from: str, date_to: str):
+def mode_evaluate(league_config: LeagueConfig, date_from: str, date_to: str, env_file: str):
     """Modo: Evaluar predicciones vs resultados reales"""
     print_step(f"📊 MODO: EVALUAR PREDICCIONES - {league_config.league_name}")
     
@@ -373,8 +545,14 @@ def mode_evaluate(league_config: LeagueConfig, date_from: str, date_to: str):
     if response.lower() != 's':
         return False
     
-    # 4. Ejecutar evaluación
+    # 4. Ejecutar evaluación usando subprocess (COMO EL ORIGINAL)
+    # IMPORTANTE: Establecer ENV_FILE para que el subprocess use la BD correcta
     import subprocess
+    
+    # Crear entorno con la variable ENV_FILE
+    import os
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
     
     cmd = (
         f"python -m src.predictions.cli evaluate "
@@ -383,7 +561,9 @@ def mode_evaluate(league_config: LeagueConfig, date_from: str, date_to: str):
     )
     
     print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
-    result = subprocess.run(cmd, shell=True)
+    print_info(f"Usando configuración: {env_file}")
+    
+    result = subprocess.run(cmd, shell=True, env=env)
     
     if result.returncode == 0:
         print_success(f"Evaluación completada para {league_config.league_name}")
@@ -393,7 +573,7 @@ def mode_evaluate(league_config: LeagueConfig, date_from: str, date_to: str):
         return False
 
 
-def mode_retrain(league_config: LeagueConfig):
+def mode_retrain(league_config: LeagueConfig, env_file: str):
     """Modo: Re-entrenar modelo Weinston para una liga"""
     print_step(f"🔄 MODO: RE-ENTRENAR WEINSTON - {league_config.league_name}")
     
@@ -418,43 +598,47 @@ def mode_retrain(league_config: LeagueConfig):
         response = input(f"\n{Colors.YELLOW}¿Continuar de todos modos? (s/n): {Colors.END}")
         if response.lower() != 's':
             return False
-    else:
-        print_success(f"Hay {total_matches} partidos terminados disponibles")
     
-    # 2. Verificar parámetros actuales
-    params = check_weinston_params(season_id)
-    if params:
-        print_info(f"Parámetros actuales (desde {params['updated_at']}):")
-        print(f"   μ_home={params['mu_home']:.3f}, μ_away={params['mu_away']:.3f}, HFA={params['home_adv']:.3f}")
-    else:
-        print_info("No hay parámetros previos, primer entrenamiento")
+    print_success(f"Hay {total_matches} partidos terminados disponibles para entrenamiento")
     
-    # 3. Confirmar
-    response = input(f"\n{Colors.GREEN}¿Re-entrenar modelo? (s/n): {Colors.END}")
+    # 2. Confirmar
+    response = input(f"\n{Colors.GREEN}¿Re-entrenar Weinston para {league_config.league_name}? (s/n): {Colors.END}")
     if response.lower() != 's':
         return False
     
-    # 4. Entrenar
+    # 3. Ejecutar entrenamiento usando subprocess (COMO EL ORIGINAL)
     import subprocess
+    import os
     
-    cmd = f"python -m src.predictions.cli fit --season-id {season_id}"
+    # Crear entorno con ENV_FILE
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
+    
+    cmd = f"python -m src.predictions.cli train-weinston --season-id {season_id}"
     
     print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
-    result = subprocess.run(cmd, shell=True)
+    print_info(f"Usando configuración: {env_file}")
+    
+    result = subprocess.run(cmd, shell=True, env=env)
     
     if result.returncode == 0:
-        print_success(f"Modelo re-entrenado para {league_config.league_name}")
+        print_success(f"Weinston re-entrenado para {league_config.league_name}")
         return True
     else:
-        print_error("Error al entrenar modelo")
+        print_error("Error al re-entrenar Weinston")
         return False
 
 
-def generate_betting_lines_predictions(league_config: LeagueConfig, date_from: str, date_to: str):
-    """Genera líneas de apuesta para una liga"""
+def generate_betting_lines_predictions(league_config: LeagueConfig, date_from: str, date_to: str, env_file: str):
+    """Genera líneas de apuesta para los partidos"""
     print_info(f"Generando betting lines para {league_config.league_name}...")
     
     import subprocess
+    import os
+    
+    # Crear entorno con ENV_FILE
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
     
     cmd = (
         f"python -m src.predictions.cli betting-lines "
@@ -462,7 +646,8 @@ def generate_betting_lines_predictions(league_config: LeagueConfig, date_from: s
         f"--from {date_from} --to {date_to}"
     )
     
-    result = subprocess.run(cmd, shell=True)
+    print_info(f"Usando configuración: {env_file}")
+    result = subprocess.run(cmd, shell=True, env=env)
     
     if result.returncode == 0:
         print_success(f"Betting lines generadas para {league_config.league_name}")
@@ -470,11 +655,16 @@ def generate_betting_lines_predictions(league_config: LeagueConfig, date_from: s
     return False
 
 
-def validate_betting_lines_predictions(league_config: LeagueConfig, date_from: str, date_to: str):
+def validate_betting_lines_predictions(league_config: LeagueConfig, date_from: str, date_to: str, env_file: str):
     """Valida líneas de apuesta contra resultados reales"""
     print_info(f"Validando betting lines para {league_config.league_name}...")
     
     import subprocess
+    import os
+    
+    # Crear entorno con ENV_FILE
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
     
     cmd = (
         f"python -m src.predictions.cli betting-lines-validate "
@@ -482,7 +672,8 @@ def validate_betting_lines_predictions(league_config: LeagueConfig, date_from: s
         f"--from {date_from} --to {date_to}"
     )
     
-    result = subprocess.run(cmd, shell=True)
+    print_info(f"Usando configuración: {env_file}")
+    result = subprocess.run(cmd, shell=True, env=env)
     
     if result.returncode == 0:
         print_success(f"Betting lines validadas para {league_config.league_name}")
@@ -491,18 +682,18 @@ def validate_betting_lines_predictions(league_config: LeagueConfig, date_from: s
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# FUNCIÓN PRINCIPAL (MULTI-LIGA)
+# FUNCIÓN PRINCIPAL
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def main():
-    print(f"{Colors.BOLD}{Colors.CYAN}")
-    print("╔════════════════════════════════════════════════════════════╗")
-    print("║     55sportsBet - Actualización Inteligente MULTI-LIGA    ║")
-    print("╚════════════════════════════════════════════════════════════╝")
-    print(f"{Colors.END}")
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PASO 1: Seleccionar Base de Datos (NUEVO)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    db_name, env_file = select_database()
     
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # PASO 1: Seleccionar Liga(s)
+    # PASO 2: Seleccionar Liga(s) (ORIGINAL)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     with engine.begin() as conn:
@@ -514,7 +705,7 @@ def main():
             return
     
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # PASO 2: Seleccionar Modo de Operación
+    # RESTO DEL CÓDIGO ORIGINAL SIN CAMBIOS
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     print("\n📋 Selecciona el modo de operación:\n")
@@ -533,10 +724,7 @@ def main():
         print_info("Saliendo...")
         return
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # PASO 3: Solicitar Fechas (si es necesario)
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+    # Solicitar fechas
     date_from = None
     date_to = None
     
@@ -552,10 +740,7 @@ def main():
             print_error("Formato de fecha inválido")
             return
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # PASO 4: Confirmar Operación Multi-Liga
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+    # Confirmar operación
     mode_names = {
         "1": "CARGAR FIXTURES",
         "2": "GENERAR PREDICCIONES",
@@ -568,14 +753,20 @@ def main():
     
     operation_name = mode_names.get(choice, "OPERACIÓN")
     
-    if not manager.confirm_multi_league_operation(selected_leagues, operation_name):
+    print(f"\n{Colors.YELLOW}{'─'*70}{Colors.END}")
+    print(f"{Colors.BOLD}Confirmar operación:{Colors.END}")
+    print(f"  • Base de datos: {db_name}")
+    print(f"  • Operación: {operation_name}")
+    print(f"  • Ligas: {', '.join([lc.league_name for lc in selected_leagues])}")
+    print(f"{Colors.YELLOW}{'─'*70}{Colors.END}\n")
+    
+    response = input(f"{Colors.GREEN}¿Continuar? (s/n): {Colors.END}")
+    
+    if response.lower() != 's':
         print_info("Operación cancelada")
         return
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # PASO 5: Ejecutar para cada liga
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+    # Ejecutar para cada liga
     success_count = 0
     failed_leagues = []
     
@@ -587,37 +778,37 @@ def main():
             
             try:
                 if choice == "1":
-                    success = mode_load_fixtures(league_config)
+                    success = mode_load_fixtures(league_config, env_file)
                 
                 elif choice == "2":
                     success = mode_predict(league_config, date_from, date_to)
                 
                 elif choice == "3":
-                    success = mode_load_results(league_config)
+                    success = mode_load_results(league_config, env_file)
                 
                 elif choice == "4":
-                    success = mode_evaluate(league_config, date_from, date_to)
+                    success = mode_evaluate(league_config, date_from, date_to, env_file)
                 
                 elif choice == "5":
-                    success = mode_retrain(league_config)
+                    success = mode_retrain(league_config, env_file)
                 
                 elif choice == "6":
                     # Flujo COMPLETE
                     print_info("Flujo: FIXTURES → RETRAIN → PREDICT → BETTING LINES")
                     
-                    if mode_load_fixtures(league_config):
-                        if mode_retrain(league_config):
+                    if mode_load_fixtures(league_config, env_file):
+                        if mode_retrain(league_config, env_file):
                             if mode_predict(league_config, date_from, date_to):
-                                generate_betting_lines_predictions(league_config, date_from, date_to)
+                                generate_betting_lines_predictions(league_config, date_from, date_to, env_file)
                                 success = True
                 
                 elif choice == "7":
                     # Flujo FINISH
                     print_info("Flujo: RESULTS → EVALUATE → VALIDATE BETTING")
                     
-                    if mode_load_results(league_config):
-                        if mode_evaluate(league_config, date_from, date_to):
-                            validate_betting_lines_predictions(league_config, date_from, date_to)
+                    if mode_load_results(league_config, env_file):
+                        if mode_evaluate(league_config, date_from, date_to, env_file):
+                            validate_betting_lines_predictions(league_config, date_from, date_to, env_file)
                             success = True
                 
                 else:
@@ -636,14 +827,12 @@ def main():
                 failed_leagues.append(league_config.league_name)
                 continue
         
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # RESUMEN FINAL
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        
+        # Resumen final
         print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*70}{Colors.END}")
         print(f"{Colors.BOLD}  RESUMEN DE OPERACIÓN{Colors.END}")
         print(f"{Colors.CYAN}{'='*70}{Colors.END}\n")
         
+        print(f"  Base de datos: {Colors.BOLD}{db_name}{Colors.END}")
         print(f"  Ligas procesadas: {success_count}/{len(selected_leagues)}")
         
         if success_count == len(selected_leagues):

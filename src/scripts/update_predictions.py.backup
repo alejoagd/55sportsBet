@@ -1,24 +1,35 @@
 #!/usr/bin/env python
 """
-Script inteligente para actualizar predicciones.
+Script inteligente para actualizar predicciones - VERSIÓN MULTI-LIGA.
 Valida el estado del sistema antes de ejecutar comandos.
+
+CAMBIOS PRINCIPALES:
+- Soporte para múltiples ligas simultáneas
+- Usa LeagueContext para independencia entre ligas
+- Llamadas directas a funciones (sin subprocess)
+- Mensajes más claros indicando la liga procesada
 """
-import subprocess
 import sys
-from datetime import datetime, timedelta
-from typing import Tuple, Optional
+from datetime import datetime
+from typing import Tuple, Optional, List
 from sqlalchemy import text
 from src.db import engine
 
-# Colores para terminal
-class Colors:
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    END = '\033[0m'
-    BOLD = '\033[1m'
+# League Manager
+from src.scripts.league_manager import (
+    LeagueManager, 
+    LeagueConfig, 
+    print_league_header,
+    Colors
+)
+
+# Contexto de liga
+from src.predictions.league_context import LeagueContext
+
+# Funciones de predicción
+from src.predictions.upcoming_poisson import predict_and_upsert_poisson
+from src.predictions.upcoming_weinston import predict_and_upsert_weinston
+
 
 def print_step(msg: str):
     print(f"\n{Colors.CYAN}{'='*70}{Colors.END}")
@@ -37,16 +48,10 @@ def print_error(msg: str):
 def print_info(msg: str):
     print(f"{Colors.BLUE}ℹ️  {msg}{Colors.END}")
 
-def run_command(cmd: str) -> bool:
-    """Ejecuta comando y retorna True si tuvo éxito"""
-    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
-    result = subprocess.run(cmd, shell=True)
-    if result.returncode == 0:
-        print_success("Comando completado")
-        return True
-    else:
-        print_error("Comando falló")
-        return False
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FUNCIONES DE VERIFICACIÓN (sin cambios, solo documentadas)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def check_matches_without_results(season_id: int, date_from: str, date_to: str) -> Tuple[int, list]:
     """Verifica partidos sin resultados en el rango de fechas"""
@@ -171,19 +176,24 @@ def preview_csv_fixtures(filepath: str, max_rows: int = 5):
         print_error(f"Error al leer CSV: {e}")
         return 0
 
-def mode_load_fixtures(season_id: int, league: str = "Premier League", dayfirst: bool = True):
-    """Modo: Cargar fixtures desde CSV"""
-    print_step("📥 MODO: CARGAR FIXTURES")
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MODOS REFACTORIZADOS (con soporte multi-liga)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def mode_load_fixtures(league_config: LeagueConfig):
+    """Modo: Cargar fixtures desde CSV para una liga específica"""
+    print_step(f"📥 MODO: CARGAR FIXTURES - {league_config.league_name}")
     
-    # 1. Solicitar ruta del archivo
-    print_info("Ingresa la ruta del archivo CSV con los fixtures")
-    print_info("Ejemplo: data/fixtures_E0.csv")
+    # 1. Solicitar ruta del archivo (o usar default)
+    default_path = league_config.get_csv_path("data")
+    print_info(f"Archivo default: {default_path}")
+    print_info("Presiona Enter para usar el default, o ingresa otra ruta")
     
-    filepath = input(f"\n{Colors.GREEN}Ruta del archivo: {Colors.END}").strip()
+    filepath = input(f"\n{Colors.GREEN}Ruta del archivo [{default_path}]: {Colors.END}").strip()
     
     if not filepath:
-        print_error("Ruta vacía")
-        return False
+        filepath = default_path
     
     # 2. Verificar que existe
     if not check_fixtures_file(filepath):
@@ -196,402 +206,200 @@ def mode_load_fixtures(season_id: int, league: str = "Premier League", dayfirst:
         print_error("No se pudieron leer filas del CSV")
         return False
     
-    # 4. Verificar fixtures ya cargados
-    print_info("\nVerificando fixtures existentes en la base de datos...")
-    query = text("""
-        SELECT COUNT(*) as total,
-               COUNT(*) FILTER (WHERE home_goals IS NULL) as sin_resultados,
-               COUNT(*) FILTER (WHERE home_goals IS NOT NULL) as con_resultados
-        FROM matches
-        WHERE season_id = :sid
-    """)
-    
-    with engine.begin() as conn:
-        row = conn.execute(query, {"sid": season_id}).fetchone()
-        total_existing = row.total
-        sin_res = row.sin_resultados
-        con_res = row.con_resultados
-    
-    if total_existing > 0:
-        print_warning(f"Ya hay {total_existing} partidos en la BD para season {season_id}")
-        print(f"   • Sin resultados: {sin_res}")
-        print(f"   • Con resultados: {con_res}")
-        print_warning("Los partidos duplicados se actualizarán")
-    else:
-        print_success("No hay fixtures previos, esta será la primera carga")
-    
-    # 5. Confirmar parámetros
-    print(f"\n{Colors.BOLD}Resumen:{Colors.END}")
-    print(f"  • Archivo: {filepath}")
-    print(f"  • Season ID: {season_id}")
-    print(f"  • Liga: {league}")
-    print(f"  • Formato fecha: {'DD/MM/YYYY' if dayfirst else 'MM/DD/YYYY'}")
-    print(f"  • Partidos a cargar: {total_rows}")
-    
-    response = input(f"\n{Colors.GREEN}¿Proceder con la carga de fixtures? (s/n): {Colors.END}")
+    # 4. Confirmar
+    response = input(f"\n{Colors.GREEN}¿Cargar {total_rows} fixtures para {league_config.league_name}? (s/n): {Colors.END}")
     if response.lower() != 's':
         print_info("Operación cancelada")
         return False
     
-    # 6. Ejecutar carga
-    cmd = f'python -m src.fixtures.cli bulk "{filepath}" --season-id {season_id} --league "{league}"'
-    if dayfirst:
-        cmd += " --dayfirst"
+    # 5. Ejecutar carga
+    import subprocess
     
-    if not run_command(cmd):
+    cmd = (
+        f"python -m src.fixtures.cli bulk {filepath} "
+        f"--season-id {league_config.season_id} "
+        f"--league \"{league_config.league_name}\" "
+    )
+    
+    if league_config.dayfirst:
+        cmd += "--dayfirst"
+    
+    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
+    result = subprocess.run(cmd, shell=True)
+    
+    if result.returncode == 0:
+        print_success(f"Fixtures cargados exitosamente para {league_config.league_name}")
+        return True
+    else:
+        print_error("Error al cargar fixtures")
         return False
-    
-    # 7. Verificar resultado
-    print_info("\nVerificando fixtures cargados...")
-    with engine.begin() as conn:
-        row = conn.execute(query, {"sid": season_id}).fetchone()
-        new_total = row.total
-        new_sin_res = row.sin_resultados
-    
-    print_success(f"¡Fixtures cargados exitosamente!")
-    print(f"   • Total partidos en BD: {new_total}")
-    print(f"   • Sin resultados (listos para predecir): {new_sin_res}")
-    
-    print_info("💡 Próximo paso: Genera predicciones con el modo 'PREDICT'")
-    return True
 
-def mode_predict(season_id: int, date_from: str, date_to: str):
-    """Modo: Generar predicciones para partidos sin resultados"""
-    print_step("🎯 MODO: GENERAR PREDICCIONES")
+
+def mode_predict(league_config: LeagueConfig, date_from: str, date_to: str):
+    """Modo: Generar predicciones para partidos futuros de una liga"""
+    print_step(f"🎯 MODO: GENERAR PREDICCIONES - {league_config.league_name}")
+    
+    season_id = league_config.season_id
     
     # 1. Verificar partidos sin resultados
-    print_info("Verificando partidos sin resultados...")
     count, matches = check_matches_without_results(season_id, date_from, date_to)
     
     if count == 0:
-        print_error(f"No hay partidos sin resultados entre {date_from} y {date_to}")
-        print_info("💡 Tip: Verifica que hayas cargado los fixtures con el comando bulk")
+        print_warning(f"No hay partidos sin resultados para {league_config.league_name}")
         return False
     
-    print_success(f"Encontrados {count} partidos sin resultados")
-    
-    # Mostrar partidos
-    print("\n📋 Partidos a predecir:")
-    for m in matches[:5]:  # Mostrar máximo 5
-        print(f"   • Match ID {m.id} - {m.date}")
-    if len(matches) > 5:
-        print(f"   ... y {len(matches) - 5} más")
+    print_success(f"Hay {count} partidos sin resultados")
     
     # 2. Verificar predicciones existentes
     match_ids = [m.id for m in matches]
-    pred_counts = check_predictions_exist(match_ids)
+    existing = check_predictions_exist(match_ids)
     
-    if pred_counts["poisson"] > 0 or pred_counts["weinston"] > 0:
-        print_warning(f"Ya existen predicciones: Poisson={pred_counts['poisson']}, Weinston={pred_counts['weinston']}")
-        print_info("Se sobrescribirán las predicciones existentes")
+    if existing["poisson"] > 0 or existing["weinston"] > 0:
+        print_warning(f"Algunos partidos ya tienen predicciones:")
+        print(f"   • Poisson: {existing['poisson']}/{count}")
+        print(f"   • Weinston: {existing['weinston']}/{count}")
+        print_info("Las predicciones se actualizarán")
+        
+        response = input(f"\n{Colors.YELLOW}¿Continuar? (s/n): {Colors.END}")
+        if response.lower() != 's':
+            return False
     
-    # 3. Verificar parámetros de Weinston
-    print_info("Verificando parámetros de Weinston...")
-    params = check_weinston_params(season_id)
-    
-    if params:
-        print_success(f"Parámetros Weinston encontrados (actualizado: {params['updated_at']})")
-        print(f"   μ_home={params['mu_home']:.3f}, μ_away={params['mu_away']:.3f}, HFA={params['home_adv']:.3f}")
-    else:
-        print_warning("No hay parámetros Weinston para esta temporada")
-        response = input(f"\n{Colors.YELLOW}¿Deseas entrenar el modelo ahora? (s/n): {Colors.END}")
-        if response.lower() == 's':
-            if not run_command(f"python -m src.predictions.cli fit --season-id {season_id}"):
-                return False
-        else:
-            print_warning("Continuando con valores de fallback (menos preciso)")
-    
-    # 4. Confirmar ejecución
-    print(f"\n{Colors.BOLD}Resumen:{Colors.END}")
-    print(f"  • Season ID: {season_id}")
-    print(f"  • Rango: {date_from} a {date_to}")
-    print(f"  • Partidos a predecir: {count}")
-    
-    response = input(f"\n{Colors.GREEN}¿Proceder con la generación de predicciones? (s/n): {Colors.END}")
-    if response.lower() != 's':
-        print_info("Operación cancelada")
+    # 3. Cargar contexto de liga y generar predicciones
+    try:
+        with engine.begin() as conn:
+            league_ctx = LeagueContext.from_season(conn, season_id)
+            
+            print_info(f"Contexto cargado: {league_ctx.league_name}")
+            print(f"   Promedios: {league_ctx.avg_home_goals:.3f} (H) / {league_ctx.avg_away_goals:.3f} (A)")
+            print(f"   HFA: {league_ctx.hfa:.3f}")
+            
+            print_info("\nGenerando predicciones Poisson...")
+            predict_and_upsert_poisson(conn, season_id, match_ids, league_ctx=league_ctx)
+            print_success(f"✓ Poisson completado")
+            
+            print_info("Generando predicciones Weinston...")
+            predict_and_upsert_weinston(conn, season_id, match_ids, league_ctx=league_ctx)
+            print_success(f"✓ Weinston completado")
+        
+        print_success(f"✅ {count} predicciones generadas para {league_config.league_name}")
+        return True
+        
+    except Exception as e:
+        print_error(f"Error al generar predicciones: {e}")
+        import traceback
+        traceback.print_exc()
         return False
-    
-    # 5. Generar predicciones
-    if not run_command(f"python -m src.predictions.cli upcoming --season-id {season_id} --from {date_from} --to {date_to}"):
-        return False
-    
-    print_success("¡Predicciones generadas exitosamente!")
-    print_info("💡 Próximo paso: Esperar resultados y ejecutar el modo 'evaluate'")
-    return True
 
-def mode_load_results(season_id: int, league: str = "Premier League", div: str = "E0", dayfirst: bool = True):
-    """Modo: Cargar resultados desde CSV"""
-    print_step("📥 MODO: CARGAR RESULTADOS")
+
+def mode_load_results(league_config: LeagueConfig):
+    """Modo: Cargar resultados desde CSV para una liga"""
+    print_step(f"📥 MODO: CARGAR RESULTADOS - {league_config.league_name}")
     
     # 1. Solicitar ruta del archivo
-    print_info("Ingresa la ruta del archivo CSV con los resultados")
-    print_info("Ejemplo: data/raw/E0.csv")
+    default_path = league_config.get_csv_path("data/raw")
+    print_info(f"Archivo default: {default_path}")
+    print_info("Presiona Enter para usar el default, o ingresa otra ruta")
     
-    filepath = input(f"\n{Colors.GREEN}Ruta del archivo: {Colors.END}").strip()
+    filepath = input(f"\n{Colors.GREEN}Ruta del archivo [{default_path}]: {Colors.END}").strip()
     
     if not filepath:
-        print_error("Ruta vacía")
-        return False
+        filepath = default_path
     
     # 2. Verificar que existe
     if not check_fixtures_file(filepath):
         return False
     
-    # 3. Preview del contenido
-    print_info("\nAnalizando archivo CSV...")
-    try:
-        import csv
-        with open(filepath, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-        
-        # Contar partidos con resultados
-        with_results = [r for r in rows if r.get('FTR') and r.get('FTHG') and r.get('FTAG')]
-        
-        print(f"\n📋 Contenido del CSV:")
-        print(f"   • Total filas: {len(rows)}")
-        print(f"   • Con resultados (FTR/FTHG/FTAG): {len(with_results)}")
-        
-        if with_results:
-            print(f"\n   Últimos 5 resultados:")
-            for i, row in enumerate(with_results[-5:], 1):
-                date = row.get('Date', 'N/A')
-                home = row.get('HomeTeam', 'N/A')
-                away = row.get('AwayTeam', 'N/A')
-                fthg = row.get('FTHG', '?')
-                ftag = row.get('FTAG', '?')
-                print(f"     {i}. {date}: {home} {fthg}-{ftag} {away}")
+    # 3. Preview
+    total_rows = preview_csv_fixtures(filepath)
     
-    except Exception as e:
-        print_error(f"Error al leer CSV: {e}")
+    if total_rows == 0:
         return False
     
-    # 4. Verificar partidos sin resultados en BD
-    print_info("\nVerificando partidos sin resultados en la base de datos...")
-    query = text("""
-        SELECT COUNT(*) as total_sin_resultados,
-               MIN(date) as fecha_min,
-               MAX(date) as fecha_max
-        FROM matches
-        WHERE season_id = :sid
-          AND home_goals IS NULL
-          AND away_goals IS NULL
-    """)
-    
-    with engine.begin() as conn:
-        row = conn.execute(query, {"sid": season_id}).fetchone()
-        sin_resultados = row.total_sin_resultados or 0
-        fecha_min = row.fecha_min
-        fecha_max = row.fecha_max
-    
-    if sin_resultados == 0:
-        print_warning("No hay partidos sin resultados en la BD")
-        print_info("Esto puede significar que ya cargaste los resultados antes")
-    else:
-        print_success(f"Hay {sin_resultados} partidos sin resultados esperando actualización")
-        if fecha_min and fecha_max:
-            print(f"   Rango de fechas: {fecha_min} a {fecha_max}")
-    
-    # 5. Advertencia sobre partidos con predicciones
-    query_pred = text("""
-        SELECT COUNT(DISTINCT m.id) as con_predicciones
-        FROM matches m
-        WHERE m.season_id = :sid
-          AND m.home_goals IS NULL
-          AND (EXISTS (SELECT 1 FROM poisson_predictions WHERE match_id = m.id)
-               OR EXISTS (SELECT 1 FROM weinston_predictions WHERE match_id = m.id))
-    """)
-    
-    with engine.begin() as conn:
-        row = conn.execute(query_pred, {"sid": season_id}).fetchone()
-        con_pred = row.con_predicciones or 0
-    
-    if con_pred > 0:
-        print_warning(f"Hay {con_pred} partidos con predicciones que recibirán resultados")
-        print_info("Después de cargar, recuerda ejecutar EVALUATE para calcular aciertos")
-    
-    # 6. Confirmar parámetros
-    print(f"\n{Colors.BOLD}Resumen:{Colors.END}")
-    print(f"  • Archivo: {filepath}")
-    print(f"  • Season ID: {season_id}")
-    print(f"  • Liga: {league}")
-    print(f"  • División: {div}")
-    print(f"  • Formato fecha: {'DD/MM/YYYY' if dayfirst else 'MM/DD/YYYY'}")
-    print(f"  • Resultados en CSV: {len(with_results)}")
-    print(f"  • Partidos sin resultados en BD: {sin_resultados}")
-    
-    response = input(f"\n{Colors.GREEN}¿Proceder con la carga de resultados? (s/n): {Colors.END}")
+    # 4. Confirmar
+    response = input(f"\n{Colors.GREEN}¿Cargar resultados para {league_config.league_name}? (s/n): {Colors.END}")
     if response.lower() != 's':
-        print_info("Operación cancelada")
         return False
     
-    # 7. Ejecutar carga
-    cmd = f'python -m src.ingest.load_unified "{filepath}" --league "{league}" --div {div} --season-id {season_id}'
-    if dayfirst:
-        cmd += " --dayfirst"
+    # 5. Ejecutar carga
+    import subprocess
     
-    if not run_command(cmd):
+    cmd = (
+        f"python -m src.ingest.load_unified {filepath} "
+        f"--league \"{league_config.league_name}\" "
+        f"--div {league_config.csv_code} "
+        f"--season-id {league_config.season_id} "
+    )
+    
+    if league_config.dayfirst:
+        cmd += "--dayfirst"
+    
+    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
+    result = subprocess.run(cmd, shell=True)
+    
+    if result.returncode == 0:
+        print_success(f"Resultados cargados para {league_config.league_name}")
+        return True
+    else:
+        print_error("Error al cargar resultados")
         return False
-    
-    # 8. Verificar resultado
-    print_info("\nVerificando resultados cargados...")
-    query_after = text("""
-        SELECT 
-            COUNT(*) FILTER (WHERE home_goals IS NULL) as sin_resultados,
-            COUNT(*) FILTER (WHERE home_goals IS NOT NULL) as con_resultados
-        FROM matches
-        WHERE season_id = :sid
-    """)
-    
-    with engine.begin() as conn:
-        row = conn.execute(query_after, {"sid": season_id}).fetchone()
-        nuevos_sin = row.sin_resultados or 0
-        nuevos_con = row.con_resultados or 0
-    
-    partidos_actualizados = sin_resultados - nuevos_sin
-    
-    print_success(f"¡Resultados cargados exitosamente!")
-    print(f"   • Partidos actualizados: {partidos_actualizados}")
-    print(f"   • Total con resultados: {nuevos_con}")
-    print(f"   • Aún sin resultados: {nuevos_sin}")
-    
-    if con_pred > 0:
-        print_info(f"\n💡 Próximo paso: Ejecuta el modo EVALUATE para calcular aciertos")
-        print_info(f"   de los {con_pred} partidos con predicciones")
-    
-    return True
 
-def mode_evaluate(season_id: int, date_from: str, date_to: str):
-    """Modo: Evaluar predicciones de partidos terminados"""
-    print_step("📊 MODO: EVALUAR PREDICCIONES")
+
+def mode_evaluate(league_config: LeagueConfig, date_from: str, date_to: str):
+    """Modo: Evaluar predicciones vs resultados reales"""
+    print_step(f"📊 MODO: EVALUAR PREDICCIONES - {league_config.league_name}")
     
-    # 1. Verificar partidos CON resultados
-    print_info("Verificando partidos con resultados...")
+    season_id = league_config.season_id
+    
+    # 1. Verificar partidos con resultados
     count, matches = check_matches_with_results(season_id, date_from, date_to)
     
     if count == 0:
-        print_error(f"No hay partidos con resultados entre {date_from} y {date_to}")
-        print_info("💡 Tip: Ejecuta primero 'python -m src.ingest.load_unified' para cargar resultados")
+        print_warning(f"No hay partidos con resultados para {league_config.league_name}")
         return False
     
-    print_success(f"Encontrados {count} partidos con resultados")
+    print_success(f"Hay {count} partidos con resultados")
     
-    # 2. Verificar que existan predicciones
-    match_ids = [m.id for m in matches]
-    pred_counts = check_predictions_exist(match_ids)
+    # 2. Verificar evaluaciones previas
+    evaluated = check_evaluated_matches(season_id, date_from, date_to)
     
-    if pred_counts["poisson"] == 0 and pred_counts["weinston"] == 0:
-        print_error("No existen predicciones para estos partidos")
-        print_info("💡 Ejecuta primero el modo 'predict' para generar predicciones")
-        return False
+    if evaluated["poisson"] > 0 or evaluated["weinston"] > 0:
+        print_info(f"Predicciones ya evaluadas:")
+        print(f"   • Poisson: {evaluated['poisson']}/{count}")
+        print(f"   • Weinston: {evaluated['weinston']}/{count}")
+        print_info("Las evaluaciones se actualizarán")
     
-    print_success(f"Predicciones encontradas: Poisson={pred_counts['poisson']}, Weinston={pred_counts['weinston']}")
-    
-    # 3. Verificar evaluaciones existentes
-    eval_counts = check_evaluated_matches(season_id, date_from, date_to)
-    if eval_counts["poisson"] > 0 or eval_counts["weinston"] > 0:
-        print_warning(f"Ya hay evaluaciones: Poisson={eval_counts['poisson']}, Weinston={eval_counts['weinston']}")
-        print_info("Se actualizarán las evaluaciones existentes")
-    
-    # 4. Confirmar ejecución
-    print(f"\n{Colors.BOLD}Resumen:{Colors.END}")
-    print(f"  • Season ID: {season_id}")
-    print(f"  • Rango: {date_from} a {date_to}")
-    print(f"  • Partidos a evaluar: {count}")
-    
-    response = input(f"\n{Colors.GREEN}¿Proceder con la evaluación? (s/n): {Colors.END}")
+    # 3. Confirmar
+    response = input(f"\n{Colors.GREEN}¿Evaluar predicciones? (s/n): {Colors.END}")
     if response.lower() != 's':
-        print_info("Operación cancelada")
         return False
     
-    # 5. Calcular RMSE de Weinston
-    print_info("Calculando RMSE de Weinston...")
-    if not run_command(f"python -m src.predictions.cli score --season-id {season_id} --from {date_from} --to {date_to} --metric rmse"):
-        print_warning("Error al calcular RMSE, continuando...")
+    # 4. Ejecutar evaluación
+    import subprocess
     
-    # 6. Evaluar predicciones
-    if not run_command(f"python -m src.predictions.cli evaluate --season-id {season_id} --from {date_from} --to {date_to}"):
+    cmd = (
+        f"python -m src.predictions.cli evaluate "
+        f"--season-id {season_id} "
+        f"--from {date_from} --to {date_to}"
+    )
+    
+    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
+    result = subprocess.run(cmd, shell=True)
+    
+    if result.returncode == 0:
+        print_success(f"Evaluación completada para {league_config.league_name}")
+        return True
+    else:
+        print_error("Error al evaluar predicciones")
         return False
-    
-    print_success("¡Evaluación completada exitosamente!")
-    print_info("💡 Puedes ver los resultados en el frontend")
-    return True
-
-def generate_betting_lines_predictions(season_id: int, date_from: str, date_to: str) -> bool:
-    """
-    Genera predicciones de líneas de apuesta para partidos sin resultado
-    Se ejecuta automáticamente después de generar predicciones normales
-    """
-    print_info("Generando predicciones de betting lines...")
-    
-    cmd = f"python -m src.predictions.cli betting-lines-generate --season-id {season_id} --from {date_from} --to {date_to}"
-    
-    if not run_command(cmd):
-        print_warning("Error al generar betting lines (continuando...)")
-        return False
-    
-    print_success("Betting lines generadas exitosamente")
-    return True
 
 
-def validate_betting_lines_predictions(season_id: int, date_from: str, date_to: str) -> bool:
-    """
-    Valida las predicciones de líneas de apuesta contra resultados reales
-    Se ejecuta automáticamente después de evaluar predicciones normales
-    """
-    print_info("Validando betting lines contra resultados...")
+def mode_retrain(league_config: LeagueConfig):
+    """Modo: Re-entrenar modelo Weinston para una liga"""
+    print_step(f"🔄 MODO: RE-ENTRENAR WEINSTON - {league_config.league_name}")
     
-    cmd = f"python -m src.predictions.cli betting-lines-validate --season-id {season_id} --from {date_from} --to {date_to}"
+    season_id = league_config.season_id
     
-    if not run_command(cmd):
-        print_warning("Error al validar betting lines (continuando...)")
-        return False
-    
-    print_success("Betting lines validadas exitosamente")
-    
-    # Mostrar resumen de accuracy
-    try:
-        query = text("""
-            SELECT 
-                model,
-                ROUND(AVG(CASE WHEN shots_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as shots_acc,
-                ROUND(AVG(CASE WHEN corners_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as corners_acc,
-                ROUND(AVG(CASE WHEN cards_hit THEN 1.0 ELSE 0.0 END) * 100, 1) as cards_acc,
-                ROUND(AVG(
-                    (CASE WHEN shots_hit THEN 1.0 ELSE 0.0 END +
-                     CASE WHEN shots_on_target_hit THEN 1.0 ELSE 0.0 END +
-                     CASE WHEN corners_hit THEN 1.0 ELSE 0.0 END +
-                     CASE WHEN cards_hit THEN 1.0 ELSE 0.0 END +
-                     CASE WHEN fouls_hit THEN 1.0 ELSE 0.0 END) / 5.0
-                ) * 100, 1) as overall_acc
-            FROM betting_lines_predictions blp
-            JOIN matches m ON m.id = blp.match_id
-            WHERE m.season_id = :sid
-              AND m.date BETWEEN :dfrom AND :dto
-              AND blp.actual_total_shots IS NOT NULL
-            GROUP BY model
-        """)
-        
-        with engine.begin() as conn:
-            results = conn.execute(query, {"sid": season_id, "dfrom": date_from, "dto": date_to}).fetchall()
-            
-            if results:
-                print(f"\n{Colors.BOLD}📊 Accuracy de Betting Lines:{Colors.END}")
-                for row in results:
-                    print(f"  {row.model.upper()}:")
-                    print(f"    • General: {row.overall_acc}%")
-                    print(f"    • Tiros: {row.shots_acc}%  |  Corners: {row.corners_acc}%  |  Tarjetas: {row.cards_acc}%")
-    except Exception as e:
-        print_warning(f"No se pudo obtener accuracy: {e}")
-    
-    return True
-
-def mode_retrain(season_id: int):
-    """Modo: Re-entrenar modelo Weinston"""
-    print_step("🔄 MODO: RE-ENTRENAR WEINSTON")
-    
-    # 1. Verificar cuántos partidos terminados hay
+    # 1. Verificar partidos terminados
     query = text("""
         SELECT COUNT(*) as total
         FROM matches
@@ -605,55 +413,118 @@ def mode_retrain(season_id: int):
         total_matches = row.total
     
     if total_matches < 10:
-        print_warning(f"Solo hay {total_matches} partidos terminados")
-        print_warning("Se recomienda al menos 10 partidos para entrenar el modelo")
+        print_warning(f"Solo hay {total_matches} partidos terminados para {league_config.league_name}")
+        print_warning("Se recomienda al menos 10 partidos")
         response = input(f"\n{Colors.YELLOW}¿Continuar de todos modos? (s/n): {Colors.END}")
         if response.lower() != 's':
             return False
     else:
-        print_success(f"Hay {total_matches} partidos terminados disponibles para entrenamiento")
+        print_success(f"Hay {total_matches} partidos terminados disponibles")
     
     # 2. Verificar parámetros actuales
     params = check_weinston_params(season_id)
     if params:
         print_info(f"Parámetros actuales (desde {params['updated_at']}):")
-        print(f"   μ_home={params['mu_home']:.3f}, μ_away={params['mu_away']:.3f}, HFA={params['home_adv']:.3f}, loss={params['loss']:.2f}")
+        print(f"   μ_home={params['mu_home']:.3f}, μ_away={params['mu_away']:.3f}, HFA={params['home_adv']:.3f}")
     else:
-        print_info("No hay parámetros previos, este será el primer entrenamiento")
+        print_info("No hay parámetros previos, primer entrenamiento")
     
     # 3. Confirmar
-    response = input(f"\n{Colors.GREEN}¿Re-entrenar el modelo Weinston? (s/n): {Colors.END}")
+    response = input(f"\n{Colors.GREEN}¿Re-entrenar modelo? (s/n): {Colors.END}")
     if response.lower() != 's':
-        print_info("Operación cancelada")
         return False
     
     # 4. Entrenar
-    if not run_command(f"python -m src.predictions.cli fit --season-id {season_id}"):
-        return False
+    import subprocess
     
-    print_success("¡Modelo re-entrenado exitosamente!")
-    print_info("💡 Ahora puedes generar nuevas predicciones con el modelo actualizado")
-    return True
+    cmd = f"python -m src.predictions.cli fit --season-id {season_id}"
+    
+    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
+    result = subprocess.run(cmd, shell=True)
+    
+    if result.returncode == 0:
+        print_success(f"Modelo re-entrenado para {league_config.league_name}")
+        return True
+    else:
+        print_error("Error al entrenar modelo")
+        return False
+
+
+def generate_betting_lines_predictions(league_config: LeagueConfig, date_from: str, date_to: str):
+    """Genera líneas de apuesta para una liga"""
+    print_info(f"Generando betting lines para {league_config.league_name}...")
+    
+    import subprocess
+    
+    cmd = (
+        f"python -m src.predictions.cli betting-lines "
+        f"--season-id {league_config.season_id} "
+        f"--from {date_from} --to {date_to}"
+    )
+    
+    result = subprocess.run(cmd, shell=True)
+    
+    if result.returncode == 0:
+        print_success(f"Betting lines generadas para {league_config.league_name}")
+        return True
+    return False
+
+
+def validate_betting_lines_predictions(league_config: LeagueConfig, date_from: str, date_to: str):
+    """Valida líneas de apuesta contra resultados reales"""
+    print_info(f"Validando betting lines para {league_config.league_name}...")
+    
+    import subprocess
+    
+    cmd = (
+        f"python -m src.predictions.cli betting-lines-validate "
+        f"--season-id {league_config.season_id} "
+        f"--from {date_from} --to {date_to}"
+    )
+    
+    result = subprocess.run(cmd, shell=True)
+    
+    if result.returncode == 0:
+        print_success(f"Betting lines validadas para {league_config.league_name}")
+        return True
+    return False
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FUNCIÓN PRINCIPAL (MULTI-LIGA)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def main():
     print(f"{Colors.BOLD}{Colors.CYAN}")
     print("╔════════════════════════════════════════════════════════════╗")
-    print("║        55sportsBet - Actualización Inteligente            ║")
+    print("║     55sportsBet - Actualización Inteligente MULTI-LIGA    ║")
     print("╚════════════════════════════════════════════════════════════╝")
     print(f"{Colors.END}")
     
-    # Configuración
-    season_id = 2
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PASO 1: Seleccionar Liga(s)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    # Selección de modo
+    with engine.begin() as conn:
+        manager = LeagueManager(conn)
+        selected_leagues = manager.select_leagues("Selecciona liga(s) a procesar")
+        
+        if not selected_leagues:
+            print_error("No se seleccionaron ligas")
+            return
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PASO 2: Seleccionar Modo de Operación
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     print("\n📋 Selecciona el modo de operación:\n")
-    print("  1. 📥 FIXTURES - Cargar nuevos partidos desde CSV (sin resultados)")
+    print("  1. 📥 FIXTURES - Cargar nuevos partidos desde CSV")
     print("  2. 🎯 PREDICT  - Generar predicciones para partidos sin resultados")
-    print("  3. 📥 RESULTS  - Cargar resultados de partidos terminados desde CSV")
+    print("  3. 📥 RESULTS  - Cargar resultados de partidos terminados")
     print("  4. 📊 EVALUATE - Evaluar predicciones vs resultados reales")
-    print("  5. 🔄 RETRAIN  - Re-entrenar modelo Weinston con nuevos datos")
-    print("  6. 🚀 COMPLETE - Flujo completo nueva jornada (fixtures + retrain + predict + betting lines )")
-    print("  7. 📊 FINISH   - Flujo completo post-partidos (results + evaluate + validate betting)")
+    print("  5. 🔄 RETRAIN  - Re-entrenar modelo Weinston")
+    print("  6. 🚀 COMPLETE - Flujo completo nueva jornada")
+    print("  7. 📊 FINISH   - Flujo completo post-partidos")
     print("  0. ❌ SALIR\n")
     
     choice = input(f"{Colors.GREEN}Selecciona una opción (0-7): {Colors.END}")
@@ -662,7 +533,10 @@ def main():
         print_info("Saliendo...")
         return
     
-    # Solicitar fechas si es necesario
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PASO 3: Solicitar Fechas (si es necesario)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     date_from = None
     date_to = None
     
@@ -671,100 +545,117 @@ def main():
         date_from = input("  Desde (YYYY-MM-DD): ").strip()
         date_to = input("  Hasta (YYYY-MM-DD): ").strip()
         
-        # Validar formato de fecha
         try:
             datetime.strptime(date_from, "%Y-%m-%d")
             datetime.strptime(date_to, "%Y-%m-%d")
         except ValueError:
-            print_error("Formato de fecha inválido. Usa YYYY-MM-DD")
+            print_error("Formato de fecha inválido")
             return
     
-    # Ejecutar modo seleccionado
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PASO 4: Confirmar Operación Multi-Liga
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    mode_names = {
+        "1": "CARGAR FIXTURES",
+        "2": "GENERAR PREDICCIONES",
+        "3": "CARGAR RESULTADOS",
+        "4": "EVALUAR PREDICCIONES",
+        "5": "RE-ENTRENAR WEINSTON",
+        "6": "FLUJO COMPLETO PRE-PARTIDOS",
+        "7": "FLUJO COMPLETO POST-PARTIDOS"
+    }
+    
+    operation_name = mode_names.get(choice, "OPERACIÓN")
+    
+    if not manager.confirm_multi_league_operation(selected_leagues, operation_name):
+        print_info("Operación cancelada")
+        return
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PASO 5: Ejecutar para cada liga
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    success_count = 0
+    failed_leagues = []
+    
     try:
-        if choice == "1":
-            mode_load_fixtures(season_id)
-        elif choice == "2":
-            mode_predict(season_id, date_from, date_to)
-        elif choice == "3":
-            mode_load_results(season_id)
-        elif choice == "4":
-            mode_evaluate(season_id, date_from, date_to)
-        elif choice == "5":
-            mode_retrain(season_id)
-        elif choice == "6":
-            # Flujo completo: ANTES de los partidos
-            print_step("🚀 FLUJO COMPLETO: NUEVA JORNADA (PRE-PARTIDOS)")
-            print_info("Este proceso ejecutará: FIXTURES → RETRAIN → PREDICT")
+        for idx, league_config in enumerate(selected_leagues, 1):
+            print_league_header(league_config, idx, len(selected_leagues))
             
-            # Paso 1: Cargar fixtures
-            if not mode_load_fixtures(season_id):
-                print_error("Fallo al cargar fixtures, abortando flujo")
-                return
+            success = False
             
-            input(f"\n{Colors.YELLOW}✓ Fixtures cargados. Presiona Enter para continuar con RETRAIN...{Colors.END}")
-            
-            # Paso 2: Re-entrenar Weinston
-            if not mode_retrain(season_id):
-                print_error("Fallo al entrenar modelo, abortando flujo")
-                return
-            
-            input(f"\n{Colors.YELLOW}✓ Modelo entrenado. Presiona Enter para continuar con PREDICT...{Colors.END}")
-            
-            # Paso 3: Generar predicciones
-            if not mode_predict(season_id, date_from, date_to):
-                print_error("Fallo al generar predicciones, abortando flujo")
-                return
-
-            # Paso 4: ✨ NUEVO - Generar betting lines
-            generate_betting_lines_predictions(season_id, date_from, date_to)
-            
-            print(f"\n{Colors.GREEN}{Colors.BOLD}")
-            print("╔════════════════════════════════════════════════════════════╗")
-            print("║          ✅ FLUJO PRE-PARTIDOS COMPLETADO ✅             ║")
-            print("╚════════════════════════════════════════════════════════════╝")
-            print(f"{Colors.END}")
-            print_success("✓ Fixtures cargados")
-            print_success("✓ Modelo entrenado")
-            print_success("✓ Predicciones generadas")
-            print_success("✓ Betting lines generadas")
-            print_info("💡 Los partidos están listos con predicciones y líneas de apuesta")
-            print_info("⚽ Ahora espera a que se jueguen los partidos")
-            print_info("📊 Después ejecuta el modo 7 (FINISH) para cargar resultados y evaluar")
+            try:
+                if choice == "1":
+                    success = mode_load_fixtures(league_config)
+                
+                elif choice == "2":
+                    success = mode_predict(league_config, date_from, date_to)
+                
+                elif choice == "3":
+                    success = mode_load_results(league_config)
+                
+                elif choice == "4":
+                    success = mode_evaluate(league_config, date_from, date_to)
+                
+                elif choice == "5":
+                    success = mode_retrain(league_config)
+                
+                elif choice == "6":
+                    # Flujo COMPLETE
+                    print_info("Flujo: FIXTURES → RETRAIN → PREDICT → BETTING LINES")
+                    
+                    if mode_load_fixtures(league_config):
+                        if mode_retrain(league_config):
+                            if mode_predict(league_config, date_from, date_to):
+                                generate_betting_lines_predictions(league_config, date_from, date_to)
+                                success = True
+                
+                elif choice == "7":
+                    # Flujo FINISH
+                    print_info("Flujo: RESULTS → EVALUATE → VALIDATE BETTING")
+                    
+                    if mode_load_results(league_config):
+                        if mode_evaluate(league_config, date_from, date_to):
+                            validate_betting_lines_predictions(league_config, date_from, date_to)
+                            success = True
+                
+                else:
+                    print_error("Opción inválida")
+                    return
+                
+                if success:
+                    print_success(f"✓ {league_config.league_name} completada exitosamente")
+                    success_count += 1
+                else:
+                    print_warning(f"⚠️  {league_config.league_name} completada con advertencias")
+                    failed_leagues.append(league_config.league_name)
+                    
+            except Exception as e:
+                print_error(f"Error en {league_config.league_name}: {e}")
+                failed_leagues.append(league_config.league_name)
+                continue
         
-        elif choice == "7":
-            # Flujo completo: DESPUÉS de los partidos
-            print_step("📊 FLUJO COMPLETO: POST-PARTIDOS (RESULTS + EVALUATE)")
-            print_info("Este proceso ejecutará: RESULTS → EVALUATE")
-            
-            # Paso 1: Cargar resultados
-            if not mode_load_results(season_id):
-                print_error("Fallo al cargar resultados, abortando flujo")
-                return
-            
-            input(f"\n{Colors.YELLOW}✓ Resultados cargados. Presiona Enter para continuar con EVALUATE...{Colors.END}")
-            
-            # Paso 2: Evaluar predicciones
-            if not mode_evaluate(season_id, date_from, date_to):
-                print_error("Fallo al evaluar predicciones, abortando flujo")
-                return
-
-            # Paso 3: ✨ NUEVO - Validar betting lines
-            validate_betting_lines_predictions(season_id, date_from, date_to)
-            
-            print(f"\n{Colors.GREEN}{Colors.BOLD}")
-            print("╔════════════════════════════════════════════════════════════╗")
-            print("║         ✅ FLUJO POST-PARTIDOS COMPLETADO ✅             ║")
-            print("╚════════════════════════════════════════════════════════════╝")
-            print(f"{Colors.END}")
-            print_success("✓ Resultados cargados")
-            print_success("✓ Predicciones evaluadas")
-            print_success("✓ Betting lines validadas")
-            print_info("💡 Predicciones evaluadas y métricas actualizadas")
-            print_info("📊 Betting lines validadas con accuracy calculado")
-            print_info("🖥️  Puedes ver los resultados en el frontend")
-            print_info("🔄 Para la siguiente jornada, ejecuta el modo 6 (COMPLETE)")
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # RESUMEN FINAL
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*70}{Colors.END}")
+        print(f"{Colors.BOLD}  RESUMEN DE OPERACIÓN{Colors.END}")
+        print(f"{Colors.CYAN}{'='*70}{Colors.END}\n")
+        
+        print(f"  Ligas procesadas: {success_count}/{len(selected_leagues)}")
+        
+        if success_count == len(selected_leagues):
+            print_success("✅ Todas las ligas se procesaron exitosamente")
+        elif success_count > 0:
+            print_warning(f"⚠️  {len(failed_leagues)} liga(s) tuvieron problemas:")
+            for league_name in failed_leagues:
+                print(f"     • {league_name}")
         else:
-            print_error("Opción inválida")
+            print_error("❌ No se pudo procesar ninguna liga")
+        
+        print()
     
     except KeyboardInterrupt:
         print(f"\n\n{Colors.YELLOW}Operación cancelada por el usuario{Colors.END}")
@@ -772,6 +663,7 @@ def main():
         print_error(f"Error inesperado: {e}")
         import traceback
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()
