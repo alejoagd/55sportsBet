@@ -8,35 +8,45 @@ from urllib.parse import quote_plus
 if not os.getenv('DATABASE_URL'):
     env_file = os.getenv('ENV_FILE', '.env')
     load_dotenv(env_file, override=True)
+    print(f"🔧 [config.py] Desarrollo - Cargando {env_file}")
+else:
+    print(f"🔧 [config.py] Producción - Usando DATABASE_URL del sistema")
 
 @dataclass
 class Settings:
-# Obtener DATABASE_URL de Render o usar configuración local
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    if DATABASE_URL:
-        # Si existe DATABASE_URL (producción), parsearla
-        from urllib.parse import urlparse
-        url = urlparse(DATABASE_URL)
+    """Configuración de la base de datos"""
+    
+    def __post_init__(self):
+        """Se ejecuta después de inicializar el dataclass"""
+        # Obtener DATABASE_URL de Render o usar configuración local
+        DATABASE_URL = os.getenv("DATABASE_URL")
         
-        DB_HOST: str = url.hostname
-        DB_PORT: int = url.port if url.port else 5432  # ✅ Usar 5432 como default si es None
-        DB_NAME: str = url.path[1:]  # Quitar el / inicial
-        DB_USER: str = url.username
-        DB_PASS: str = url.password
-    else:
-        # Si no existe DATABASE_URL (desarrollo local), usar variables individuales
-        DB_HOST: str = os.getenv("DB_HOST", "127.0.0.1")
-        DB_PORT: int = int(os.getenv("DB_PORT", 5432))
-        DB_NAME: str = os.getenv("DB_NAME", "postgres")
-        DB_USER: str = os.getenv("DB_USER", "postgres")
-        DB_PASS: str = os.getenv("DB_PASS", "")
-
+        if DATABASE_URL:
+            # Si existe DATABASE_URL (producción), parsearla
+            from urllib.parse import urlparse
+            url = urlparse(DATABASE_URL)
+            
+            self.DB_HOST = url.hostname
+            self.DB_PORT = url.port if url.port else 5432
+            self.DB_NAME = url.path[1:]  # Quitar el / inicial
+            self.DB_USER = url.username
+            self.DB_PASS = url.password
+        else:
+            # Si no existe DATABASE_URL (desarrollo local), usar variables individuales
+            self.DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+            self.DB_PORT = int(os.getenv("DB_PORT", "5432"))
+            self.DB_NAME = os.getenv("DB_NAME", "postgres")
+            self.DB_USER = os.getenv("DB_USER", "postgres")
+            self.DB_PASS = os.getenv("DB_PASS", "")
+    
     @property
     def sqlalchemy_url(self) -> str:
         user = quote_plus(self.DB_USER)
         auth = f"{user}:{quote_plus(self.DB_PASS)}" if self.DB_PASS else user
         return f"postgresql+psycopg2://{auth}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-# ⬇⬇⬇ ESTA LÍNEA ES CLAVE
+# Esta línea es clave
 settings = Settings()
+
+# Verificar conexión
+print(f"✅ [config.py] BD: {settings.DB_HOST}/{settings.DB_NAME}")
