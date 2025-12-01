@@ -391,6 +391,67 @@ def betting_lines(
     typer.echo(f"Rango: {date_from} a {date_to}\n")
     
     with engine.begin() as conn:
+        # 1. Obtener las betting lines fijas desde league_parameters
+        league_params_query = text("""
+            SELECT 
+                lp.betting_line_shots,
+                lp.betting_line_shots_ot,
+                lp.betting_line_corners,
+                lp.betting_line_cards,
+                lp.betting_line_fouls
+            FROM seasons s
+            JOIN league_parameters lp ON lp.league_id = s.league_id
+            WHERE s.id = :season_id
+            LIMIT 1
+        """)
+        
+        league_params = conn.execute(league_params_query, {"season_id": season_id}).mappings().first()
+        
+        if not league_params:
+            typer.echo("❌ No se encontraron parámetros de liga para esta temporada")
+            raise typer.Exit(code=1)
+        
+        # Usar valores fijos de league_parameters
+        FIXED_SHOTS_LINE = float(league_params['betting_line_shots'])
+        FIXED_SHOTS_OT_LINE = float(league_params['betting_line_shots_ot'])
+        FIXED_CORNERS_LINE = float(league_params['betting_line_corners'])
+        FIXED_CARDS_LINE = float(league_params['betting_line_cards'])
+        FIXED_FOULS_LINE = float(league_params['betting_line_fouls'])
+        
+        typer.echo(f"📋 Betting Lines Fijas (de league_parameters):")
+        typer.echo(f"   Shots: {FIXED_SHOTS_LINE}")
+        typer.echo(f"   Shots OT: {FIXED_SHOTS_OT_LINE}")
+        typer.echo(f"   Corners: {FIXED_CORNERS_LINE}")
+        typer.echo(f"   Cards: {FIXED_CARDS_LINE}")
+        typer.echo(f"   Fouls: {FIXED_FOULS_LINE}\n")
+
+        # ═══════════════════════════════════════════════════════════════
+        # Resetear secuencia de betting_lines_predictions
+        # ═══════════════════════════════════════════════════════════════
+        try:
+            typer.echo("\n🔄 Verificando secuencia de IDs...")
+            
+            # Resetear la secuencia al máximo ID actual
+            reset_query = text("""
+                SELECT setval(
+                    'betting_lines_predictions_id_seq',
+                    COALESCE((SELECT MAX(id) FROM betting_lines_predictions), 1),
+                    true
+                )
+            """)
+            
+            result = conn.execute(reset_query).scalar()
+            
+            # Verificar el valor actual
+            check_query = text("SELECT last_value FROM betting_lines_predictions_id_seq")
+            current_val = conn.execute(check_query).scalar()
+            
+            typer.echo(f"✅ Secuencia reseteada a: {current_val}\n")
+            
+        except Exception as e:
+            typer.echo(f"⚠️  Advertencia al resetear secuencia: {e}")
+            typer.echo("   Continuando de todas formas...\n")
+
         # Query para obtener partidos y sus predicciones
         if model.lower() == 'weinston':
             matches_query = text("""
@@ -459,12 +520,12 @@ def betting_lines(
             predicted_cards = match['cards_home'] + match['cards_away']
             predicted_fouls = match['fouls_home'] + match['fouls_away']
             
-            # Definir líneas estándar (se pueden ajustar según el mercado)
-            shots_line = round(predicted_shots * 0.95, 1)  # Línea ligeramente por debajo de la predicción
-            shots_ot_line = round(predicted_shots_ot * 0.95, 1)
-            corners_line = round(predicted_corners * 0.95, 1)
-            cards_line = round(predicted_cards * 0.95, 1)
-            fouls_line = round(predicted_fouls * 0.95, 1)
+            # ✅ Usar betting lines FIJAS de league_parameters
+            shots_line = FIXED_SHOTS_LINE
+            shots_ot_line = FIXED_SHOTS_OT_LINE
+            corners_line = FIXED_CORNERS_LINE
+            cards_line = FIXED_CARDS_LINE
+            fouls_line = FIXED_FOULS_LINE
             
             # Determinar predicción (over/under)
             shots_prediction = 'over' if predicted_shots > shots_line else 'under'
@@ -473,12 +534,28 @@ def betting_lines(
             cards_prediction = 'over' if predicted_cards > cards_line else 'under'
             fouls_prediction = 'over' if predicted_fouls > fouls_line else 'under'
             
-            # Calcular confidence (basado en la diferencia entre predicción y línea)
-            shots_confidence = min(abs(predicted_shots - shots_line) / shots_line * 100, 100)
-            shots_ot_confidence = min(abs(predicted_shots_ot - shots_ot_line) / shots_ot_line * 100, 100)
-            corners_confidence = min(abs(predicted_corners - corners_line) / corners_line * 100, 100)
-            cards_confidence = min(abs(predicted_cards - cards_line) / cards_line * 100, 100)
-            fouls_confidence = min(abs(predicted_fouls - fouls_line) / fouls_line * 100, 100)
+            # Factores de escala para normalizar el confidence
+            SCALE_SHOTS = 6.0
+            SCALE_SHOTS_OT = 2.5
+            SCALE_CORNERS = 3.0
+            SCALE_CARDS = 1.5
+            SCALE_FOULS = 5.0
+
+            # Calcular márgenes (qué tanto se aleja de la línea en la dirección predicha)
+            shots_margin = predicted_shots - shots_line if predicted_shots > shots_line else shots_line - predicted_shots
+            shots_ot_margin = predicted_shots_ot - shots_ot_line if predicted_shots_ot > shots_ot_line else shots_ot_line - predicted_shots_ot
+            corners_margin = predicted_corners - corners_line if predicted_corners > corners_line else corners_line - predicted_corners
+            cards_margin = predicted_cards - cards_line if predicted_cards > cards_line else cards_line - predicted_cards
+            fouls_margin = predicted_fouls - fouls_line if predicted_fouls > fouls_line else fouls_line - predicted_fouls
+
+            # Calcular confidence basado en el margen
+            # Fórmula: min(margen / (escala * 0.5), 1.0) * 0.8 + 0.1
+            # Esto da un rango de 10% a 90% (evita 0% y 100%)
+            shots_confidence = min(max(shots_margin / (SCALE_SHOTS * 0.5), 0.0), 1.0) * 0.8 + 0.1
+            shots_ot_confidence = min(max(shots_ot_margin / (SCALE_SHOTS_OT * 0.5), 0.0), 1.0) * 0.8 + 0.1
+            corners_confidence = min(max(corners_margin / (SCALE_CORNERS * 0.5), 0.0), 1.0) * 0.8 + 0.1
+            cards_confidence = min(max(cards_margin / (SCALE_CARDS * 0.5), 0.0), 1.0) * 0.8 + 0.1
+            fouls_confidence = min(max(fouls_margin / (SCALE_FOULS * 0.5), 0.0), 1.0) * 0.8 + 0.1
             
             # Insertar o actualizar en betting_lines_predictions
             insert_query = text("""

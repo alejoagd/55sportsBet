@@ -368,10 +368,9 @@ def mode_load_fixtures(league_config: LeagueConfig, env_file: str):
     env['ENV_FILE'] = env_file
     
     cmd = (
-        f"python -m src.ingest.load_unified {filepath} "
-        f"--league \"{league_config.league_name}\" "
-        f"--div {league_config.csv_code} "
-        f"--season-id {league_config.season_id}"
+        f"python -m src.fixtures.cli bulk {filepath} "
+        f"--season-id {league_config.season_id} "
+        f"--league \"{league_config.league_name}\""
     )
     
     if league_config.dayfirst:
@@ -614,7 +613,7 @@ def mode_retrain(league_config: LeagueConfig, env_file: str):
     env = os.environ.copy()
     env['ENV_FILE'] = env_file
     
-    cmd = f"python -m src.predictions.cli train-weinston --season-id {season_id}"
+    cmd = f"python -m src.predictions.cli fit --season-id {season_id}"
     
     print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
     print_info(f"Usando configuración: {env_file}")

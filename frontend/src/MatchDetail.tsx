@@ -246,17 +246,17 @@ export default function MatchDetail() {
       );
     } else {
       // Partido no jugado - mostrar predicción con confianza
-      const confidencePercent = Math.round(line.confidence * 100);
+      const confidencePercent = Math.round(line.confidence);
       const confidenceColor = 
-        confidencePercent >= 70 ? 'text-green-400' :
-        confidencePercent >= 40 ? 'text-yellow-400' :
-        confidencePercent >= 20 ? 'text-orange-400' :
+        confidencePercent >= 50 ? 'text-green-400' :
+        confidencePercent >= 30 ? 'text-yellow-400' :
+        confidencePercent >= 15 ? 'text-orange-400' :
         'text-slate-500';
       
       const confidenceEmoji =
-        confidencePercent >= 70 ? '🔥' :
-        confidencePercent >= 40 ? '🟢' :
-        confidencePercent >= 20 ? '🟡' :
+        confidencePercent >= 50 ? '🔥' :
+        confidencePercent >= 30 ? '🟢' :
+        confidencePercent >= 15 ? '🟡' :
         '⚪';
       
       return (
@@ -439,19 +439,19 @@ export default function MatchDetail() {
               <p className="text-slate-300 text-sm font-semibold mb-3">🎯 Leyenda de Betting Lines:</p>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="text-green-400">🔥 70-100%</span>
+                  <span className="text-green-400">🔥 50-100%</span>
                   <span className="text-slate-400">= Alta confianza (apostar)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-yellow-400">🟢 40-70%</span>
+                  <span className="text-yellow-400">🟢 30-50%</span>
                   <span className="text-slate-400">= Buena confianza</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-orange-400">🟡 20-40%</span>
+                  <span className="text-orange-400">🟡 15-30%</span>
                   <span className="text-slate-400">= Media confianza</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-500">⚪ 0-20%</span>
+                  <span className="text-slate-500">⚪ 0-15%</span>
                   <span className="text-slate-400">= Baja confianza (no apostar)</span>
                 </div>
               </div>
