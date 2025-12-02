@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
 import LeagueSwitcher from './Leagueswitcher';
 
+
 interface Match {
   match_id: number;
   date: string;
@@ -503,8 +504,9 @@ export default function ImprovedDashboard() {
                   onClick={async () => {
                     if (confirm('¿Recalcular todos los aciertos?')) {
                       try {
+                        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
                         const response = await fetch(
-                          `http://localhost:8000/api/recalculate-outcomes?season_id=${seasonId}`, 
+                          `${API_URL}/api/recalculate-outcomes?season_id=${seasonId}`, 
                           { method: 'POST' }
                         );
                         const data = await response.json();
