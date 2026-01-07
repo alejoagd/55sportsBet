@@ -59,7 +59,7 @@ class ScoreRangeStats(BaseModel):
 
 class ScoreRangesResponse(BaseModel):
     ranges: List[ScoreRangeStats]
-    best_range: ScoreRangeStats
+    best_range: Optional[ScoreRangeStats]
     total_analyzed: int
     overall_accuracy: float
     recommendation_text: str
@@ -1498,135 +1498,94 @@ def get_score_range_effectiveness(
 ):
     """
     Analiza la efectividad de las apuestas según rangos de Score.
-    
-    Divide los scores en rangos y calcula:
-    - Accuracy (% de aciertos)
-    - ROI (retorno de inversión)
-    - Número de apuestas por rango
-    
-    Útil para determinar el umbral óptimo de confianza.
     """
     
     with engine.begin() as conn:
-        # Query principal: obtener apuestas con sus resultados
-        query = text("""
+        # Construir filtros dinámicos
+        where_clauses = ["bbh.hit IS NOT NULL"]  # Solo apuestas validadas
+        params = {"min_bets": min_bets}
+        
+        if season_id:
+            where_clauses.append("bbh.season_id = :season_id")
+            params["season_id"] = season_id
+        
+        if league_id:
+            where_clauses.append("s.league_id = :league_id")
+            params["league_id"] = league_id
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Query corregido - solo usa campos que EXISTEN
+        query = text(f"""
             WITH best_bets_data AS (
                 SELECT 
-                    bb.match_id,
-                    bb.bet_type,
-                    bb.prediction,
-                    bb.confidence,
-                    bb.score,
-                    bb.h2h_score,
-                    bb.odds,
-                    m.home_goals,
-                    m.away_goals,
-                    ms.home_shots + ms.away_shots as total_shots,
-                    ms.home_shots_on_target + ms.away_shots_on_target as total_shots_ot,
-                    ms.home_corners + ms.away_corners as total_corners,
-                    ms.home_fouls + ms.away_fouls as total_fouls,
-                    COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0) +
-                    COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0) as total_cards,
-                    
-                    -- Determinar si acertó
-                    CASE bb.bet_type
-                        WHEN 'RESULT' THEN
-                            CASE bb.prediction
-                                WHEN '1' THEN CASE WHEN m.home_goals > m.away_goals THEN 1 ELSE 0 END
-                                WHEN 'X' THEN CASE WHEN m.home_goals = m.away_goals THEN 1 ELSE 0 END
-                                WHEN '2' THEN CASE WHEN m.home_goals < m.away_goals THEN 1 ELSE 0 END
-                            END
-                        WHEN 'OVER_UNDER_GOALS' THEN
-                            CASE 
-                                WHEN bb.prediction LIKE 'OVER%' THEN
-                                    CASE WHEN (m.home_goals + m.away_goals) > 2.5 THEN 1 ELSE 0 END
-                                WHEN bb.prediction LIKE 'UNDER%' THEN
-                                    CASE WHEN (m.home_goals + m.away_goals) < 2.5 THEN 1 ELSE 0 END
-                            END
-                        WHEN 'BTTS' THEN
-                            CASE bb.prediction
-                                WHEN 'YES' THEN CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN 1 ELSE 0 END
-                                WHEN 'NO' THEN CASE WHEN m.home_goals = 0 OR m.away_goals = 0 THEN 1 ELSE 0 END
-                            END
-                        -- Agregar más tipos según necesites
-                        ELSE 0
-                    END as hit
-                    
-                FROM best_bets_history bb
-                JOIN matches m ON m.id = bb.match_id
-                LEFT JOIN match_stats ms ON ms.match_id = m.id
-                WHERE m.home_goals IS NOT NULL  -- Solo partidos finalizados
-                  AND bb.score IS NOT NULL
-                  AND bb.odds IS NOT NULL
-                  {:season_filter}
-                  {:league_filter}
+                    bbh.combined_score,
+                    bbh.odds,
+                    bbh.hit,
+                    bbh.profit_loss
+                FROM best_bets_history bbh
+                LEFT JOIN seasons s ON s.id = bbh.season_id
+                WHERE {where_sql}
+                  AND bbh.combined_score IS NOT NULL
+                  AND bbh.odds IS NOT NULL
             )
             SELECT 
-                -- Definir rangos de score
+                -- Range label
                 CASE 
-                    WHEN score >= 90 THEN '90-100'
-                    WHEN score >= 80 THEN '80-90'
-                    WHEN score >= 70 THEN '70-80'
-                    WHEN score >= 60 THEN '60-70'
-                    WHEN score >= 50 THEN '50-60'
+                    WHEN combined_score >= 90 THEN '90-100'
+                    WHEN combined_score >= 80 THEN '80-90'
+                    WHEN combined_score >= 70 THEN '70-80'
+                    WHEN combined_score >= 60 THEN '60-70'
+                    WHEN combined_score >= 50 THEN '50-60'
                     ELSE '0-50'
-                END as score_range,
+                END as range_label,
                 
+                -- Min score
                 CASE 
-                    WHEN score >= 90 THEN 90
-                    WHEN score >= 80 THEN 80
-                    WHEN score >= 70 THEN 70
-                    WHEN score >= 60 THEN 60
-                    WHEN score >= 50 THEN 50
+                    WHEN combined_score >= 90 THEN 90
+                    WHEN combined_score >= 80 THEN 80
+                    WHEN combined_score >= 70 THEN 70
+                    WHEN combined_score >= 60 THEN 60
+                    WHEN combined_score >= 50 THEN 50
                     ELSE 0
                 END as min_score,
                 
+                -- Max score
                 CASE 
-                    WHEN score >= 90 THEN 100
-                    WHEN score >= 80 THEN 90
-                    WHEN score >= 70 THEN 80
-                    WHEN score >= 60 THEN 70
-                    WHEN score >= 50 THEN 60
+                    WHEN combined_score >= 90 THEN 100
+                    WHEN combined_score >= 80 THEN 90
+                    WHEN combined_score >= 70 THEN 80
+                    WHEN combined_score >= 60 THEN 70
+                    WHEN combined_score >= 50 THEN 60
                     ELSE 50
                 END as max_score,
                 
                 COUNT(*) as total_bets,
-                SUM(hit) as hits,
-                ROUND(AVG(CASE WHEN hit = 1 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy,
-                AVG(odds) as avg_odds,
-                
-                -- Calcular ROI (asumiendo apuesta unitaria de $1)
+                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
+                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy,
+                ROUND(AVG(odds), 2) as avg_odds,
                 ROUND(
-                    (SUM(CASE WHEN hit = 1 THEN (odds - 1) ELSE -1 END) / COUNT(*)) * 100, 
+                    COALESCE(
+                        AVG(profit_loss) * 100,
+                        (SUM(CASE WHEN hit = TRUE THEN (odds - 1) ELSE -1 END) / COUNT(*)) * 100
+                    ),
                     2
                 ) as roi
                 
             FROM best_bets_data
-            GROUP BY score_range, min_score, max_score
+            GROUP BY range_label, min_score, max_score
             HAVING COUNT(*) >= :min_bets
             ORDER BY min_score DESC
-        """.replace(
-            "{:season_filter}", 
-            "AND m.season_id = :season_id" if season_id else ""
-        ).replace(
-            "{:league_filter}",
-            "AND m.season_id IN (SELECT id FROM seasons WHERE league_id = :league_id)" if league_id else ""
-        ))
-        
-        params = {"min_bets": min_bets}
-        if season_id:
-            params["season_id"] = season_id
-        if league_id:
-            params["league_id"] = league_id
+        """)
         
         results = conn.execute(query, params).mappings().all()
         
         if not results:
             return ScoreRangesResponse(
                 ranges=[],
-                best_range=None,
+                best_range=None,  # ✅ Ahora puede ser None
                 total_analyzed=0,
-                overall_accuracy=0,
+                overall_accuracy=0.0,
                 recommendation_text="No hay suficientes datos para analizar"
             )
         
@@ -1634,6 +1593,8 @@ def get_score_range_effectiveness(
         ranges = []
         total_bets = 0
         total_hits = 0
+        best_range = None
+        best_roi = -float('inf')
         
         for row in results:
             accuracy = float(row["accuracy"])
@@ -1649,50 +1610,51 @@ def get_score_range_effectiveness(
             elif accuracy >= 60:
                 confidence_level = "MEDIA"
                 recommendation = "⚠️ Apostar con precaución"
-            elif accuracy >= 50:
-                confidence_level = "BAJA"
-                recommendation = "⚠️ No recomendado"
             else:
-                confidence_level = "MUY BAJA"
-                recommendation = "❌ Evitar"
+                confidence_level = "BAJA"
+                recommendation = "❌ No recomendado apostar"
             
-            ranges.append(ScoreRangeStats(
-                range_label=row["score_range"],
-                min_score=row["min_score"],
-                max_score=row["max_score"],
-                total_bets=row["total_bets"],
-                hits=row["hits"],
+            # ✅ Usar ScoreRangeStats con los nombres correctos
+            range_stat = ScoreRangeStats(
+                range_label=row["range_label"],
+                min_score=int(row["min_score"]),
+                max_score=int(row["max_score"]),
+                total_bets=int(row["total_bets"]),
+                hits=int(row["hits"]),
                 accuracy=accuracy,
+                avg_odds=float(row["avg_odds"]),
                 roi=roi,
-                avg_odds=round(float(row["avg_odds"]), 2),
                 confidence_level=confidence_level,
                 recommendation=recommendation
-            ))
+            )
             
-            total_bets += row["total_bets"]
-            total_hits += row["hits"]
+            ranges.append(range_stat)
+            
+            total_bets += int(row["total_bets"])
+            total_hits += int(row["hits"])
+            
+            # Encontrar mejor rango (mejor ROI con al menos 60% accuracy)
+            if accuracy >= 60 and roi > best_roi:
+                best_roi = roi
+                best_range = range_stat
         
-        # Encontrar el mejor rango (mayor ROI positivo)
-        best_range = max(
-            [r for r in ranges if r.roi > 0], 
-            key=lambda x: x.roi,
-            default=ranges[0] if ranges else None
-        )
+        # Calcular accuracy general
+        overall_accuracy = (total_hits / total_bets * 100) if total_bets > 0 else 0.0
         
-        overall_accuracy = (total_hits / total_bets * 100) if total_bets > 0 else 0
-        
-        # Generar recomendación
-        if best_range and best_range.accuracy >= 70:
+        # Texto de recomendación
+        if best_range:
             recommendation_text = (
-                f"💡 Apostar en Score ≥ {best_range.min_score}: "
-                f"{best_range.accuracy:.1f}% aciertos, ROI {best_range.roi:+.1f}%"
+                f"🎯 Rango óptimo: {best_range.range_label} "
+                f"(Accuracy: {best_range.accuracy:.1f}%, "
+                f"ROI: {best_range.roi:.1f}%). "
+                f"Se recomienda apostar cuando el score esté en este rango."
             )
         else:
-            recommendation_text = "⚠️ No hay rangos con suficiente confiabilidad"
+            recommendation_text = "No hay rangos con suficiente confiabilidad (>60% accuracy)"
         
         return ScoreRangesResponse(
             ranges=ranges,
-            best_range=best_range,
+            best_range=best_range,  # ✅ Puede ser None ahora
             total_analyzed=total_bets,
             overall_accuracy=round(overall_accuracy, 2),
             recommendation_text=recommendation_text
@@ -2865,32 +2827,76 @@ def get_best_bets_stats(
 
 @router.get("/api/best-bets/history")
 def get_best_bets_history(
-    season_id: int = Query(..., description="ID de la temporada"),
+    season_id: Optional[int] = Query(None, description="ID de la temporada (opcional, trae todas si se omite)"),
     limit: int = Query(50, description="Número máximo de registros"),
     validated: Optional[bool] = Query(None, description="Filtrar por validadas (True/False/None)")
 ):
     """
     Retorna el historial completo de best bets con sus resultados.
+    
+    MULTILIGA:
+    - Si NO se especifica season_id → Retorna de TODAS las ligas
+    - Si SÍ se especifica season_id → Retorna solo de esa liga
+    
+    Parámetros:
+    - season_id: (Opcional) Filtrar por temporada específica
+    - limit: Número máximo de registros (default: 50)
+    - validated: True (solo validadas), False (solo pendientes), None (todas)
+    
+    Ejemplos:
+    - /api/best-bets/history?limit=4&validated=false
+      → Top 4 pendientes de TODAS las ligas
+    
+    - /api/best-bets/history?season_id=2&limit=10
+      → Top 10 de Premier League (season_id=2)
     """
     
     with engine.begin() as conn:
-        where_clauses = ["season_id = :season_id"]
-        params = {"season_id": season_id, "limit": limit}
+        where_clauses = []
+        params = {"limit": limit}
         
+        # ✅ CAMBIO 1: season_id es OPCIONAL
+        if season_id is not None:
+            where_clauses.append("season_id = :season_id")
+            params["season_id"] = season_id
+        
+        # ✅ CAMBIO 2: Filtro de validación
         if validated is not None:
             if validated:
                 where_clauses.append("validated_at IS NOT NULL")
             else:
                 where_clauses.append("validated_at IS NULL")
         
-        where_sql = " AND ".join(where_clauses)
+        # ✅ CAMBIO 3: Si no hay filtros, usar "1=1"
+        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         
         query = text(f"""
             SELECT 
-                *
-            FROM best_bets_with_results
+                bbh.id,
+                bbh.match_id,
+                bbh.season_id,
+                bbh.date,
+                bbh.home_team,
+                bbh.away_team,
+                bbh.model,
+                bbh.bet_type,
+                bbh.prediction,
+                bbh.confidence,
+                bbh.historical_accuracy,
+                bbh.combined_score,
+                bbh.rank,
+                bbh.odds,
+                bbh.created_at,
+                bbh.validated_at,
+                bbh.hit,
+                bbh.profit_loss,
+                bbh.actual_result
+                
+            FROM best_bets_history bbh
+            LEFT JOIN seasons s ON s.id = bbh.season_id
+            LEFT JOIN leagues l ON l.id = s.league_id
             WHERE {where_sql}
-            ORDER BY date DESC, rank
+            ORDER BY bbh.date DESC, bbh.rank
             LIMIT :limit
         """)
         
@@ -2898,10 +2904,26 @@ def get_best_bets_history(
         
         return [
             {
-                **dict(row),
+                "id": row["id"],
+                "match_id": row["match_id"],
+                "season_id": row["season_id"],
                 "date": row["date"].strftime("%Y-%m-%d") if row["date"] else None,
+                "home_team": row["home_team"],
+                "away_team": row["away_team"],
+                "league": row.get("league"),  # ✨ NUEVO
+                "model": row["model"],
+                "bet_type": row["bet_type"],
+                "prediction": row["prediction"],
+                "confidence": float(row["confidence"]) if row["confidence"] else 0,
+                "historical_accuracy": float(row["historical_accuracy"]) if row["historical_accuracy"] else 0,
+                "combined_score": float(row["combined_score"]) if row["combined_score"] else 0,
+                "rank": row["rank"],
+                "odds": float(row["odds"]) if row["odds"] else None,
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-                "validated_at": row["validated_at"].isoformat() if row["validated_at"] else None
+                "validated_at": row["validated_at"].isoformat() if row["validated_at"] else None,
+                "hit": row.get("hit"),
+                "profit_loss": float(row["profit_loss"]) if row.get("profit_loss") else None,
+                "actual_result": row.get("actual_result")
             }
             for row in results
         ]
@@ -3573,6 +3595,665 @@ def get_league_detail(league_id: int):
         totalMatches=result.total_matches,
         completedMatches=result.completed_matches
     )
+
+
+@router.get("/api/best-bets/analysis-multiliga")
+def get_best_bets_multiliga(
+    date_from: str = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: str = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    top_n: int = Query(4, description="Número de mejores apuestas a retornar"),
+    min_confidence: float = Query(0.0, description="Confianza mínima (0-100)")
+):
+    """
+    🎯 Análisis de mejores apuestas multiliga.
+    
+    Considera:
+    - Predicciones 1X2, Over/Under, BTTS de Poisson y Weinston
+    - Betting lines de Weinston (desde betting_lines_predictions)
+    - Accuracy histórico por modelo y tipo
+    - Análisis de TODAS las ligas automáticamente
+    
+    Retorna las top N apuestas ordenadas por score combinado.
+    """
+    
+    with engine.begin() as conn:
+        # ====================================================================
+        # 1. CALCULAR ACCURACY HISTÓRICO POR MODELO Y TIPO
+        # ====================================================================
+        
+        accuracy_query = text("""
+            SELECT 
+                model,
+                COUNT(*) as total_predictions,
+                
+                -- Accuracy por tipo de apuesta
+                ROUND(AVG(CASE WHEN hit_1x2 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_1x2,
+                ROUND(AVG(CASE WHEN hit_over25 THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_over25,
+                ROUND(AVG(CASE WHEN hit_btts THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_btts
+                
+            FROM prediction_outcomes po
+            JOIN matches m ON m.id = po.match_id
+            WHERE m.home_goals IS NOT NULL  -- Solo partidos finalizados
+            GROUP BY model
+        """)
+        
+        accuracy_results = conn.execute(accuracy_query).mappings().all()
+        
+        # Diccionario de accuracy por modelo
+        accuracy_by_model = {}
+        for row in accuracy_results:
+            accuracy_by_model[row['model']] = {
+                'total_predictions': row['total_predictions'],
+                'accuracy_1x2': float(row['accuracy_1x2'] or 0),
+                'accuracy_over25': float(row['accuracy_over25'] or 0),
+                'accuracy_btts': float(row['accuracy_btts'] or 0)
+            }
+        
+        # Para betting lines, usar accuracy de over25 como referencia
+        # ya que son predicciones binarias similares
+        betting_lines_accuracy = accuracy_by_model.get('weinston', {}).get('accuracy_over25', 55.0)
+        
+        # ====================================================================
+        # 2. OBTENER PRÓXIMOS PARTIDOS DE TODAS LAS LIGAS
+        # ====================================================================
+        
+        upcoming_query = text("""
+            SELECT
+                m.id as match_id,
+                m.date,
+                m.season_id,
+                l.name as league_name,
+                th.name as home_team,
+                ta.name as away_team,
+                
+                -- Poisson predictions
+                pp.prob_home_win as poisson_prob_home,
+                pp.prob_draw as poisson_prob_draw,
+                pp.prob_away_win as poisson_prob_away,
+                pp.over_2 as poisson_over_25,
+                pp.both_score as poisson_btts,
+                
+                -- Poisson odds
+                pp.min_odds_1 as poisson_odds_home,
+                pp.min_odds_x as poisson_odds_draw,
+                pp.min_odds_2 as poisson_odds_away,
+                pp.min_odds_over25,
+                pp.min_odds_under25,
+                pp.min_odds_btts_yes,
+                pp.min_odds_btts_no,
+                
+                -- Weinston predictions (para 1X2, Over/Under, BTTS)
+                wp.result_1x2 as weinston_result_int,
+                wp.local_goals as weinston_home_goals,
+                wp.away_goals as weinston_away_goals,
+                
+                -- Cálculo dinámico Over/Under para Weinston
+                GREATEST(0.05, LEAST(0.95,
+                    1.0 / (1.0 + EXP(-(COALESCE(wp.local_goals, 0) + COALESCE(wp.away_goals, 0) - 2.5) * 1.8))
+                )) as weinston_over_25,
+                
+                -- Cálculo dinámico BTTS para Weinston
+                GREATEST(0.05, LEAST(0.95,
+                    (1.0 - EXP(-COALESCE(wp.local_goals, 0) * 1.2)) * 
+                    (1.0 - EXP(-COALESCE(wp.away_goals, 0) * 1.2))
+                )) as weinston_btts,
+                
+                -- Betting Lines (desde betting_lines_predictions)
+                blp.predicted_total_shots,
+                blp.shots_line,
+                blp.shots_prediction,
+                blp.shots_confidence,
+                
+                blp.predicted_total_shots_on_target,
+                blp.shots_on_target_line,
+                blp.shots_on_target_prediction,
+                blp.shots_on_target_confidence,
+                
+                blp.predicted_total_corners,
+                blp.corners_line,
+                blp.corners_prediction,
+                blp.corners_confidence,
+                
+                blp.predicted_total_cards,
+                blp.cards_line,
+                blp.cards_prediction,
+                blp.cards_confidence,
+                
+                blp.predicted_total_fouls,
+                blp.fouls_line,
+                blp.fouls_prediction,
+                blp.fouls_confidence
+                
+            FROM matches m
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
+            LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+            LEFT JOIN betting_lines_predictions blp ON blp.match_id = m.id AND blp.model = 'weinston'
+            WHERE m.home_goals IS NULL  -- Solo partidos no jugados
+              AND m.date >= CURRENT_DATE
+        """)
+        
+        # Agregar filtros de fecha si se proporcionan
+        params = {}
+        if date_from:
+            upcoming_query = text(upcoming_query.text + " AND m.date >= :date_from")
+            params['date_from'] = date_from
+        if date_to:
+            upcoming_query = text(upcoming_query.text + " AND m.date <= :date_to")
+            params['date_to'] = date_to
+        
+        upcoming_query = text(upcoming_query.text + " ORDER BY m.date LIMIT 100")
+        
+        upcoming_matches = conn.execute(upcoming_query, params).mappings().all()
+        
+        # ====================================================================
+        # 3. ANALIZAR CADA PARTIDO Y GENERAR RECOMENDACIONES
+        # ====================================================================
+        
+        recommendations = []
+        
+        for match in upcoming_matches:
+            match_id = match['match_id']
+            home_team = match['home_team']
+            away_team = match['away_team']
+            match_date = match['date']
+            league_name = match['league_name']
+            season_id = match['season_id']
+            
+            # ================================================================
+            # ANALIZAR POISSON
+            # ================================================================
+            
+            if match['poisson_prob_home'] is not None:
+                poisson_acc = accuracy_by_model.get('poisson', {})
+                
+                # --- 1X2 ---
+                prob_home = float(match['poisson_prob_home'] or 0)
+                prob_draw = float(match['poisson_prob_draw'] or 0)
+                prob_away = float(match['poisson_prob_away'] or 0)
+                
+                max_prob_1x2 = max(prob_home, prob_draw, prob_away)
+                if max_prob_1x2 == prob_home:
+                    prediction_1x2 = '1'
+                    confidence_1x2 = prob_home
+                    odds_1x2 = float(match['poisson_odds_home'] or 0)
+                elif max_prob_1x2 == prob_away:
+                    prediction_1x2 = '2'
+                    confidence_1x2 = prob_away
+                    odds_1x2 = float(match['poisson_odds_away'] or 0)
+                else:
+                    prediction_1x2 = 'X'
+                    confidence_1x2 = prob_draw
+                    odds_1x2 = float(match['poisson_odds_draw'] or 0)
+                
+                score_1x2 = confidence_1x2 * (poisson_acc.get('accuracy_1x2', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'poisson',
+                    'bet_type': '1X2',
+                    'prediction': prediction_1x2,
+                    'confidence': round(confidence_1x2 * 100, 1),
+                    'historical_accuracy': poisson_acc.get('accuracy_1x2', 0),
+                    'combined_score': round(score_1x2 * 100, 2),
+                    'odds': odds_1x2
+                })
+                
+                # --- OVER/UNDER 2.5 ---
+                over_prob = float(match['poisson_over_25'] or 0)
+                under_prob = 1 - over_prob
+                
+                if over_prob > 0.5:
+                    prediction_ou = 'OVER'
+                    confidence_ou = over_prob
+                    odds_ou = float(match['min_odds_over25'] or 0)
+                else:
+                    prediction_ou = 'UNDER'
+                    confidence_ou = under_prob
+                    odds_ou = float(match['min_odds_under25'] or 0)
+                
+                score_ou = confidence_ou * (poisson_acc.get('accuracy_over25', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'poisson',
+                    'bet_type': 'OVER_25',
+                    'prediction': prediction_ou,
+                    'confidence': round(confidence_ou * 100, 1),
+                    'historical_accuracy': poisson_acc.get('accuracy_over25', 0),
+                    'combined_score': round(score_ou * 100, 2),
+                    'odds': odds_ou
+                })
+                
+                # --- BTTS ---
+                btts_prob = float(match['poisson_btts'] or 0)
+                no_btts_prob = 1 - btts_prob
+                
+                if btts_prob > 0.5:
+                    prediction_btts = 'YES'
+                    confidence_btts = btts_prob
+                    odds_btts = float(match['min_odds_btts_yes'] or 0)
+                else:
+                    prediction_btts = 'NO'
+                    confidence_btts = no_btts_prob
+                    odds_btts = float(match['min_odds_btts_no'] or 0)
+                
+                score_btts = confidence_btts * (poisson_acc.get('accuracy_btts', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'poisson',
+                    'bet_type': 'BTTS',
+                    'prediction': prediction_btts,
+                    'confidence': round(confidence_btts * 100, 1),
+                    'historical_accuracy': poisson_acc.get('accuracy_btts', 0),
+                    'combined_score': round(score_btts * 100, 2),
+                    'odds': odds_btts
+                })
+            
+            # ================================================================
+            # ANALIZAR WEINSTON (1X2, Over/Under, BTTS)
+            # ================================================================
+            
+            if match['weinston_home_goals'] is not None:
+                weinston_acc = accuracy_by_model.get('weinston', {})
+                
+                # --- 1X2 ---
+                result_int = int(match['weinston_result_int'] or 0)
+                home_goals = float(match['weinston_home_goals'] or 0)
+                away_goals = float(match['weinston_away_goals'] or 0)
+                
+                # Calcular confianza basada en diferencia de goles
+                goal_diff = abs(home_goals - away_goals)
+                
+                if result_int == 1:  # Home win
+                    prediction_1x2 = '1'
+                    confidence_1x2 = min(0.5 + (goal_diff * 0.15), 0.95)
+                elif result_int == 2:  # Away win
+                    prediction_1x2 = '2'
+                    confidence_1x2 = min(0.5 + (goal_diff * 0.15), 0.95)
+                else:  # Draw
+                    prediction_1x2 = 'X'
+                    confidence_1x2 = max(0.4 - (goal_diff * 0.1), 0.1)
+                
+                score_1x2 = confidence_1x2 * (weinston_acc.get('accuracy_1x2', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'weinston',
+                    'bet_type': '1X2',
+                    'prediction': prediction_1x2,
+                    'confidence': round(confidence_1x2 * 100, 1),
+                    'historical_accuracy': weinston_acc.get('accuracy_1x2', 0),
+                    'combined_score': round(score_1x2 * 100, 2),
+                    'odds': None
+                })
+                
+                # --- OVER/UNDER 2.5 ---
+                over_prob = float(match['weinston_over_25'] or 0)
+                under_prob = 1 - over_prob
+                
+                if over_prob > 0.5:
+                    prediction_ou = 'OVER'
+                    confidence_ou = over_prob
+                else:
+                    prediction_ou = 'UNDER'
+                    confidence_ou = under_prob
+                
+                score_ou = confidence_ou * (weinston_acc.get('accuracy_over25', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'weinston',
+                    'bet_type': 'OVER_25',
+                    'prediction': prediction_ou,
+                    'confidence': round(confidence_ou * 100, 1),
+                    'historical_accuracy': weinston_acc.get('accuracy_over25', 0),
+                    'combined_score': round(score_ou * 100, 2),
+                    'odds': None
+                })
+                
+                # --- BTTS ---
+                btts_prob = float(match['weinston_btts'] or 0)
+                no_btts_prob = 1 - btts_prob
+                
+                if btts_prob > 0.5:
+                    prediction_btts = 'YES'
+                    confidence_btts = btts_prob
+                else:
+                    prediction_btts = 'NO'
+                    confidence_btts = no_btts_prob
+                
+                score_btts = confidence_btts * (weinston_acc.get('accuracy_btts', 0) / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'weinston',
+                    'bet_type': 'BTTS',
+                    'prediction': prediction_btts,
+                    'confidence': round(confidence_btts * 100, 1),
+                    'historical_accuracy': weinston_acc.get('accuracy_btts', 0),
+                    'combined_score': round(score_btts * 100, 2),
+                    'odds': None
+                })
+            
+            # ================================================================
+            # BETTING LINES (desde betting_lines_predictions)
+            # ================================================================
+            
+            if match['predicted_total_shots'] is not None:
+                
+                # --- TIROS TOTALES ---
+                predicted_shots = float(match['predicted_total_shots'] or 0)
+                shots_line = float(match['shots_line'] or 0)
+                shots_prediction = match['shots_prediction']
+                shots_confidence = float(match['shots_confidence'] or 0)
+                
+                score_shots = shots_confidence * (betting_lines_accuracy / 100)
+                
+                recommendations.append({
+                    'match_id': match_id,
+                    'date': match_date,
+                    'season_id': season_id,
+                    'league': league_name,
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'model': 'weinston',
+                    'bet_type': 'SHOTS',
+                    'prediction': f"{shots_prediction.upper()} {shots_line}",
+                    'confidence': round(shots_confidence * 100, 1),
+                    'historical_accuracy': betting_lines_accuracy,
+                    'combined_score': round(score_shots * 100, 2),
+                    'odds': None,
+                    'predicted_value': round(predicted_shots, 1),
+                    'line': shots_line
+                })
+                
+                # --- TIROS A PUERTA ---
+                if match['predicted_total_shots_on_target'] is not None:
+                    predicted_sot = float(match['predicted_total_shots_on_target'] or 0)
+                    sot_line = float(match['shots_on_target_line'] or 0)
+                    sot_prediction = match['shots_on_target_prediction']
+                    sot_confidence = float(match['shots_on_target_confidence'] or 0)
+                    
+                    score_sot = sot_confidence * (betting_lines_accuracy / 100)
+                    
+                    recommendations.append({
+                        'match_id': match_id,
+                        'date': match_date,
+                        'season_id': season_id,
+                        'league': league_name,
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'model': 'weinston',
+                        'bet_type': 'SHOTS_ON_TARGET',
+                        'prediction': f"{sot_prediction.upper()} {sot_line}",
+                        'confidence': round(sot_confidence * 100, 1),
+                        'historical_accuracy': betting_lines_accuracy,
+                        'combined_score': round(score_sot * 100, 2),
+                        'odds': None,
+                        'predicted_value': round(predicted_sot, 1),
+                        'line': sot_line
+                    })
+                
+                # --- CORNERS ---
+                if match['predicted_total_corners'] is not None:
+                    predicted_corners = float(match['predicted_total_corners'] or 0)
+                    corners_line = float(match['corners_line'] or 0)
+                    corners_prediction = match['corners_prediction']
+                    corners_confidence = float(match['corners_confidence'] or 0)
+                    
+                    score_corners = corners_confidence * (betting_lines_accuracy / 100)
+                    
+                    recommendations.append({
+                        'match_id': match_id,
+                        'date': match_date,
+                        'season_id': season_id,
+                        'league': league_name,
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'model': 'weinston',
+                        'bet_type': 'CORNERS',
+                        'prediction': f"{corners_prediction.upper()} {corners_line}",
+                        'confidence': round(corners_confidence * 100, 1),
+                        'historical_accuracy': betting_lines_accuracy,
+                        'combined_score': round(score_corners * 100, 2),
+                        'odds': None,
+                        'predicted_value': round(predicted_corners, 1),
+                        'line': corners_line
+                    })
+                
+                # --- TARJETAS ---
+                if match['predicted_total_cards'] is not None:
+                    predicted_cards = float(match['predicted_total_cards'] or 0)
+                    cards_line = float(match['cards_line'] or 0)
+                    cards_prediction = match['cards_prediction']
+                    cards_confidence = float(match['cards_confidence'] or 0)
+                    
+                    score_cards = cards_confidence * (betting_lines_accuracy / 100)
+                    
+                    recommendations.append({
+                        'match_id': match_id,
+                        'date': match_date,
+                        'season_id': season_id,
+                        'league': league_name,
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'model': 'weinston',
+                        'bet_type': 'CARDS',
+                        'prediction': f"{cards_prediction.upper()} {cards_line}",
+                        'confidence': round(cards_confidence * 100, 1),
+                        'historical_accuracy': betting_lines_accuracy,
+                        'combined_score': round(score_cards * 100, 2),
+                        'odds': None,
+                        'predicted_value': round(predicted_cards, 1),
+                        'line': cards_line
+                    })
+                
+                # --- FALTAS ---
+                if match['predicted_total_fouls'] is not None:
+                    predicted_fouls = float(match['predicted_total_fouls'] or 0)
+                    fouls_line = float(match['fouls_line'] or 0)
+                    fouls_prediction = match['fouls_prediction']
+                    fouls_confidence = float(match['fouls_confidence'] or 0)
+                    
+                    score_fouls = fouls_confidence * (betting_lines_accuracy / 100)
+                    
+                    recommendations.append({
+                        'match_id': match_id,
+                        'date': match_date,
+                        'season_id': season_id,
+                        'league': league_name,
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'model': 'weinston',
+                        'bet_type': 'FOULS',
+                        'prediction': f"{fouls_prediction.upper()} {fouls_line}",
+                        'confidence': round(fouls_confidence * 100, 1),
+                        'historical_accuracy': betting_lines_accuracy,
+                        'combined_score': round(score_fouls * 100, 2),
+                        'odds': None,
+                        'predicted_value': round(predicted_fouls, 1),
+                        'line': fouls_line
+                    })
+        
+        # ====================================================================
+        # 4. FILTRAR POR CONFIANZA MÍNIMA Y ORDENAR
+        # ====================================================================
+        
+        if min_confidence > 0:
+            recommendations = [r for r in recommendations if r['confidence'] >= min_confidence]
+        
+        recommendations.sort(key=lambda x: x['combined_score'], reverse=True)
+        top_bets = recommendations[:top_n]
+        
+        # ====================================================================
+        # 5. GUARDAR LAS MEJORES APUESTAS EN BD
+        # ====================================================================
+        
+        if top_bets:
+            for idx, bet in enumerate(top_bets, start=1):
+                insert_query = text("""
+                    INSERT INTO best_bets_history (
+                        match_id, season_id, date, home_team, away_team,
+                        model, bet_type, prediction,
+                        confidence, historical_accuracy, combined_score, rank, odds,
+                        created_at
+                    ) VALUES (
+                        :match_id, :season_id, :date, :home_team, :away_team,
+                        :model, :bet_type, :prediction,
+                        :confidence, :historical_accuracy, :combined_score, :rank, :odds,
+                        NOW()
+                    )
+                    ON CONFLICT (match_id, model, bet_type) 
+                    DO UPDATE SET
+                        prediction = EXCLUDED.prediction,
+                        confidence = EXCLUDED.confidence,
+                        historical_accuracy = EXCLUDED.historical_accuracy,
+                        combined_score = EXCLUDED.combined_score,
+                        rank = EXCLUDED.rank,
+                        odds = EXCLUDED.odds,
+                        created_at = NOW()
+                """)
+                
+                try:
+                    conn.execute(insert_query, {
+                        "match_id": bet['match_id'],
+                        "season_id": bet['season_id'],
+                        "date": bet['date'].strftime("%Y-%m-%d") if isinstance(bet['date'], date) else bet['date'],
+                        "home_team": bet['home_team'],
+                        "away_team": bet['away_team'],
+                        "model": bet['model'],
+                        "bet_type": bet['bet_type'],
+                        "prediction": bet['prediction'],
+                        "confidence": float(bet['confidence']),
+                        "historical_accuracy": float(bet['historical_accuracy']),
+                        "combined_score": float(bet['combined_score']),
+                        "rank": idx,
+                        "odds": bet.get('odds')
+                    })
+                except Exception as e:
+                    print(f"⚠️ Error guardando best bet {idx}: {e}")
+        
+        # ====================================================================
+        # 6. PREPARAR RESPUESTA CON ESTADÍSTICAS
+        # ====================================================================
+        
+        # Agrupar por tipo de apuesta
+        by_bet_type = {}
+        for rec in recommendations[:20]:
+            bet_type = rec['bet_type']
+            if bet_type not in by_bet_type:
+                by_bet_type[bet_type] = []
+            by_bet_type[bet_type].append(rec)
+        
+        # Agrupar por liga
+        by_league = {}
+        for rec in top_bets:
+            league = rec['league']
+            if league not in by_league:
+                by_league[league] = []
+            by_league[league].append(rec)
+        
+        return {
+            'status': 'success',
+            'historical_accuracy': accuracy_by_model,
+            'top_bets': top_bets,
+            'statistics': {
+                'total_matches_analyzed': len(upcoming_matches),
+                'total_recommendations': len(recommendations),
+                'by_bet_type': {k: len(v) for k, v in by_bet_type.items()},
+                'by_league': {k: len(v) for k, v in by_league.items()},
+                'avg_confidence_top_bets': round(sum(b['confidence'] for b in top_bets) / len(top_bets), 1) if top_bets else 0,
+                'avg_score_top_bets': round(sum(b['combined_score'] for b in top_bets) / len(top_bets), 2) if top_bets else 0
+            },
+            'top_20_all_types': recommendations[:20]
+        }
+    
+# ============================================================================
+# ENDPOINT ADICIONAL: Resumen Diario
+# ============================================================================
+
+@router.get("/api/best-bets/daily-summary")
+def get_daily_best_bets_summary():
+    """
+    Resumen de las mejores apuestas agrupadas por fecha.
+    Útil para el dashboard principal.
+    """
+    
+    with engine.begin() as conn:
+        query = text("""
+            SELECT 
+                date,
+                COUNT(*) as total_bets,
+                COUNT(DISTINCT match_id) as total_matches,
+                ROUND(AVG(confidence), 1) as avg_confidence,
+                ROUND(AVG(combined_score), 2) as avg_score,
+                MAX(combined_score) as max_score,
+                
+                -- Por tipo de apuesta
+                COUNT(*) FILTER (WHERE bet_type = '1X2') as bets_1x2,
+                COUNT(*) FILTER (WHERE bet_type = 'OVER_25') as bets_over_under,
+                COUNT(*) FILTER (WHERE bet_type = 'BTTS') as bets_btts,
+                COUNT(*) FILTER (WHERE bet_type IN ('SHOTS', 'CORNERS', 'CARDS', 'FOULS', 'SHOTS_ON_TARGET')) as bets_betting_lines,
+                
+                -- Por modelo
+                COUNT(*) FILTER (WHERE model = 'poisson') as bets_poisson,
+                COUNT(*) FILTER (WHERE model = 'weinston') as bets_weinston
+                
+            FROM best_bets_history
+            WHERE date >= CURRENT_DATE
+            GROUP BY date
+            ORDER BY date
+            LIMIT 7
+        """)
+        
+        results = conn.execute(query).mappings().all()
+        
+        return {
+            'status': 'success',
+            'daily_summary': [
+                {
+                    **dict(row),
+                    'date': row['date'].strftime("%Y-%m-%d") if row['date'] else None
+                }
+                for row in results
+            ]
+        }
+
 
 # ===== REGISTRAR EL ROUTER =====
 app.include_router(router)

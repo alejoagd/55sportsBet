@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Tuple, Optional, List
 from sqlalchemy import text, create_engine
 from dotenv import load_dotenv
+import requests
+import subprocess
 
 # League Manager
 from src.scripts.league_manager import (
@@ -360,9 +362,6 @@ def mode_load_fixtures(league_config: LeagueConfig, env_file: str):
     # 5. Ejecutar ingest usando subprocess (como el original)
     print_info(f"Cargando fixtures para {league_config.league_name}...")
     
-    import subprocess
-    import os
-    
     # Crear entorno con ENV_FILE
     env = os.environ.copy()
     env['ENV_FILE'] = env_file
@@ -679,7 +678,160 @@ def validate_betting_lines_predictions(league_config: LeagueConfig, date_from: s
         return True
     return False
 
+def generate_best_bets(league_config: LeagueConfig, date_from: str, date_to: str, env_file: str, top_n: int = 4):
+    """
+    Genera las mejores apuestas para una liga específica.
+    Llama al endpoint /api/best-bets/analysis-multiliga.
+    """
+    print_step(f"🎯 GENERANDO BEST BETS - {league_config.league_name}")
+    
+    try:
+        
+        # ✅ SWITCHEO SIMPLE: Por nombre exacto del archivo
+        if env_file == ".env":  # LOCALHOST
+            api_url = os.getenv('API_URL', 'http://localhost:8000')  # Con default
+        else:  # PRODUCCIÓN (.env.production)
+            api_url = os.getenv('API_URL')  # Sin default, DEBE estar definida
+            if not api_url:
+                print_error(f"API_URL no encontrada en {env_file}")
+                return False
 
+        
+        # ✅ PASO 4: Mostrar configuración (debug)
+        print_info(f"📁 Archivo config: {env_file}")
+        print_info(f"🌐 API URL: {api_url}")
+        
+        # Preparar parámetros
+        params = {
+            'top_n': top_n,
+            'min_confidence': 0.0  # Analizar todas, ordenar por score
+        }
+        
+        # Agregar filtros de fecha si se especificaron
+        if date_from:
+            params['date_from'] = date_from
+        if date_to:
+            params['date_to'] = date_to
+        
+        # Llamar al endpoint
+        endpoint = f"{api_url}/api/best-bets/analysis-multiliga"
+        print_info(f"Llamando a: {endpoint}")
+        print_info(f"Parámetros: {params}")
+        
+        response = requests.get(endpoint, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            if result.get('status') == 'success':
+                top_bets = result.get('top_bets', [])
+                stats = result.get('statistics', {})
+                
+                print_success(f"✅ Best Bets generadas exitosamente")
+                print_info(f"   • Total matches analizados: {stats.get('total_matches_analyzed', 0)}")
+                print_info(f"   • Total recomendaciones: {stats.get('total_recommendations', 0)}")
+                print_info(f"   • Top {top_n} guardadas en BD")
+                
+                # Mostrar resumen de las top bets
+                if top_bets:
+                    print(f"\n{Colors.BOLD}📊 TOP {len(top_bets)} APUESTAS:{Colors.END}")
+                    for idx, bet in enumerate(top_bets, 1):
+                        league_emoji = bet.get('league_emoji', '⚽')
+                        print(f"   {idx}. {league_emoji} {bet['home_team']} vs {bet['away_team']}")
+                        print(f"      {bet['bet_type']}: {bet['prediction']} | Score: {bet['combined_score']:.1f}")
+                
+                # Agrupar por tipo de apuesta
+                by_type = stats.get('by_bet_type', {})
+                if by_type:
+                    print(f"\n{Colors.BOLD}📈 POR TIPO DE APUESTA:{Colors.END}")
+                    for bet_type, count in sorted(by_type.items(), key=lambda x: x[1], reverse=True):
+                        print(f"   • {bet_type}: {count} oportunidades")
+                
+                # Agrupar por liga
+                by_league = stats.get('by_league', {})
+                if by_league:
+                    print(f"\n{Colors.BOLD}🏆 POR LIGA:{Colors.END}")
+                    for league, count in sorted(by_league.items(), key=lambda x: x[1], reverse=True):
+                        print(f"   • {league}: {count} apuestas")
+                
+                return True
+            else:
+                print_error(f"Error en respuesta: {result.get('message', 'Unknown error')}")
+                return False
+        else:
+            print_error(f"Error HTTP {response.status_code}: {response.text}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        print_error("Timeout al llamar a la API (>30s)")
+        return False
+    except requests.exceptions.ConnectionError:
+        print_error("No se pudo conectar a la API. ¿Está corriendo el servidor?")
+        return False
+    except Exception as e:
+        print_error(f"Error generando best bets: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+# ============================================================================
+# PASO 2: Agregar función de validación después de la anterior
+# ============================================================================
+
+def validate_best_bets(league_config: LeagueConfig, env_file: str):
+    """
+    Valida las best bets que ya tienen resultado.
+    Actualiza hit, profit_loss, actual_result.
+    """
+    print_step(f"✅ VALIDANDO BEST BETS - {league_config.league_name}")
+    
+    try:
+
+        # ✅ SWITCHEO SIMPLE: Por nombre exacto del archivo
+        if env_file == ".env":  # LOCALHOST
+            api_url = os.getenv('API_URL', 'http://localhost:8000')  # Con default
+        else:  # PRODUCCIÓN (.env.production)
+            api_url = os.getenv('API_URL')  # Sin default, DEBE estar definida
+            if not api_url:
+                print_error(f"API_URL no encontrada en {env_file}")
+                return False
+        
+        # Llamar al endpoint de validación
+        endpoint = f"{api_url}/api/best-bets/validate"
+        params = {'season_id': league_config.season_id}
+        
+        print_info(f"Validando season_id: {league_config.season_id}")
+        
+        response = requests.post(endpoint, params=params, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            if result.get('success'):
+                validated = result.get('validated', 0)
+                hits = result.get('hits', 0)
+                misses = result.get('misses', 0)
+                accuracy = result.get('accuracy', 0)
+                
+                print_success(f"✅ Validación completada")
+                print_info(f"   • Apuestas validadas: {validated}")
+                print_info(f"   • Aciertos: {hits}")
+                print_info(f"   • Fallos: {misses}")
+                print_info(f"   • Accuracy: {accuracy:.1f}%")
+                
+                return True
+            else:
+                print_warning("No hay best bets pendientes de validar")
+                return True  # No es un error, simplemente no hay nada que validar
+        else:
+            print_error(f"Error HTTP {response.status_code}: {response.text}")
+            return False
+            
+    except Exception as e:
+        print_error(f"Error validando best bets: {e}")
+        return False
+    
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # FUNCIÓN PRINCIPAL
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -715,6 +867,7 @@ def main():
     print("  5. 🔄 RETRAIN  - Re-entrenar modelo Weinston")
     print("  6. 🚀 COMPLETE - Flujo completo nueva jornada")
     print("  7. 📊 FINISH   - Flujo completo post-partidos")
+    print("  8. 🎯 BEST BETS - Generar mejores apuestas")
     print("  0. ❌ SALIR\n")
     
     choice = input(f"{Colors.GREEN}Selecciona una opción (0-7): {Colors.END}")
@@ -747,7 +900,8 @@ def main():
         "4": "EVALUAR PREDICCIONES",
         "5": "RE-ENTRENAR WEINSTON",
         "6": "FLUJO COMPLETO PRE-PARTIDOS",
-        "7": "FLUJO COMPLETO POST-PARTIDOS"
+        "7": "FLUJO COMPLETO POST-PARTIDOS",
+        "8": "GENERAR MEJORES APUESTAS"
     }
     
     operation_name = mode_names.get(choice, "OPERACIÓN")
@@ -793,22 +947,38 @@ def main():
                 
                 elif choice == "6":
                     # Flujo COMPLETE
-                    print_info("Flujo: FIXTURES → RETRAIN → PREDICT → BETTING LINES")
+                    print_info("Flujo: FIXTURES → RETRAIN → PREDICT → BETTING LINES → BEST BETS")
                     
                     if mode_load_fixtures(league_config, env_file):
                         if mode_retrain(league_config, env_file):
                             if mode_predict(league_config, date_from, date_to):
-                                generate_betting_lines_predictions(league_config, date_from, date_to, env_file)
-                                success = True
+                                if generate_betting_lines_predictions(league_config, date_from, date_to, env_file):
+                                    generate_best_bets(league_config, date_from, date_to, env_file, top_n=4)
+                                    success = True
                 
                 elif choice == "7":
                     # Flujo FINISH
-                    print_info("Flujo: RESULTS → EVALUATE → VALIDATE BETTING")
+                    print_info("Flujo: RESULTS → EVALUATE → VALIDATE BETTING → VALIDATE BEST BETS")
                     
                     if mode_load_results(league_config, env_file):
                         if mode_evaluate(league_config, date_from, date_to, env_file):
-                            validate_betting_lines_predictions(league_config, date_from, date_to, env_file)
+                            if validate_betting_lines_predictions(league_config, date_from, date_to, env_file):
+                                validate_best_bets(league_config, env_file)
+                                success = True
+
+                elif choice == "8":
+                    # Solo best bets
+                    print_info("Generando Best Bets para todas las ligas...")
+                    
+                    # Generar para cada liga seleccionada
+                    for league_config in selected_leagues:
+                        print(f"\n{Colors.BOLD}{league_config.league_name}{Colors.END}")
+                        if generate_best_bets(league_config, date_from, date_to, env_file, top_n=4):
+                            print_success(f"✓ {league_config.league_name}")
                             success = True
+                        else:
+                            print_warning(f"⚠️  {league_config.league_name}")
+                            success = False
                 
                 else:
                     print_error("Opción inválida")
