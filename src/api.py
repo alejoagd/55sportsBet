@@ -2695,131 +2695,252 @@ def validate_best_bets(season_id: int = Query(..., description="ID de la tempora
 # 3. ENDPOINT: Estadísticas de Best Bets (GET /api/best-bets/stats)
 # ============================================================================
 
-@router.get("/api/best-bets/stats")
+# ============================================================================
+# ENDPOINT CORREGIDO: /api/best-bets/stats
+# Para agregar en api.py (usa engine directamente, no Depends)
+# ============================================================================
+
+@app.get("/api/best-bets/stats")
 def get_best_bets_stats(
-    season_id: int = Query(..., description="ID de la temporada"),
-    date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
-    date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)")
+    season_id: int = Query(..., description="Season ID")
 ):
     """
-    Retorna estadísticas agregadas de las best bets.
+    Retorna estadísticas completas de best bets.
+    
+    Estructura de respuesta:
+    {
+        "general": {...},
+        "by_type": [...],
+        "by_model": [...],
+        "by_rank": [...],
+        "evolution": [...]
+    }
     """
     
-    with engine.begin() as conn:
-        # Query base
-        where_clauses = ["season_id = :season_id", "validated_at IS NOT NULL"]
-        params = {"season_id": season_id}
+    with engine.connect() as conn:
         
-        if date_from:
-            where_clauses.append("date >= :date_from")
-            params["date_from"] = date_from
-        if date_to:
-            where_clauses.append("date <= :date_to")
-            params["date_to"] = date_to
-        
-        where_sql = " AND ".join(where_clauses)
-        
-        # 1. Estadísticas generales
-        general_stats_query = text(f"""
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 1. GENERAL STATS
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        general_query = text("""
             SELECT 
                 COUNT(*) as total_bets,
-                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
-                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
-                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
-                ROUND(AVG(combined_score), 2) as avg_score,
-                SUM(profit_loss) as total_profit_loss,
-                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
-            FROM best_bets_with_results
-            WHERE {where_sql}
+                COUNT(*) FILTER (WHERE hit = true) as hits,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    2
+                ) as accuracy_pct,
+                ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
+                ROUND(AVG(combined_score)::numeric, 3) as avg_score,
+                COALESCE(SUM(profit_loss), 0) as total_profit_loss,
+                ROUND(
+                    100.0 * COALESCE(SUM(profit_loss), 0) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    2
+                ) as roi_pct
+            FROM best_bets_history bbh
+            JOIN matches m ON m.id = bbh.match_id
+            WHERE m.season_id = :season_id
         """)
         
-        general = conn.execute(general_stats_query, params).mappings().one()
+        general_row = conn.execute(general_query, {"season_id": season_id}).one()
         
-        # 2. Por tipo de apuesta
-        by_type_query = text(f"""
+        general = {
+            "total_bets": general_row.total_bets or 0,
+            "hits": general_row.hits or 0,
+            "accuracy_pct": float(general_row.accuracy_pct or 0),
+            "avg_confidence": float(general_row.avg_confidence or 0),
+            "avg_score": float(general_row.avg_score or 0),
+            "total_profit_loss": float(general_row.total_profit_loss or 0),
+            "roi_pct": float(general_row.roi_pct or 0)
+        }
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 2. STATS BY TYPE (1X2, Over/Under, BTTS)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        by_type_query = text("""
             SELECT 
-                bet_type,
+                bbh.bet_type,
                 COUNT(*) as total,
-                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
-                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
-                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
-                SUM(profit_loss) as profit_loss,
-                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
-            FROM best_bets_with_results
-            WHERE {where_sql}
-            GROUP BY bet_type
-            ORDER BY accuracy_pct DESC
+                COUNT(*) FILTER (WHERE hit = true) as hits,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    2
+                ) as accuracy_pct,
+                ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
+                COALESCE(SUM(profit_loss), 0) as profit_loss,
+                ROUND(
+                    100.0 * COALESCE(SUM(profit_loss), 0) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    2
+                ) as roi_pct
+            FROM best_bets_history bbh
+            JOIN matches m ON m.id = bbh.match_id
+            WHERE m.season_id = :season_id
+            GROUP BY bbh.bet_type
+            ORDER BY total DESC
         """)
         
-        by_type = conn.execute(by_type_query, params).mappings().all()
+        by_type_rows = conn.execute(by_type_query, {"season_id": season_id}).fetchall()
         
-        # 3. Por modelo
-        by_model_query = text(f"""
+        by_type = [
+            {
+                "bet_type": row.bet_type,
+                "total": row.total,
+                "hits": row.hits,
+                "accuracy_pct": float(row.accuracy_pct or 0),
+                "avg_confidence": float(row.avg_confidence or 0),
+                "profit_loss": float(row.profit_loss or 0),
+                "roi_pct": float(row.roi_pct or 0)
+            }
+            for row in by_type_rows
+        ]
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 3. STATS BY MODEL (poisson, weinston)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        by_model_query = text("""
             SELECT 
-                model,
+                bbh.model,
                 COUNT(*) as total,
-                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
-                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
-                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
-                SUM(profit_loss) as profit_loss,
-                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
-            FROM best_bets_with_results
-            WHERE {where_sql}
-            GROUP BY model
-            ORDER BY accuracy_pct DESC
+                COUNT(*) FILTER (WHERE hit = true) as hits,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    2
+                ) as accuracy_pct,
+                ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
+                COALESCE(SUM(profit_loss), 0) as profit_loss,
+                ROUND(
+                    100.0 * COALESCE(SUM(profit_loss), 0) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    2
+                ) as roi_pct
+            FROM best_bets_history bbh
+            JOIN matches m ON m.id = bbh.match_id
+            WHERE m.season_id = :season_id
+            GROUP BY bbh.model
+            ORDER BY total DESC
         """)
         
-        by_model = conn.execute(by_model_query, params).mappings().all()
+        by_model_rows = conn.execute(by_model_query, {"season_id": season_id}).fetchall()
         
-        # 4. Por ranking
-        by_rank_query = text(f"""
+        by_model = [
+            {
+                "model": row.model,
+                "total": row.total,
+                "hits": row.hits,
+                "accuracy_pct": float(row.accuracy_pct or 0),
+                "avg_confidence": float(row.avg_confidence or 0),
+                "profit_loss": float(row.profit_loss or 0),
+                "roi_pct": float(row.roi_pct or 0)
+            }
+            for row in by_model_rows
+        ]
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 4. STATS BY RANK (1, 2, 3, 4)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        by_rank_query = text("""
             SELECT 
-                rank,
+                bbh.rank,
                 COUNT(*) as total,
-                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
-                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
-                ROUND(AVG(confidence) * 100, 2) as avg_confidence,
-                ROUND(AVG(combined_score), 2) as avg_score,
-                SUM(profit_loss) as profit_loss,
-                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
-            FROM best_bets_with_results
-            WHERE {where_sql}
-            GROUP BY rank
-            ORDER BY rank
+                COUNT(*) FILTER (WHERE hit = true) as hits,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    2
+                ) as accuracy_pct,
+                ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
+                ROUND(AVG(combined_score)::numeric, 3) as avg_score,
+                COALESCE(SUM(profit_loss), 0) as profit_loss,
+                ROUND(
+                    100.0 * COALESCE(SUM(profit_loss), 0) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    2
+                ) as roi_pct
+            FROM best_bets_history bbh
+            JOIN matches m ON m.id = bbh.match_id
+            WHERE m.season_id = :season_id
+            GROUP BY bbh.rank
+            ORDER BY bbh.rank
         """)
         
-        by_rank = conn.execute(by_rank_query, params).mappings().all()
+        by_rank_rows = conn.execute(by_rank_query, {"season_id": season_id}).fetchall()
         
-        # 5. Evolución temporal (por semana)
-        evolution_query = text(f"""
+        by_rank = [
+            {
+                "rank": row.rank,
+                "total": row.total,
+                "hits": row.hits,
+                "accuracy_pct": float(row.accuracy_pct or 0),
+                "avg_confidence": float(row.avg_confidence or 0),
+                "avg_score": float(row.avg_score or 0),
+                "profit_loss": float(row.profit_loss or 0),
+                "roi_pct": float(row.roi_pct or 0)
+            }
+            for row in by_rank_rows
+        ]
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 5. EVOLUTION (últimas 8 semanas)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        evolution_query = text("""
             SELECT 
-                DATE_TRUNC('week', date) as week,
+                TO_CHAR(DATE_TRUNC('week', m.date), 'YYYY-MM-DD') as week,
                 COUNT(*) as total,
-                SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) as hits,
-                ROUND(AVG(CASE WHEN hit = TRUE THEN 1.0 ELSE 0.0 END) * 100, 2) as accuracy_pct,
-                SUM(profit_loss) as profit_loss,
-                ROUND(SUM(profit_loss) / (COUNT(*) * 10.0) * 100, 2) as roi_pct
-            FROM best_bets_with_results
-            WHERE {where_sql}
-            GROUP BY week
+                COUNT(*) FILTER (WHERE hit = true) as hits,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    2
+                ) as accuracy_pct,
+                COALESCE(SUM(profit_loss), 0) as profit_loss,
+                ROUND(
+                    100.0 * COALESCE(SUM(profit_loss), 0) / 
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    2
+                ) as roi_pct
+            FROM best_bets_history bbh
+            JOIN matches m ON m.id = bbh.match_id
+            WHERE m.season_id = :season_id
+              AND m.date >= CURRENT_DATE - INTERVAL '8 weeks'
+            GROUP BY DATE_TRUNC('week', m.date)
             ORDER BY week
         """)
         
-        evolution = conn.execute(evolution_query, params).mappings().all()
+        evolution_rows = conn.execute(evolution_query, {"season_id": season_id}).fetchall()
         
-        return {
-            "general": dict(general),
-            "by_type": [dict(row) for row in by_type],
-            "by_model": [dict(row) for row in by_model],
-            "by_rank": [dict(row) for row in by_rank],
-            "evolution": [
-                {
-                    **dict(row),
-                    "week": row["week"].strftime("%Y-%m-%d") if row["week"] else None
-                } 
-                for row in evolution
-            ]
-        }
+        evolution = [
+            {
+                "week": row.week,
+                "total": row.total,
+                "hits": row.hits,
+                "accuracy_pct": float(row.accuracy_pct or 0),
+                "profit_loss": float(row.profit_loss or 0),
+                "roi_pct": float(row.roi_pct or 0)
+            }
+            for row in evolution_rows
+        ]
+    
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # RESPONSE
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return {
+        "general": general,
+        "by_type": by_type,
+        "by_model": by_model,
+        "by_rank": by_rank,
+        "evolution": evolution
+    }
+
+
+# ============================================================================
+# NOTA: Este endpoint reemplaza el existente /api/best-bets/stats
+# Copia este código y pégalo en api.py reemplazando el endpoint anterior
+# ============================================================================
 
 # ============================================================================
 # 4. ENDPOINT: Historial de Best Bets (GET /api/best-bets/history)
