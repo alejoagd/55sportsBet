@@ -59,6 +59,9 @@ $env:ENV_FILE=".env.production"; python src\ingest_h2h_laliga.py
 #Cuando se va a subir el h2h para produccion se debe deshabilitar el load_dotenv que se encuentra en config.py y el import tambien comentarlo para que tome los valores de produccion de la bd
 #Despues de realizar ese proceso se debera volver a habilitar par que no se reviente el frontend
 
+#para calcular los datos de league parameters se ejecuta el archivo 
+#python calculate_league_parameters.py
+
 
 ------------------------------------------------------------------------------------------GUIA ORGANIZADA --------------------------
 # Guía de Comandos CLI - 55sportsBet

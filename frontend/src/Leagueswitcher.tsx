@@ -40,9 +40,12 @@ const LeagueSwitcher: React.FC<LeagueSwitcherProps> = ({
         setLeagues(data);
       } catch (error) {
         console.error('Error cargando ligas:', error);
+        // ACTUALIZADO: Fallback con las 4 ligas
         setLeagues([
-          { id: 1, name: 'Premier League', emoji: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', seasonId: 2, upcomingCount: 10 },
-          { id: 2, name: 'La Liga', emoji: '🇪🇸', seasonId: 15, upcomingCount: 9 },
+          { id: 1, name: 'Premier League', emoji: '🏴', seasonId: 7, upcomingCount: 10 },
+          { id: 2, name: 'La Liga', emoji: '🇪🇸', seasonId: 2, upcomingCount: 9 },
+          { id: 3, name: 'Serie A', emoji: '🇮🇹', seasonId: 15, upcomingCount: 10 },
+          { id: 4, name: 'Bundesliga', emoji: '🇩🇪', seasonId: 20, upcomingCount: 8 },
         ]);
       } finally {
         setLoading(false);

@@ -495,7 +495,7 @@ export default function ImprovedDashboard() {
                   📊 Dashboard de Predicciones
                 </h1>
                 <p className="text-slate-300">
-                  Premier League - Temporada 2025/2026
+                  Temporada 2025/2026
                 </p>
               </div>
               {/* ✅ SOLO MOSTRAR SI ES ADMIN */}
