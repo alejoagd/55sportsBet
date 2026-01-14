@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
 import LeagueSwitcher from './Leagueswitcher';
+
 
 
 interface Match {
@@ -46,27 +47,44 @@ interface Match {
 
 export default function ImprovedDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
   const [recentMatches, setRecentMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentLeagueId, setCurrentLeagueId] = useState(1);
-  const [seasonId, setSeasonId] = useState(2);
+
+  const leagueIdFromUrl = parseInt(searchParams.get('league') || '1', 10);
+  const [currentLeagueId, setCurrentLeagueId] = useState(leagueIdFromUrl);
+
+  const [seasonId, setSeasonId] = useState<number | null>(null);
   const { isAdmin } = useAdminMode();
+  
+  useEffect(() => {
+    const leagueFromUrl = parseInt(searchParams.get('league') || '1', 10);
+    console.log('🔄 URL changed, league from URL:', leagueFromUrl, 'current:', currentLeagueId);
+    if (leagueFromUrl !== currentLeagueId) {
+      console.log('📍 URL changed, updating league to:', leagueFromUrl);
+      setCurrentLeagueId(leagueFromUrl);
+    }
+  }, [searchParams]);
+
 
   // Actualizar season_id cuando cambia la liga
   useEffect(() => {
     const updateSeasonForLeague = async () => {
       try {
+        console.log('🔍 Fetching season_id for league:', currentLeagueId);
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         const response = await fetch(`${API_URL}/api/leagues/${currentLeagueId}`);
 
         if (response.ok) {
           const leagueData = await response.json();
+          console.log('✅ Season data:', leagueData);
           setSeasonId(leagueData.seasonId);
         }
       } catch (error) {
-        console.error('Error obteniendo season_id:', error);
+        console.error('❌ Error obteniendo season_id:', error);
       }
     };
 
@@ -74,7 +92,8 @@ export default function ImprovedDashboard() {
   }, [currentLeagueId]);
 
   useEffect(() => {
-    if (seasonId) {
+    if (seasonId && seasonId > 0) {
+      console.log('📊 Fetching data for season_id:', seasonId);
       fetchData();
     }
   }, [seasonId]);
@@ -84,6 +103,7 @@ export default function ImprovedDashboard() {
     setError(null);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      console.log('🚀 Fetching upcoming matches with season_id:', seasonId);
       const upcomingResponse = await fetch(
         `${API_URL}/api/matches/upcoming?season_id=${seasonId}&limit=10`
       );
@@ -93,9 +113,10 @@ export default function ImprovedDashboard() {
       }
       
       const upcomingData = await upcomingResponse.json();
-      console.log('Upcoming matches:', upcomingData);
+      console.log('✅ Upcoming matches loaded:', upcomingData.length);
       setUpcomingMatches(upcomingData);
 
+      console.log('🚀 Fetching recent results with season_id:', seasonId);
       const recentResponse = await fetch(
         `${API_URL}/api/matches/recent-results?season_id=${seasonId}&num_matches=20`
       );

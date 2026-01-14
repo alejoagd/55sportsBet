@@ -6,6 +6,8 @@ import H2HScoring from './H2Hscoring';
 interface MatchStats {
   match_id: number;
   date: string;
+  season_id?: number;  
+  league_id?: number;
   home_team: string;
   away_team: string;
   home_goals: number;
@@ -304,7 +306,10 @@ export default function MatchDetail() {
             <h2 className="text-red-400 text-2xl font-bold mb-4">Error</h2>
             <p className="text-red-300">{error}</p>
             <button
-              onClick={() => navigate('/')}
+                onClick={() => {
+                  const leagueId = match?.league_id || 1;
+                  navigate(`/?league=${leagueId}`);
+                }}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
             >
               Volver al Dashboard
@@ -328,7 +333,10 @@ export default function MatchDetail() {
         {/* Header del partido */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 border border-slate-600">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => {
+              const leagueId = match?.league_id || 1;
+              navigate(`/?league=${leagueId}`);
+            }}
             className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             ← Volver al Dashboard

@@ -1009,6 +1009,8 @@ def get_match_details(match_id: int):
                 m.date,
                 ht.name as home_team,
                 at.name as away_team,
+                m.season_id,
+                s.league_id,
                 m.home_goals,
                 m.away_goals,
                 m.referee,
@@ -1080,6 +1082,7 @@ def get_match_details(match_id: int):
             -- JOIN con tabla teams para obtener nombres
             JOIN teams ht ON ht.id = m.home_team_id
             JOIN teams at ON at.id = m.away_team_id
+            JOIN seasons s ON s.id = m.season_id
             -- LEFT JOIN con predicciones
             LEFT JOIN poisson_predictions pp ON pp.match_id = m.id
             LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
