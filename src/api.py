@@ -2703,12 +2703,25 @@ def validate_best_bets(season_id: int = Query(..., description="ID de la tempora
 # Para agregar en api.py (usa engine directamente, no Depends)
 # ============================================================================
 
+# ============================================================================
+# ENDPOINT CORREGIDO: /api/best-bets/stats (MULTILIGA)
+# ============================================================================
+# 
+# INSTRUCCIONES:
+# 1. Busca en api.py la línea 2706 (@app.get("/api/best-bets/stats"))
+# 2. Reemplaza TODO el endpoint (desde línea 2706 hasta 2940) con este código
+# 3. Reinicia el servidor FastAPI
+#
+# ============================================================================
+
 @app.get("/api/best-bets/stats")
 def get_best_bets_stats(
-    season_id: int = Query(..., description="Season ID")
+    season_id: Optional[int] = Query(None, description="Season ID (opcional, None = multiliga)")  # ✅ CAMBIO 1: Opcional
 ):
     """
     Retorna estadísticas completas de best bets.
+    
+    ✅ MULTILIGA: Si NO se proporciona season_id, retorna datos de TODAS las ligas.
     
     Estructura de respuesta:
     {
@@ -2744,7 +2757,8 @@ def get_best_bets_stats(
                 ) as roi_pct
             FROM best_bets_history bbh
             JOIN matches m ON m.id = bbh.match_id
-            WHERE m.season_id = :season_id
+            WHERE (:season_id IS NULL OR m.season_id = :season_id) 
+                             AND validated_at is not null
         """)
         
         general_row = conn.execute(general_query, {"season_id": season_id}).one()
@@ -2781,7 +2795,7 @@ def get_best_bets_stats(
                 ) as roi_pct
             FROM best_bets_history bbh
             JOIN matches m ON m.id = bbh.match_id
-            WHERE m.season_id = :season_id
+            WHERE (:season_id IS NULL OR m.season_id = :season_id) AND validated_at is not null
             GROUP BY bbh.bet_type
             ORDER BY total DESC
         """)
@@ -2823,7 +2837,7 @@ def get_best_bets_stats(
                 ) as roi_pct
             FROM best_bets_history bbh
             JOIN matches m ON m.id = bbh.match_id
-            WHERE m.season_id = :season_id
+            WHERE (:season_id IS NULL OR m.season_id = :season_id) AND validated_at is not null
             GROUP BY bbh.model
             ORDER BY total DESC
         """)
@@ -2866,7 +2880,7 @@ def get_best_bets_stats(
                 ) as roi_pct
             FROM best_bets_history bbh
             JOIN matches m ON m.id = bbh.match_id
-            WHERE m.season_id = :season_id
+            WHERE (:season_id IS NULL OR m.season_id = :season_id) AND validated_at is not null
             GROUP BY bbh.rank
             ORDER BY bbh.rank
         """)
@@ -2908,7 +2922,7 @@ def get_best_bets_stats(
                 ) as roi_pct
             FROM best_bets_history bbh
             JOIN matches m ON m.id = bbh.match_id
-            WHERE m.season_id = :season_id
+            WHERE (:season_id IS NULL OR m.season_id = :season_id) AND validated_at is not null
               AND m.date >= CURRENT_DATE - INTERVAL '8 weeks'
             GROUP BY DATE_TRUNC('week', m.date)
             ORDER BY week

@@ -94,7 +94,7 @@ export default function BestBetsAnalysis() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
-  const [seasonId] = useState(2);
+  // ✅ REMOVIDO: const [seasonId] = useState(2); - Ahora es MULTILIGA
   const [showHistory, setShowHistory] = useState<'all' | 'validated' | 'pending'>('validated');
 
   useEffect(() => {
@@ -107,10 +107,11 @@ export default function BestBetsAnalysis() {
     setLoading(true);
     setError(null);
     try {
-      console.log('📊 Fetching stats...');
+      console.log('📊 Fetching stats (MULTILIGA)...');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // ✅ CORREGIDO: Sin season_id para obtener datos de TODAS las ligas
       const response = await fetch(
-        `${API_URL}/api/best-bets/stats?season_id=${seasonId}`
+        `${API_URL}/api/best-bets/stats`
       );
       
       if (!response.ok) {
@@ -135,15 +136,16 @@ export default function BestBetsAnalysis() {
                             showHistory === 'validated' ? '&validated=true' : 
                             '&validated=false';
       
-      console.log('📋 Fetching history...');
+      console.log('📋 Fetching history (MULTILIGA)...');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // ✅ CORREGIDO: Sin season_id para obtener datos de TODAS las ligas
       const response = await fetch(
-        `${API_URL}/api/best-bets/history?season_id=${seasonId}&limit=50${validatedParam}`
+        `${API_URL}/api/best-bets/history?limit=50${validatedParam}`
       );
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ History:', data.length, 'registros');
+        console.log('✅ History:', data.length, 'registros (multiliga)');
         setHistory(data);
       }
     } catch (error) {
@@ -155,13 +157,14 @@ export default function BestBetsAnalysis() {
     setValidating(true);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // ✅ CORREGIDO: Sin season_id para validar TODAS las ligas
       const response = await fetch(
-        `${API_URL}/api/best-bets/validate?season_id=${seasonId}`,
+        `${API_URL}/api/best-bets/validate`,
         { method: 'POST' }
       );
       const result = await response.json();
       
-      alert(`✅ Validación completada:\n- Validadas: ${result.validated}\n- Aciertos: ${result.hits}\n- Fallos: ${result.misses}\n- Accuracy: ${result.accuracy}%`);
+      alert(`✅ Validación completada (MULTILIGA):\n- Validadas: ${result.validated}\n- Aciertos: ${result.hits}\n- Fallos: ${result.misses}\n- Accuracy: ${result.accuracy}%`);
       
       fetchStats();
       fetchHistory();
