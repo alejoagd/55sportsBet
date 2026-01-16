@@ -1,9 +1,11 @@
-date;home;away
-9/01/2026;Getafe;Sociedad
-10/01/2026;Oviedo;Betis
-10/01/2026;Villarreal;Alaves
-10/01/2026;Girona;Osasuna
-10/01/2026;Valencia;Elche
-11/01/2026;Vallecano;Mallorca
-11/01/2026;Levante;Espanol
-12/01/2026;Sevilla;Celta
+date;home;away;;
+16/01/2026;Espanol;Girona;;
+17/01/2026;Real Madrid;Levante;;
+17/01/2026;Mallorca;Ath Bilbao;;
+17/01/2026;Osasuna;Oviedo;;
+17/01/2026;Betis;Villarreal;;
+18/01/2026;Getafe;Valencia;;
+18/01/2026;Ath Madrid;Alaves;;
+18/01/2026;Celta;Vallecano;;
+18/01/2026;Sociedad;Barcelona;;
+19/01/2026;Elche;Sevilla;;
