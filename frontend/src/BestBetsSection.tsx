@@ -193,9 +193,6 @@ export default function BestBetsSection() {
         <div className="text-center text-slate-400">
           <div className="text-6xl mb-4">🎯</div>
           <div className="text-xl font-bold text-white mb-2">No hay apuestas recomendadas aún</div>
-          <div className="text-sm">
-            Las mejores apuestas se generan automáticamente al ejecutar el Flujo 6 en update_predictions.py
-          </div>
         </div>
       </div>
     );
