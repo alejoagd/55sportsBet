@@ -57,7 +57,7 @@ export default function BestBetsSection() {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       
-      // ✅ CORRECCIÓN: Sin season_id para obtener MULTILIGA
+      // Sin season_id para obtener MULTILIGA
       const response = await fetch(
         `${API_URL}/api/best-bets/history?limit=4&validated=false`
       );

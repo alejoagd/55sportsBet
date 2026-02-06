@@ -2698,22 +2698,6 @@ def validate_best_bets(season_id: int = Query(..., description="ID de la tempora
 # 3. ENDPOINT: Estadísticas de Best Bets (GET /api/best-bets/stats)
 # ============================================================================
 
-# ============================================================================
-# ENDPOINT CORREGIDO: /api/best-bets/stats
-# Para agregar en api.py (usa engine directamente, no Depends)
-# ============================================================================
-
-# ============================================================================
-# ENDPOINT CORREGIDO: /api/best-bets/stats (MULTILIGA)
-# ============================================================================
-# 
-# INSTRUCCIONES:
-# 1. Busca en api.py la línea 2706 (@app.get("/api/best-bets/stats"))
-# 2. Reemplaza TODO el endpoint (desde línea 2706 hasta 2940) con este código
-# 3. Reinicia el servidor FastAPI
-#
-# ============================================================================
-
 @app.get("/api/best-bets/stats")
 def get_best_bets_stats(
     season_id: Optional[int] = Query(None, description="Season ID (opcional, None = multiliga)")  # ✅ CAMBIO 1: Opcional
@@ -2953,11 +2937,6 @@ def get_best_bets_stats(
         "evolution": evolution
     }
 
-
-# ============================================================================
-# NOTA: Este endpoint reemplaza el existente /api/best-bets/stats
-# Copia este código y pégalo en api.py reemplazando el endpoint anterior
-# ============================================================================
 
 # ============================================================================
 # 4. ENDPOINT: Historial de Best Bets (GET /api/best-bets/history)
@@ -3455,7 +3434,7 @@ def get_betting_lines_stats(
             "window_type": window_type
         }
 
-# AGREGAR ESTE ENDPOINT DE DEBUG A TU api.py
+
 
 @router.get("/api/best-bets/debug-data")
 def debug_best_bets_data(season_id: int = Query(2)):
@@ -3542,7 +3521,7 @@ def debug_best_bets_data(season_id: int = Query(2)):
             "matches_with_weinston": len([r for r in upcoming_matches if r['tiene_weinston'] == 'SÍ'])
         }
 
-# TAMBIÉN AGREGAR ENDPOINT PARA VER PARTIDOS ESPECÍFICOS
+
 @router.get("/api/matches/by-teams")
 def get_matches_by_teams(
     home_team: str = Query(..., description="Nombre del equipo local"),

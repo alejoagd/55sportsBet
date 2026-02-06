@@ -53,7 +53,7 @@ class LeagueConfig:
     
     def get_csv_path(self, data_dir: str = "dat/raw") -> str:
         """Retorna path típico del CSV para esta liga"""
-        return f"{data_dir}/{self.csv_code}.csv"
+        return f"{data_dir}/{"fixtures_"+self.csv_code}.csv"
 
 
 class LeagueManager:
