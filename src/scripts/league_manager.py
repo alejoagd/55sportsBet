@@ -180,6 +180,10 @@ class LeagueManager:
             except ValueError:
                 print(f"{Colors.RED}❌ Formato inválido. Usa números separados por comas (ej: 1,2){Colors.END}")
     
+    def get_all_leagues(self) -> List[LeagueConfig]:
+        """Retorna todas las ligas disponibles"""
+        return self.available_leagues.copy()
+
     def get_league_by_season_id(self, season_id: int) -> Optional[LeagueConfig]:
         """Obtiene configuración de liga por season_id"""
         for config in self.available_leagues:
