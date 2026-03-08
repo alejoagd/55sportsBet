@@ -1,0 +1,179 @@
+name: Update Predictions
+
+on:
+  # Permite ejecutar manualmente desde la interfaz de GitHub
+  workflow_dispatch:
+    inputs:
+      operation_mode:
+        description: 'Modo de operación'
+        required: true
+        type: choice
+        options:
+          - 'complete'  # Flujo completo nueva jornada
+          - 'finish'    # Flujo completo post-partidos
+          - 'predict'   # Solo predicciones
+          - 'retrain'   # Solo reentrenar
+          - 'best-bets' # Solo mejores apuestas
+        default: 'complete'
+
+      date_from:
+        description: 'Fecha desde (YYYY-MM-DD)'
+        required: false
+        type: string
+
+      date_to:
+        description: 'Fecha hasta (YYYY-MM-DD)'
+        required: false
+        type: string
+
+      leagues:
+        description: 'Ligas a procesar (ej: "all" o "E0,SP1,D1,I1")'
+        required: true
+        type: string
+        default: 'all'
+
+  # Programación automática (ejecuta todos los lunes a las 3 AM UTC)
+  schedule:
+    - cron: '0 3 * * 1'  # Cada lunes a las 3 AM UTC
+
+  # También se puede activar desde otro workflow
+  repository_dispatch:
+    types: [update-predictions]
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  update-predictions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env.production file
+        run: |
+          cat > .env.production << EOF
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_SCHEMA=${{ secrets.DB_SCHEMA }}
+          API_URL=${{ secrets.API_URL }}
+          EOF
+
+      - name: Determine operation parameters
+        id: params
+        run: |
+          # Determinar modo de operación
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "mode=complete" >> $GITHUB_OUTPUT
+            echo "date_from=$(date -d 'next monday' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            echo "date_to=$(date -d 'next monday +6 days' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            echo "leagues=all" >> $GITHUB_OUTPUT
+          else
+            echo "mode=${{ inputs.operation_mode }}" >> $GITHUB_OUTPUT
+            echo "date_from=${{ inputs.date_from }}" >> $GITHUB_OUTPUT
+            echo "date_to=${{ inputs.date_to }}" >> $GITHUB_OUTPUT
+            echo "leagues=${{ inputs.leagues }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run prediction update - COMPLETE flow
+        if: steps.params.outputs.mode == 'complete'
+        env:
+          ENV_FILE: .env.production
+          OPERATION_MODE: complete
+          DATE_FROM: ${{ steps.params.outputs.date_from }}
+          DATE_TO: ${{ steps.params.outputs.date_to }}
+          LEAGUES: ${{ steps.params.outputs.leagues }}
+        run: |
+          python src/scripts/run_update_automated.py \
+            --mode complete \
+            --date-from "$DATE_FROM" \
+            --date-to "$DATE_TO" \
+            --leagues "$LEAGUES" \
+            --env-file .env.production
+
+      - name: Run prediction update - FINISH flow
+        if: steps.params.outputs.mode == 'finish'
+        env:
+          ENV_FILE: .env.production
+          OPERATION_MODE: finish
+          DATE_FROM: ${{ steps.params.outputs.date_from }}
+          DATE_TO: ${{ steps.params.outputs.date_to }}
+          LEAGUES: ${{ steps.params.outputs.leagues }}
+        run: |
+          python src/scripts/run_update_automated.py \
+            --mode finish \
+            --date-from "$DATE_FROM" \
+            --date-to "$DATE_TO" \
+            --leagues "$LEAGUES" \
+            --env-file .env.production
+
+      - name: Run prediction update - PREDICT only
+        if: steps.params.outputs.mode == 'predict'
+        env:
+          ENV_FILE: .env.production
+          DATE_FROM: ${{ steps.params.outputs.date_from }}
+          DATE_TO: ${{ steps.params.outputs.date_to }}
+          LEAGUES: ${{ steps.params.outputs.leagues }}
+        run: |
+          python src/scripts/run_update_automated.py \
+            --mode predict \
+            --date-from "$DATE_FROM" \
+            --date-to "$DATE_TO" \
+            --leagues "$LEAGUES" \
+            --env-file .env.production
+
+      - name: Run prediction update - RETRAIN only
+        if: steps.params.outputs.mode == 'retrain'
+        env:
+          ENV_FILE: .env.production
+          LEAGUES: ${{ steps.params.outputs.leagues }}
+        run: |
+          python src/scripts/run_update_automated.py \
+            --mode retrain \
+            --leagues "$LEAGUES" \
+            --env-file .env.production
+
+      - name: Run prediction update - BEST BETS only
+        if: steps.params.outputs.mode == 'best-bets'
+        env:
+          ENV_FILE: .env.production
+          DATE_FROM: ${{ steps.params.outputs.date_from }}
+          DATE_TO: ${{ steps.params.outputs.date_to }}
+          LEAGUES: ${{ steps.params.outputs.leagues }}
+        run: |
+          python src/scripts/run_update_automated.py \
+            --mode best-bets \
+            --date-from "$DATE_FROM" \
+            --date-to "$DATE_TO" \
+            --leagues "$LEAGUES" \
+            --env-file .env.production
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prediction-update-logs-${{ github.run_number }}
+          path: |
+            *.log
+            logs/**
+          retention-days: 30
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Prediction update failed. Check the logs for details."
