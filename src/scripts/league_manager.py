@@ -51,9 +51,9 @@ class LeagueConfig:
         }
         return flags.get(self.country, "⚽")
     
-    def get_csv_path(self, data_dir: str = "dat/raw") -> str:
+    def get_csv_path(self, data_dir: str = "data/raw") -> str:
         """Retorna path típico del CSV para esta liga"""
-        return f"{data_dir}/{"fixtures_"+self.csv_code}.csv"
+        return f"{data_dir}/fixtures_{self.csv_code}.csv"
 
 
 class LeagueManager:
