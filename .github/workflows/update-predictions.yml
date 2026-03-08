@@ -64,12 +64,18 @@ jobs:
 
       - name: Create .env.production file
         run: |
+          # Use DB_PASSWORD if set, otherwise use DB_PASS
+          DB_PASS_VALUE="${{ secrets.DB_PASSWORD }}"
+          if [ -z "$DB_PASS_VALUE" ]; then
+            DB_PASS_VALUE="${{ secrets.DB_PASS }}"
+          fi
+
           cat > .env.production << EOF
           DB_HOST=${{ secrets.DB_HOST }}
           DB_PORT=${{ secrets.DB_PORT }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD || secrets.DB_PASS }}
+          DB_PASSWORD=${DB_PASS_VALUE}
           DB_SCHEMA=${{ secrets.DB_SCHEMA }}
           API_URL=${{ secrets.API_URL }}
           EOF
