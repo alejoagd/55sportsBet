@@ -305,6 +305,44 @@ def generate_best_bets_auto(league_config: LeagueConfig, date_from: str, date_to
         return False
 
 
+def mode_load_results_auto(engine, league_config: LeagueConfig, env_file: str) -> bool:
+    """Modo: Cargar resultados desde CSV (versión automatizada)"""
+    print_step(f"📥 CARGAR RESULTADOS - {league_config.league_name}")
+
+    # Default CSV path
+    csv_path = f"data/raw/{league_config.csv_code}.csv"
+
+    if not os.path.exists(csv_path):
+        print_warning(f"CSV no encontrado: {csv_path}")
+        return False
+
+    print_info(f"Cargando desde: {csv_path}")
+
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
+
+    cmd = (
+        f"python -m src.ingest.load_unified {csv_path} "
+        f"--league \"{league_config.league_name}\" "
+        f"--div {league_config.csv_code} "
+        f"--season-id {league_config.season_id} "
+    )
+
+    if league_config.dayfirst:
+        cmd += "--dayfirst"
+
+    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
+
+    result = subprocess.run(cmd, shell=True, env=env)
+
+    if result.returncode == 0:
+        print_success(f"Resultados cargados para {league_config.league_name}")
+        return True
+    else:
+        print_error("Error al cargar resultados")
+        return False
+
+
 def mode_evaluate_auto(engine, league_config: LeagueConfig, date_from: str, date_to: str, env_file: str) -> bool:
     """Modo: Evaluar predicciones (versión automatizada)"""
     print_step(f"📊 EVALUAR PREDICCIONES - {league_config.league_name}")
@@ -447,11 +485,12 @@ def main():
                             success = True
 
             elif args.mode == 'finish':
-                # Flujo: EVALUATE → VALIDATE BETTING → VALIDATE BEST BETS
-                if mode_evaluate_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
-                    if validate_betting_lines_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
-                        validate_best_bets_auto(league_config, args.env_file)
-                        success = True
+                # Flujo: LOAD RESULTS → EVALUATE → VALIDATE BETTING → VALIDATE BEST BETS
+                if mode_load_results_auto(engine, league_config, args.env_file):
+                    if mode_evaluate_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
+                        if validate_betting_lines_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
+                            validate_best_bets_auto(league_config, args.env_file)
+                            success = True
 
             elif args.mode == 'predict':
                 success = mode_predict_auto(engine, league_config, args.date_from, args.date_to)
