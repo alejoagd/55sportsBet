@@ -3,7 +3,8 @@ import typer
 from typing import Optional, List
 from sqlalchemy import create_engine, text
 from src.config import settings
-from src.db import engine
+# ❌ DON'T import engine here - it loads before .env.production
+# from src.db import engine
 from src.db import SessionLocal
 from src.weinston.fit import fit_weinston, save_ratings, save_league_params
 from sqlalchemy import text
@@ -132,6 +133,9 @@ def score(
     """
     Actualiza wp.error comparando predicción vs. goles reales del match.
     """
+    # Import engine here after .env is loaded
+    from src.db import engine
+
     if metric not in {"rmse", "mae"}:
         raise typer.BadParameter("metric debe ser rmse o mae")
 
@@ -183,6 +187,9 @@ def evaluate_cmd(
     """
     Evalúa el rendimiento de las predicciones contra resultados reales.
     """
+    # Import engine here after .env is loaded
+    from src.db import engine
+
     # ✅ NUEVO: Mostrar contexto de liga
     with engine.begin() as conn:
         league_ctx = LeagueContext.from_season(conn, season_id)
@@ -380,16 +387,19 @@ def betting_lines(
     Ejemplo:
         python -m src.predictions.cli betting-lines --season-id 2 --from 2024-12-20 --to 2024-12-31
     """
+    # Import engine here after .env is loaded
+    from src.db import engine
+
     if model.lower() not in ['weinston', 'poisson']:
         typer.echo("❌ Modelo debe ser 'weinston' o 'poisson'")
         raise typer.Exit(code=1)
-    
+
     typer.echo(f"\n{'='*70}")
     typer.echo(f"  GENERANDO BETTING LINES - {model.upper()}")
     typer.echo(f"{'='*70}\n")
     typer.echo(f"Season: {season_id}")
     typer.echo(f"Rango: {date_from} a {date_to}\n")
-    
+
     with engine.begin() as conn:
         # 1. Obtener las betting lines fijas desde league_parameters
         league_params_query = text("""
@@ -637,16 +647,19 @@ def betting_lines_validate(
 ):
     """
     Valida las predicciones de líneas de apuesta contra los resultados reales
-    
+
     Ejemplo:
         python -m src.predictions.cli betting-lines-validate --season-id 2 --from 2024-12-01 --to 2024-12-31
     """
+    # Import engine here after .env is loaded
+    from src.db import engine
+
     typer.echo(f"\n{'='*70}")
     typer.echo(f"  VALIDANDO BETTING LINES")
     typer.echo(f"{'='*70}\n")
     typer.echo(f"Season: {season_id}")
     typer.echo(f"Rango: {date_from} a {date_to}\n")
-    
+
     with engine.begin() as conn:
         # Actualizar resultados reales y validar predicciones
         update_query = text("""

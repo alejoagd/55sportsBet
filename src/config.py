@@ -37,7 +37,8 @@ class Settings:
             self.DB_PORT = int(os.getenv("DB_PORT", "5432"))
             self.DB_NAME = os.getenv("DB_NAME", "postgres")
             self.DB_USER = os.getenv("DB_USER", "postgres")
-            self.DB_PASS = os.getenv("DB_PASS", "")
+            # Support both DB_PASSWORD and DB_PASS
+            self.DB_PASS = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS", "")
     
     @property
     def sqlalchemy_url(self) -> str:

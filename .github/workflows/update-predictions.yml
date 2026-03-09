@@ -63,22 +63,32 @@ jobs:
           pip install -r requirements.txt
 
       - name: Create .env.production file
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
+          API_URL: ${{ secrets.API_URL }}
         run: |
-          # Use DB_PASSWORD if set, otherwise use DB_PASS
-          DB_PASS_VALUE="${{ secrets.DB_PASSWORD }}"
-          if [ -z "$DB_PASS_VALUE" ]; then
-            DB_PASS_VALUE="${{ secrets.DB_PASS }}"
-          fi
-
-          cat > .env.production << EOF
+          cat > .env.production << 'EOF'
           DB_HOST=${{ secrets.DB_HOST }}
           DB_PORT=${{ secrets.DB_PORT }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${DB_PASS_VALUE}
+          DB_PASSWORD=${{ secrets.DB_PASS }}
           DB_SCHEMA=${{ secrets.DB_SCHEMA }}
           API_URL=${{ secrets.API_URL }}
           EOF
+
+          echo "✓ .env.production file created"
+          echo "Verifying password is set..."
+          if [ -z "$DB_PASS" ]; then
+            echo "ERROR: DB_PASS secret is not configured in GitHub!"
+            exit 1
+          fi
+          echo "✓ Password verified"
 
       - name: Determine operation parameters
         id: params
