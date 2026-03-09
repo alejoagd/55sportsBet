@@ -188,7 +188,8 @@ def run(
 
     # Verificar si el CSV tiene columna Referee
     has_referee = "Referee" in df.columns
-    typer.echo(f"ℹ️  CSV tiene columna 'Referee': {'Sí' if has_referee else 'No (se usará \"Sin arbitro\")'}")
+    referee_msg = 'Sí' if has_referee else 'No (se usará "Sin arbitro")'
+    typer.echo(f"ℹ️  CSV tiene columna 'Referee': {referee_msg}")
 
     with SessionLocal() as s:
         lg_id = _get_or_create_league(s, league)
