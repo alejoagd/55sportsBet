@@ -3851,6 +3851,7 @@ def get_best_bets_multiliga(
             LEFT JOIN betting_lines_predictions blp ON blp.match_id = m.id AND blp.model = 'weinston'
             WHERE m.home_goals IS NULL  -- Solo partidos no jugados
               AND m.date >= CURRENT_DATE
+              AND m.date <= CURRENT_DATE + INTERVAL '7 days'  -- Solo próximos 7 días
         """)
         
         # Agregar filtros de fecha si se proporcionan

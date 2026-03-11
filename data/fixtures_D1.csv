@@ -1,11 +1,82 @@
 date;home;away
-4/03/2026;Hamburg;Leverkusen
-7/03/2026;Bayern Munich;M'gladbach
-7/03/2026;Freiburg;Leverkusen
-7/03/2026;Heidenheim;Hoffenheim
-7/03/2026;Mainz;Stuttgart
-7/03/2026;RB Leipzig;Augsburg
-7/03/2026;Wolfsburg;Hamburg
-7/03/2026;FC Koln;Dortmund
-8/03/2026;St Pauli;Ein Frankfurt
-8/03/2026;Union Berlin;Werder Bremen
+13/03/2026;M'gladbach;St Pauli
+14/03/2026;Leverkusen;Bayern Munich
+14/03/2026;Hoffenheim;Wolfsburg
+14/03/2026;Dortmund;Augsburg
+14/03/2026;Ein Frankfurt;Heidenheim
+14/03/2026;Hamburg;FC Koln
+15/03/2026;Werder Bremen;Mainz
+15/03/2026;Freiburg;Union Berlin
+15/03/2026;Stuttgart;RB Leipzig
+20/03/2026;RB Leipzig;Hoffenheim
+21/03/2026;Heidenheim;Leverkusen
+21/03/2026;Wolfsburg;Werder Bremen
+21/03/2026;FC Koln;M'gladbach
+21/03/2026;Bayern Munich;Union Berlin
+21/03/2026;Dortmund;Hamburg
+22/03/2026;Mainz;Ein Frankfurt
+22/03/2026;St Pauli;Freiburg
+22/03/2026;Augsburg;Stuttgart
+4/04/2026;Freiburg;Bayern Munich
+4/04/2026;Hoffenheim;Mainz
+4/04/2026;Werder Bremen;RB Leipzig
+4/04/2026;Leverkusen;Wolfsburg
+4/04/2026;Hamburg;Augsburg
+4/04/2026;M'gladbach;Heidenheim
+4/04/2026;Stuttgart;Dortmund
+5/04/2026;Union Berlin;St Pauli
+5/04/2026;Ein Frankfurt;FC Koln
+10/04/2026;Augsburg;Hoffenheim
+11/04/2026;Dortmund;Leverkusen
+11/04/2026;Wolfsburg;Ein Frankfurt
+11/04/2026;RB Leipzig;M'gladbach
+11/04/2026;Heidenheim;Union Berlin
+11/04/2026;St Pauli;Bayern Munich
+12/04/2026;FC Koln;Werder Bremen
+12/04/2026;Stuttgart;Hamburg
+12/04/2026;Mainz;Freiburg
+17/04/2026;St Pauli;FC Koln
+18/04/2026;Werder Bremen;Hamburg
+18/04/2026;Leverkusen;Augsburg
+18/04/2026;Hoffenheim;Dortmund
+18/04/2026;Union Berlin;Wolfsburg
+18/04/2026;Ein Frankfurt;RB Leipzig
+19/04/2026;Freiburg;Heidenheim
+19/04/2026;Bayern Munich;Stuttgart
+19/04/2026;M'gladbach;Mainz
+25/04/2026;Mainz;Bayern Munich
+25/04/2026;FC Koln;Leverkusen
+25/04/2026;Augsburg;Ein Frankfurt
+25/04/2026;Dortmund;Freiburg
+25/04/2026;Stuttgart;Werder Bremen
+25/04/2026;Wolfsburg;M'gladbach
+25/04/2026;RB Leipzig;Union Berlin
+25/04/2026;Heidenheim;St Pauli
+25/04/2026;Hamburg;Hoffenheim
+2/05/2026;M'gladbach;Dortmund
+2/05/2026;St Pauli;Mainz
+2/05/2026;Leverkusen;RB Leipzig
+2/05/2026;Hoffenheim;Stuttgart
+2/05/2026;Freiburg;Wolfsburg
+2/05/2026;Werder Bremen;Augsburg
+2/05/2026;Bayern Munich;Heidenheim
+2/05/2026;Union Berlin;FC Koln
+2/05/2026;Ein Frankfurt;Hamburg
+9/05/2026;Wolfsburg;Bayern Munich
+9/05/2026;Stuttgart;Leverkusen
+9/05/2026;Dortmund;Ein Frankfurt
+9/05/2026;Hamburg;Freiburg
+9/05/2026;Hoffenheim;Werder Bremen
+9/05/2026;Augsburg;M'gladbach
+9/05/2026;Mainz;Union Berlin
+9/05/2026;RB Leipzig;St Pauli
+9/05/2026;FC Koln;Heidenheim
+16/05/2026;Werder Bremen;Dortmund
+16/05/2026;Heidenheim;Mainz
+16/05/2026;Freiburg;RB Leipzig
+16/05/2026;Ein Frankfurt;Stuttgart
+16/05/2026;St Pauli;Wolfsburg
+16/05/2026;Union Berlin;Augsburg
+16/05/2026;M'gladbach;Hoffenheim
+16/05/2026;Bayern Munich;FC Koln
+16/05/2026;Leverkusen;Hamburg

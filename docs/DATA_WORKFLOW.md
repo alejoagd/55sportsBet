@@ -4,9 +4,11 @@ This guide explains how data flows through the system in different environments.
 
 ## Data Sources
 
-The system uses CSV data from [football-data.co.uk](https://www.football-data.co.uk/).
+The system uses TWO data sources:
 
-### Available Leagues
+### 1. Historical Results: football-data.co.uk
+
+For completed matches with results and odds.
 
 | Code | League | URL Pattern |
 |------|--------|-------------|
@@ -16,6 +18,20 @@ The system uses CSV data from [football-data.co.uk](https://www.football-data.co
 | `I1` | Serie A | `https://www.football-data.co.uk/mmz4281/{season}/I1.csv` |
 
 Season format: `2425` = 2024/2025
+
+### 2. Upcoming Fixtures: API-Football
+
+For future matches to predict.
+
+| Code | League | API League ID |
+|------|--------|---------------|
+| `E0` | Premier League | 39 |
+| `SP1` | La Liga | 140 |
+| `D1` | Bundesliga | 78 |
+| `I1` | Serie A | 135 |
+
+**Note**: Requires free API key from [api-football.com](https://www.api-football.com/)
+**Free tier**: 100 requests/day (sufficient for all 4 leagues)
 
 ## Local Development Workflow
 
@@ -31,18 +47,43 @@ python src/scripts/update_predictions.py
 
 ### Automated Data Download
 
+#### Historical Results
 ```bash
 # Download latest data for all leagues
 python scripts/download-latest-data.py
 
 # Download for specific season
-python scripts/download-latest-data.py --season 2425
+python scripts/download-latest-data.py --season 2526
 
 # Download specific leagues
 python scripts/download-latest-data.py --leagues "E0,SP1"
 
 # Custom output directory
 python scripts/download-latest-data.py --output data/raw
+```
+
+#### Upcoming Fixtures
+```bash
+# Download fixtures for all leagues
+python scripts/download-fixtures.py --season 2025
+
+# Download specific leagues
+python scripts/download-fixtures.py --leagues "E0,SP1" --season 2025
+
+# Requires API key (add to .env file):
+# API_FOOTBALL_KEY=your_key_here
+```
+
+#### Quick Update (Windows)
+```bash
+# Download fixtures only
+update-fixtures.bat
+
+# Download results only
+# (not needed separately - included in update-local.bat)
+
+# Full update (results + predictions)
+update-local.bat
 ```
 
 ## GitHub Actions Workflow
@@ -64,17 +105,27 @@ The GitHub Actions pipeline **automatically downloads** fresh data before runnin
 
 1. Checkout code
 2. Install Python & dependencies
-3. ✅ Download latest CSV data ← AUTOMATIC
+
+3. ✅ Download latest CSV data (RESULTS) ← AUTOMATIC
    │
    ├─ Downloads E0.csv (Premier League)
    ├─ Downloads SP1.csv (La Liga)
    ├─ Downloads D1.csv (Bundesliga)
    └─ Downloads I1.csv (Serie A)
 
-4. Create .env.production
-5. Run prediction updates
+4. ✅ Download upcoming fixtures ← AUTOMATIC
    │
-   ├─ Load CSV → Database
+   ├─ Downloads fixtures_E0.csv (Premier League)
+   ├─ Downloads fixtures_SP1.csv (La Liga)
+   ├─ Downloads fixtures_D1.csv (Bundesliga)
+   └─ Downloads fixtures_I1.csv (Serie A)
+
+5. Create .env.production
+
+6. Run prediction updates
+   │
+   ├─ Load results CSV → Database
+   ├─ Load fixtures CSV → Database
    ├─ Generate predictions
    ├─ Create betting lines
    └─ Generate best bets

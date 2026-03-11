@@ -62,9 +62,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Download latest CSV data
+      - name: Download latest CSV data (Results)
         run: |
           python scripts/download-latest-data.py --season 2526 --leagues all
+
+      - name: Download upcoming fixtures
+        env:
+          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+        run: |
+          python scripts/download-fixtures-final.py --leagues all --output data
 
       - name: Create .env.production file
         env:
