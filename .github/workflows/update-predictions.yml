@@ -32,9 +32,10 @@ on:
         type: string
         default: 'all'
 
-  # Programación automática (ejecuta todos los lunes a las 3 AM UTC)
+  # Programación automática
   schedule:
-    - cron: '0 3 * * 1'  # Cada lunes a las 3 AM UTC
+    - cron: '0 20 * * 2'  # Martes a las 8 PM UTC - Workflow FINISH
+    - cron: '0 16 * * 3'  # Miércoles a las 4 PM UTC - Workflow COMPLETE
 
   # También se puede activar desde otro workflow
   repository_dispatch:
@@ -105,11 +106,54 @@ jobs:
         run: |
           # Determinar modo de operación
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "mode=complete" >> $GITHUB_OUTPUT
-            echo "date_from=$(date -d 'next monday' +%Y-%m-%d)" >> $GITHUB_OUTPUT
-            echo "date_to=$(date -d 'next monday +6 days' +%Y-%m-%d)" >> $GITHUB_OUTPUT
-            echo "leagues=all" >> $GITHUB_OUTPUT
+            # Detectar día de la semana (1=lunes, 2=martes, 3=miércoles, etc.)
+            DAY_OF_WEEK=$(date +%u)
+
+            if [ "$DAY_OF_WEEK" = "2" ]; then
+              # ════════════════════════════════════════════════════════════════
+              # MARTES 8 PM UTC - FINISH WORKFLOW
+              # ════════════════════════════════════════════════════════════════
+              # Procesa partidos jugados en los últimos 7 días
+              # - Descarga resultados actualizados de football-data.co.uk
+              # - Actualiza partidos en BD con resultados nuevos
+              # - Evalúa precisión de predicciones
+              # - Valida betting lines
+              # ════════════════════════════════════════════════════════════════
+              echo "mode=finish" >> $GITHUB_OUTPUT
+              echo "date_from=$(date -d '7 days ago' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+              echo "date_to=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+              echo "leagues=all" >> $GITHUB_OUTPUT
+              echo "📅 FINISH: Procesando partidos desde $(date -d '7 days ago' +%Y-%m-%d) hasta $(date +%Y-%m-%d)"
+
+            elif [ "$DAY_OF_WEEK" = "3" ]; then
+              # ════════════════════════════════════════════════════════════════
+              # MIÉRCOLES 4 PM UTC - COMPLETE WORKFLOW
+              # ════════════════════════════════════════════════════════════════
+              # Genera predicciones para próximos 7 días
+              # - Descarga fixtures actualizados de football-data.org
+              # - Carga nuevos fixtures en BD (UPSERT - sin duplicados)
+              # - Reentrena modelos con datos actualizados
+              # - Genera predicciones para próximos 7 días
+              # - Calcula betting lines
+              # - Identifica best bets
+              # ════════════════════════════════════════════════════════════════
+              echo "mode=complete" >> $GITHUB_OUTPUT
+              echo "date_from=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+              echo "date_to=$(date -d '+7 days' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+              echo "leagues=all" >> $GITHUB_OUTPUT
+              echo "📅 COMPLETE: Predicciones desde $(date +%Y-%m-%d) hasta $(date -d '+7 days' +%Y-%m-%d)"
+
+            else
+              # Fallback (no debería ocurrir en schedule, pero por seguridad)
+              echo "mode=complete" >> $GITHUB_OUTPUT
+              echo "date_from=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+              echo "date_to=$(date -d '+7 days' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+              echo "leagues=all" >> $GITHUB_OUTPUT
+            fi
           else
+            # ════════════════════════════════════════════════════════════════
+            # EJECUCIÓN MANUAL - Usar parámetros de entrada del usuario
+            # ════════════════════════════════════════════════════════════════
             echo "mode=${{ inputs.operation_mode }}" >> $GITHUB_OUTPUT
             echo "date_from=${{ inputs.date_from }}" >> $GITHUB_OUTPUT
             echo "date_to=${{ inputs.date_to }}" >> $GITHUB_OUTPUT
