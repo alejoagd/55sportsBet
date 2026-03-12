@@ -69,11 +69,12 @@ export default function BestBetsSection() {
       }
       
       const data: BestBet[] = await response.json();
-      
+
       console.log('✅ Best bets recibidas:', data);
-      
-      // Ordenar por rank
-      const sorted = data.sort((a, b) => a.rank - b.rank);
+
+      // Ordenar por combined_score DESC (mayor score primero)
+      // El backend ya debería ordenar correctamente, pero esto es una doble verificación
+      const sorted = data.sort((a, b) => b.combined_score - a.combined_score);
       setTopBets(sorted);
       
     } catch (error) {

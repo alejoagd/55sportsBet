@@ -3013,7 +3013,7 @@ def get_best_bets_history(
             LEFT JOIN seasons s ON s.id = bbh.season_id
             LEFT JOIN leagues l ON l.id = s.league_id
             WHERE {where_sql}
-            ORDER BY bbh.rank ASC ,bbh.date DESC
+            ORDER BY bbh.combined_score DESC, bbh.date DESC
             LIMIT :limit
         """)
         
