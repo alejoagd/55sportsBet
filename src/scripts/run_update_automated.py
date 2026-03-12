@@ -343,6 +343,43 @@ def mode_load_results_auto(engine, league_config: LeagueConfig, env_file: str) -
         return False
 
 
+def mode_load_fixtures_auto(league_config: LeagueConfig, env_file: str) -> bool:
+    """Modo: Cargar fixtures desde CSV (versión automatizada)"""
+    print_step(f"📥 CARGAR FIXTURES - {league_config.league_name}")
+
+    # Default fixtures CSV path
+    fixtures_path = f"data/fixtures_{league_config.csv_code}.csv"
+
+    if not os.path.exists(fixtures_path):
+        print_warning(f"CSV de fixtures no encontrado: {fixtures_path}")
+        return False
+
+    print_info(f"Cargando fixtures desde: {fixtures_path}")
+
+    env = os.environ.copy()
+    env['ENV_FILE'] = env_file
+
+    cmd = (
+        f"python -m src.fixtures.cli bulk {fixtures_path} "
+        f"--season-id {league_config.season_id} "
+        f"--league \"{league_config.league_name}\""
+    )
+
+    if league_config.dayfirst:
+        cmd += " --dayfirst"
+
+    print(f"\n{Colors.CYAN}🔄 Ejecutando: {cmd}{Colors.END}")
+
+    result = subprocess.run(cmd, shell=True, env=env)
+
+    if result.returncode == 0:
+        print_success(f"Fixtures cargados para {league_config.league_name}")
+        return True
+    else:
+        print_error("Error al cargar fixtures")
+        return False
+
+
 def mode_evaluate_auto(engine, league_config: LeagueConfig, date_from: str, date_to: str, env_file: str) -> bool:
     """Modo: Evaluar predicciones (versión automatizada)"""
     print_step(f"📊 EVALUAR PREDICCIONES - {league_config.league_name}")
@@ -477,12 +514,13 @@ def main():
 
         try:
             if args.mode == 'complete':
-                # Flujo: RETRAIN → PREDICT → BETTING LINES → BEST BETS
-                if mode_retrain_auto(engine, league_config, args.env_file):
-                    if mode_predict_auto(engine, league_config, args.date_from, args.date_to):
-                        if generate_betting_lines_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
-                            generate_best_bets_auto(league_config, args.date_from, args.date_to, args.env_file)
-                            success = True
+                # Flujo: LOAD FIXTURES → RETRAIN → PREDICT → BETTING LINES → BEST BETS
+                if mode_load_fixtures_auto(league_config, args.env_file):
+                    if mode_retrain_auto(engine, league_config, args.env_file):
+                        if mode_predict_auto(engine, league_config, args.date_from, args.date_to):
+                            if generate_betting_lines_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
+                                generate_best_bets_auto(league_config, args.date_from, args.date_to, args.env_file)
+                                success = True
 
             elif args.mode == 'finish':
                 # Flujo: LOAD RESULTS → EVALUATE → VALIDATE BETTING → VALIDATE BEST BETS
