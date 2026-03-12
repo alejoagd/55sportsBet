@@ -551,21 +551,29 @@ def betting_lines(
             SCALE_CARDS = 1.5
             SCALE_FOULS = 5.0
 
-            # Calcular márgenes (qué tanto se aleja de la línea en la dirección predicha)
-            shots_margin = predicted_shots - shots_line if predicted_shots > shots_line else shots_line - predicted_shots
-            shots_ot_margin = predicted_shots_ot - shots_ot_line if predicted_shots_ot > shots_ot_line else shots_ot_line - predicted_shots_ot
-            corners_margin = predicted_corners - corners_line if predicted_corners > corners_line else corners_line - predicted_corners
-            cards_margin = predicted_cards - cards_line if predicted_cards > cards_line else cards_line - predicted_cards
-            fouls_margin = predicted_fouls - fouls_line if predicted_fouls > fouls_line else fouls_line - predicted_fouls
+            # Calcular márgenes absolutos (distancia de la línea)
+            shots_margin = abs(predicted_shots - shots_line)
+            shots_ot_margin = abs(predicted_shots_ot - shots_ot_line)
+            corners_margin = abs(predicted_corners - corners_line)
+            cards_margin = abs(predicted_cards - cards_line)
+            fouls_margin = abs(predicted_fouls - fouls_line)
 
-            # Calcular confidence basado en el margen
-            # Fórmula: min(margen / (escala * 0.5), 1.0) * 0.8 + 0.1
-            # Esto da un rango de 10% a 90% (evita 0% y 100%)
-            shots_confidence = min(max(shots_margin / (SCALE_SHOTS * 0.5), 0.0), 1.0) * 0.8 + 0.1
-            shots_ot_confidence = min(max(shots_ot_margin / (SCALE_SHOTS_OT * 0.5), 0.0), 1.0) * 0.8 + 0.1
-            corners_confidence = min(max(corners_margin / (SCALE_CORNERS * 0.5), 0.0), 1.0) * 0.8 + 0.1
-            cards_confidence = min(max(cards_margin / (SCALE_CARDS * 0.5), 0.0), 1.0) * 0.8 + 0.1
-            fouls_confidence = min(max(fouls_margin / (SCALE_FOULS * 0.5), 0.0), 1.0) * 0.8 + 0.1
+            # ═══════════════════════════════════════════════════════════════════
+            # NUEVA FÓRMULA DE CONFIDENCE (MEJORADA)
+            # ═══════════════════════════════════════════════════════════════════
+            # Problema anterior: margin pequeño = confidence muy baja
+            # Solución: Base confidence de 40% cuando estamos cerca de la línea,
+            #           aumenta hasta 85% cuando estamos lejos
+            #
+            # Fórmula: 0.40 + (margin / scale) * 0.45
+            # Resultado: 40% (cerca) → 85% (lejos)
+            # ═══════════════════════════════════════════════════════════════════
+
+            shots_confidence = min(0.40 + (shots_margin / SCALE_SHOTS) * 0.45, 0.85)
+            shots_ot_confidence = min(0.40 + (shots_ot_margin / SCALE_SHOTS_OT) * 0.45, 0.85)
+            corners_confidence = min(0.40 + (corners_margin / SCALE_CORNERS) * 0.45, 0.85)
+            cards_confidence = min(0.40 + (cards_margin / SCALE_CARDS) * 0.45, 0.85)
+            fouls_confidence = min(0.40 + (fouls_margin / SCALE_FOULS) * 0.45, 0.85)
             
             # Insertar o actualizar en betting_lines_predictions
             insert_query = text("""
