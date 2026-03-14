@@ -3436,6 +3436,208 @@ def get_betting_lines_stats(
 
 
 
+@app.get("/api/betting-lines/stats-by-league")
+def get_betting_lines_stats_by_league(
+    date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    leagues: Optional[str] = Query(None, description="Ligas separadas por coma (ej: 'D1,E0,I1,SP1)')"),
+    test_mode: bool = Query(False, description="Modo de prueba con datos de ejemplo")
+):
+    """
+    Endpoint para estadísticas de betting lines agrupadas por liga
+    Retorna estadísticas detalladas para cada liga y cada tipo de apuesta
+    """
+
+    # Modo de prueba con datos de ejemplo
+    print(f"🔍 DEBUG: test_mode = {test_mode}")
+
+    if test_mode:
+        print("🔍 DEBUG: Returning test data")
+        return {
+            "stats_by_league": [
+                {
+                    "league_name": "Premier League",
+                    "league_code": "Premier League",
+                    "league_emoji": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+                    "total_matches": 100,
+                    "overall_accuracy": 65.5,
+                    "stats": {
+                        "TIROS": {"hit": 62, "miss": 38, "total": 100, "accuracy": 62.0},
+                        "TIROS AL ARCO": {"hit": 58, "miss": 42, "total": 100, "accuracy": 58.0},
+                        "CORNERS": {"hit": 70, "miss": 30, "total": 100, "accuracy": 70.0},
+                        "TARJETAS": {"hit": 65, "miss": 35, "total": 100, "accuracy": 65.0},
+                        "FALTAS": {"hit": 72, "miss": 28, "total": 100, "accuracy": 72.0}
+                    }
+                },
+                {
+                    "league_name": "La Liga",
+                    "league_code": "La Liga",
+                    "league_emoji": "🇪🇸",
+                    "total_matches": 95,
+                    "overall_accuracy": 63.2,
+                    "stats": {
+                        "TIROS": {"hit": 60, "miss": 35, "total": 95, "accuracy": 63.2},
+                        "TIROS AL ARCO": {"hit": 55, "miss": 40, "total": 95, "accuracy": 57.9},
+                        "CORNERS": {"hit": 68, "miss": 27, "total": 95, "accuracy": 71.6},
+                        "TARJETAS": {"hit": 62, "miss": 33, "total": 95, "accuracy": 65.3},
+                        "FALTAS": {"hit": 70, "miss": 25, "total": 95, "accuracy": 73.7}
+                    }
+                }
+            ],
+            "total_leagues": 2,
+            "date_from": date_from,
+            "date_to": date_to
+        }
+
+    try:
+        with engine.begin() as conn:
+            where_clauses = ["blp.actual_total_shots IS NOT NULL"]
+            params = {}
+
+            if date_from:
+                where_clauses.append("m.date >= :date_from")
+                params["date_from"] = date_from
+            if date_to:
+                where_clauses.append("m.date <= :date_to")
+                params["date_to"] = date_to
+
+            if leagues:
+                league_list = [l.strip() for l in leagues.split(',')]
+                placeholders = ', '.join([f':league_{i}' for i in range(len(league_list))])
+                where_clauses.append(f"l.code IN ({placeholders})")
+                for i, league in enumerate(league_list):
+                    params[f'league_{i}'] = league
+
+            where_sql = " AND ".join(where_clauses)
+
+            print(f"🔍 DEBUG: where_sql = {where_sql}")
+            print(f"🔍 DEBUG: params = {params}")
+
+            # Query para estadísticas por liga y tipo de apuesta
+            stats_query = text(f"""
+            SELECT
+                l.name as league_name,
+                l.id as league_id,
+
+                -- SHOTS
+                COUNT(*) as total_matches,
+                SUM(CASE WHEN blp.shots_hit THEN 1 ELSE 0 END) as shots_hit,
+                SUM(CASE WHEN NOT blp.shots_hit THEN 1 ELSE 0 END) as shots_miss,
+                ROUND(AVG(CASE WHEN blp.shots_hit THEN 100.0 ELSE 0.0 END), 1) as shots_accuracy,
+
+                -- SHOTS ON TARGET
+                SUM(CASE WHEN blp.shots_on_target_hit THEN 1 ELSE 0 END) as shots_ot_hit,
+                SUM(CASE WHEN NOT blp.shots_on_target_hit THEN 1 ELSE 0 END) as shots_ot_miss,
+                ROUND(AVG(CASE WHEN blp.shots_on_target_hit THEN 100.0 ELSE 0.0 END), 1) as shots_ot_accuracy,
+
+                -- CORNERS
+                SUM(CASE WHEN blp.corners_hit THEN 1 ELSE 0 END) as corners_hit,
+                SUM(CASE WHEN NOT blp.corners_hit THEN 1 ELSE 0 END) as corners_miss,
+                ROUND(AVG(CASE WHEN blp.corners_hit THEN 100.0 ELSE 0.0 END), 1) as corners_accuracy,
+
+                -- CARDS
+                SUM(CASE WHEN blp.cards_hit THEN 1 ELSE 0 END) as cards_hit,
+                SUM(CASE WHEN NOT blp.cards_hit THEN 1 ELSE 0 END) as cards_miss,
+                ROUND(AVG(CASE WHEN blp.cards_hit THEN 100.0 ELSE 0.0 END), 1) as cards_accuracy,
+
+                -- FOULS
+                SUM(CASE WHEN blp.fouls_hit THEN 1 ELSE 0 END) as fouls_hit,
+                SUM(CASE WHEN NOT blp.fouls_hit THEN 1 ELSE 0 END) as fouls_miss,
+                ROUND(AVG(CASE WHEN blp.fouls_hit THEN 100.0 ELSE 0.0 END), 1) as fouls_accuracy,
+
+                -- OVERALL
+                ROUND(AVG(
+                    (CASE WHEN blp.shots_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.shots_on_target_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.corners_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.cards_hit THEN 1.0 ELSE 0.0 END +
+                     CASE WHEN blp.fouls_hit THEN 1.0 ELSE 0.0 END) / 5.0 * 100
+                ), 1) as overall_accuracy
+
+            FROM betting_lines_predictions blp
+            JOIN matches m ON m.id = blp.match_id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            WHERE {where_sql}
+            GROUP BY l.name, l.id
+            ORDER BY l.name
+            """)
+
+            print(f"🔍 DEBUG: Executing query...")
+            stats = conn.execute(stats_query, params).mappings().all()
+            print(f"🔍 DEBUG: Query returned {len(stats)} rows")
+
+            # Mapeo de emojis por nombre de liga
+            league_emojis = {
+                "Bundesliga": "🇩🇪",
+                "La Liga": "🇪🇸",
+                "Premier League": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+                "Serie A": "🇮🇹"
+            }
+
+            # Formatear datos para el frontend
+            result = []
+            for row in stats:
+                league_name = row.league_name
+                league_data = {
+                    "league_name": league_name,
+                    "league_code": league_name,  # Use name as code since code column doesn't exist
+                    "league_emoji": league_emojis.get(league_name, "⚽"),
+                    "total_matches": row.total_matches,
+                    "overall_accuracy": row.overall_accuracy,
+                    "stats": {
+                        "TIROS": {
+                            "hit": row.shots_hit,
+                            "miss": row.shots_miss,
+                            "total": row.total_matches,
+                            "accuracy": row.shots_accuracy
+                        },
+                        "TIROS AL ARCO": {
+                            "hit": row.shots_ot_hit,
+                            "miss": row.shots_ot_miss,
+                            "total": row.total_matches,
+                            "accuracy": row.shots_ot_accuracy
+                        },
+                        "CORNERS": {
+                            "hit": row.corners_hit,
+                            "miss": row.corners_miss,
+                            "total": row.total_matches,
+                            "accuracy": row.corners_accuracy
+                        },
+                        "TARJETAS": {
+                            "hit": row.cards_hit,
+                            "miss": row.cards_miss,
+                            "total": row.total_matches,
+                            "accuracy": row.cards_accuracy
+                        },
+                        "FALTAS": {
+                            "hit": row.fouls_hit,
+                            "miss": row.fouls_miss,
+                            "total": row.total_matches,
+                            "accuracy": row.fouls_accuracy
+                        }
+                    }
+                }
+                result.append(league_data)
+
+            return {
+                "stats_by_league": result,
+                "total_leagues": len(result),
+                "date_from": date_from,
+                "date_to": date_to
+            }
+
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"❌ Error in /api/betting-lines/stats-by-league: {str(e)}")
+        print(error_detail)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching betting lines stats: {str(e)}"
+        )
+
+
 @router.get("/api/best-bets/debug-data")
 def debug_best_bets_data(season_id: int = Query(2)):
     """

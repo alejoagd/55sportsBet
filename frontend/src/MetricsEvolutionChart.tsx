@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import BestBetsAnalysis from './BestBetsAnalysis';
+import BettingLinesStats from './BettingLinesStats';
 
 // Interfaces de TypeScript
 interface MetricData {
@@ -58,7 +59,7 @@ interface Trend {
 
 export default function MetricsEvolutionChart() {
   // 🎯 NUEVO: State para tabs
-  const [activeTab, setActiveTab] = useState<'metrics' | 'best-bets'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'best-bets' | 'betting-lines'>('metrics');
   
   const [data, setData] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -122,11 +123,51 @@ export default function MetricsEvolutionChart() {
             >
               🎯 Análisis de Best Bets
             </button>
+            <button
+              onClick={() => setActiveTab('betting-lines')}
+              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
+            >
+              📊 Estadísticas Betting Lines
+            </button>
           </div>
         </div>
 
         {/* Contenido de Best Bets */}
         <BestBetsAnalysis />
+      </div>
+    );
+  }
+
+  // 🎯 Si estamos en tab de Betting Lines, renderizar ese componente
+  if (activeTab === 'betting-lines') {
+    return (
+      <div className="min-h-screen bg-slate-900 p-6">
+        {/* Header con tabs */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <div className="flex gap-4 border-b border-slate-700">
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
+            >
+              📈 Evolución de Métricas
+            </button>
+            <button
+              onClick={() => setActiveTab('best-bets')}
+              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
+            >
+              🎯 Análisis de Best Bets
+            </button>
+            <button
+              onClick={() => setActiveTab('betting-lines')}
+              className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-blue-500"
+            >
+              📊 Estadísticas Betting Lines
+            </button>
+          </div>
+        </div>
+
+        {/* Contenido de Betting Lines Stats */}
+        <BettingLinesStats />
       </div>
     );
   }
@@ -217,6 +258,12 @@ export default function MetricsEvolutionChart() {
             className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
           >
             🎯 Análisis de Best Bets
+          </button>
+          <button
+            onClick={() => setActiveTab('betting-lines')}
+            className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
+          >
+            📊 Estadísticas Betting Lines
           </button>
         </div>
       </div>
