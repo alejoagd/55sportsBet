@@ -544,50 +544,51 @@ export default function BestBetsAnalysis() {
             </div>
           ) : (
             history.map((bet) => (
-              <div key={bet.id} className={`rounded-lg p-4 border ${
+              <div key={bet.id} className={`rounded-lg p-3 sm:p-4 border ${
                 bet.hit === null ? 'bg-slate-900/30 border-slate-700' :
                 bet.hit ? 'bg-green-900/20 border-green-500/30' :
                 'bg-red-900/20 border-red-500/30'
               }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex-1 w-full">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-yellow-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-xs sm:text-sm flex-shrink-0">
                         #{bet.rank}
                       </div>
-                      <div>
-                        <div className="text-white font-semibold">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold text-sm sm:text-base truncate">
                           {bet.home_team} vs {bet.away_team}
                         </div>
                         <div className="text-slate-400 text-xs">
-                          {new Date(bet.date).toLocaleDateString('es-ES', { 
-                            weekday: 'short', day: '2-digit', month: 'short' 
+                          {new Date(bet.date).toLocaleDateString('es-ES', {
+                            weekday: 'short', day: '2-digit', month: 'short'
                           })}
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
                       <div>
                         <div className="text-slate-400 text-xs">Apuesta</div>
-                        <div className="text-white font-semibold">
-                          {bet.prediction} ({getBetTypeLabel(bet.bet_type)})
+                        <div className="text-white font-semibold text-xs sm:text-sm truncate">
+                          {bet.prediction}
                         </div>
+                        <div className="text-slate-500 text-xs">({getBetTypeLabel(bet.bet_type)})</div>
                       </div>
                       <div>
                         <div className="text-slate-400 text-xs">Modelo</div>
-                        <div className="text-white capitalize">{bet.model}</div>
+                        <div className="text-white capitalize text-xs sm:text-sm">{bet.model}</div>
                       </div>
                       <div>
                         <div className="text-slate-400 text-xs">Confianza</div>
-                        <div className="text-white">{(bet.confidence * 100).toFixed(0)}%</div>
+                        <div className="text-white text-xs sm:text-sm">{(bet.confidence * 100).toFixed(0)}%</div>
                       </div>
                       <div>
                         <div className="text-slate-400 text-xs">Odds</div>
-                        <div className="text-white">{bet.odds?.toFixed(2) || 'N/A'}</div>
+                        <div className="text-white text-xs sm:text-sm">{bet.odds?.toFixed(2) || 'N/A'}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right ml-4">
+                  <div className="text-center sm:text-right w-full sm:w-auto sm:ml-4 flex-shrink-0">
                     {bet.hit === null ? (
                       <div className="text-slate-400">⏳ Pendiente</div>
                     ) : bet.hit ? (
