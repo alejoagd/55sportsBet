@@ -302,7 +302,8 @@ export default function BettingLinesStats() {
           {/* H2H Score Tables by League */}
           {Object.entries(h2hData.h2h_effectiveness).map(([leagueName, stats]) => {
             const leagueEmoji = data?.stats_by_league.find(l => l.league_name === leagueName)?.league_emoji || '⚽';
-            const statTypes = ['GOLES', 'TIROS', 'TIROS AL ARCO', 'CORNERS', 'TARJETAS', 'FALTAS'] as const;
+            // Note: GOLES excluded because goals hit/miss data not available in betting_lines_predictions
+            const statTypes = ['TIROS', 'TIROS AL ARCO', 'CORNERS', 'TARJETAS', 'FALTAS'] as const;
 
             return (
               <div key={leagueName} className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
