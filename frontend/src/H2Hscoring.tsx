@@ -252,44 +252,97 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
           <h4 className="text-slate-300 text-sm font-semibold mb-3">
             📊 Leyenda del Sistema de Scoring:
           </h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-green-500 rounded text-white flex items-center justify-center font-bold text-xs">
-                10+
+
+          {/* Explicación del sistema */}
+          <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+            <h5 className="text-blue-300 font-semibold text-xs mb-2">🎯 ¿Cómo funciona el H2H Scoring?</h5>
+            <p className="text-slate-300 text-xs leading-relaxed">
+              El sistema analiza los <span className="font-bold text-white">últimos 12 enfrentamientos directos</span> entre
+              estos equipos y cuenta cuántas veces la predicción actual se ha acertado en el pasado.
+            </p>
+          </div>
+
+          {/* Niveles de confianza */}
+          <div className="mb-4">
+            <h5 className="text-slate-300 font-semibold text-xs mb-2">📈 Niveles de Confianza:</h5>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500 rounded text-white flex items-center justify-center font-bold text-xs">
+                  10+
+                </div>
+                <span className="text-slate-300">
+                  <span className="font-bold text-green-400">MUY ALTA</span><br/>
+                  <span className="text-slate-400">(80%+)</span>
+                </span>
               </div>
-              <span className="text-slate-400">MUY ALTA (80%+)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-green-400 rounded text-white flex items-center justify-center font-bold text-xs">
-                8+
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-400 rounded text-white flex items-center justify-center font-bold text-xs">
+                  8-9
+                </div>
+                <span className="text-slate-300">
+                  <span className="font-bold text-green-300">ALTA</span><br/>
+                  <span className="text-slate-400">(65-79%)</span>
+                </span>
               </div>
-              <span className="text-slate-400">ALTA (65%+)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-yellow-500 rounded text-black flex items-center justify-center font-bold text-xs">
-                6+
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-yellow-500 rounded text-black flex items-center justify-center font-bold text-xs">
+                  6-7
+                </div>
+                <span className="text-slate-300">
+                  <span className="font-bold text-yellow-400">MEDIA</span><br/>
+                  <span className="text-slate-400">(50-64%)</span>
+                </span>
               </div>
-              <span className="text-slate-400">MEDIA (50%+)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-orange-500 rounded text-white flex items-center justify-center font-bold text-xs">
-                4+
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-orange-500 rounded text-white flex items-center justify-center font-bold text-xs">
+                  4-5
+                </div>
+                <span className="text-slate-300">
+                  <span className="font-bold text-orange-400">BAJA</span><br/>
+                  <span className="text-slate-400">(33-49%)</span>
+                </span>
               </div>
-              <span className="text-slate-400">BAJA (33%+)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-red-500 rounded text-white flex items-center justify-center font-bold text-xs">
-                &lt;4
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-red-500 rounded text-white flex items-center justify-center font-bold text-xs">
+                  &lt;4
+                </div>
+                <span className="text-slate-300">
+                  <span className="font-bold text-red-400">MUY BAJA</span><br/>
+                  <span className="text-slate-400">(&lt;33%)</span>
+                </span>
               </div>
-              <span className="text-slate-400">MUY BAJA (&lt;33%)</span>
             </div>
           </div>
-          
-          <div className="mt-3 pt-3 border-t border-slate-700">
-            <p className="text-slate-400 text-xs">
-              💡 <span className="font-semibold">Score = Aciertos en H2H.</span> 
-              {" "}Ejemplo: Si en 12 enfrentamientos anteriores, la predicción OVER 10.5 Corners
-              {" "}acertó 9 veces, el score es 9 (75% de confianza).
+
+          {/* Ejemplo práctico */}
+          <div className="pt-3 border-t border-slate-700">
+            <h5 className="text-slate-300 font-semibold text-xs mb-2">💡 Ejemplo Práctico:</h5>
+            <div className="space-y-2 text-xs">
+              <p className="text-slate-300 leading-relaxed">
+                <span className="font-bold text-white">Predicción:</span> OVER 9.3 Corners Totales
+              </p>
+              <p className="text-slate-300 leading-relaxed">
+                <span className="font-bold text-white">Análisis H2H:</span> En los últimos 12 enfrentamientos directos,
+                hubo más de 9.3 corners en <span className="font-bold text-green-400">9 partidos</span>
+              </p>
+              <p className="text-slate-300 leading-relaxed">
+                <span className="font-bold text-white">Resultado:</span> Score = <span className="bg-green-500 px-2 py-0.5 rounded font-bold text-white">9</span>
+                {" "}→ Confianza <span className="font-bold text-green-400">ALTA (75%)</span>
+              </p>
+              <p className="text-slate-400 text-xs italic mt-2">
+                ⚠️ Nota: Un score alto indica que históricamente esta predicción ha acertado en enfrentamientos
+                directos anteriores, pero no garantiza el resultado futuro.
+              </p>
+            </div>
+          </div>
+
+          {/* Cálculo de confianza general */}
+          <div className="mt-4 pt-3 border-t border-slate-700">
+            <h5 className="text-slate-300 font-semibold text-xs mb-2">🔢 Confianza General:</h5>
+            <p className="text-slate-300 text-xs leading-relaxed">
+              La <span className="font-bold text-yellow-400">Confianza General</span> (mostrada arriba) es el promedio
+              de todas las estadísticas analizadas. Valores altos (7+) indican que múltiples predicciones tienen
+              un buen historial en enfrentamientos directos.
             </p>
           </div>
         </div>
