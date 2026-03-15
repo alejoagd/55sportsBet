@@ -52,7 +52,10 @@ def calculate_h2h_scoring(
         # 4. Calcular confianza general
         scores = [result["score"] for result in scoring_results.values() if result["score"] is not None]
         overall_confidence = sum(scores) / len(scores) if scores else 0
-        
+
+        # 5. Guardar en base de datos
+        save_h2h_scoring_to_db(match_id, scoring_results, round(overall_confidence, 2))
+
         return {
             "match_id": match_id,
             "total_h2h_matches": len(h2h_matches),
@@ -419,15 +422,102 @@ def _calculate_scoring_by_stat(
     
     return results
 
+def save_h2h_scoring_to_db(
+    match_id: int,
+    scoring_results: Dict[str, Any],
+    overall_confidence: float
+) -> bool:
+    """
+    Guarda los resultados del H2H scoring en la base de datos.
+
+    Args:
+        match_id: ID del partido
+        scoring_results: Resultados del scoring (output de _calculate_scoring_by_stat)
+        overall_confidence: Confianza promedio general
+
+    Returns:
+        True si se guardó exitosamente, False en caso contrario
+    """
+    try:
+        with engine.begin() as conn:
+            # Preparar datos para inserción
+            data = {
+                "match_id": match_id,
+                "overall_confidence": overall_confidence
+            }
+
+            # Goles
+            if "goles" in scoring_results and scoring_results["goles"]["score"] is not None:
+                data["goles_score"] = scoring_results["goles"]["score"]
+                data["goles_prediction"] = scoring_results["goles"]["prediction"]
+                data["goles_hit"] = None  # Se actualizará después del partido
+
+            # Tiros
+            if "tiros" in scoring_results and scoring_results["tiros"]["score"] is not None:
+                data["tiros_score"] = scoring_results["tiros"]["score"]
+                data["tiros_prediction"] = scoring_results["tiros"]["prediction"]
+                data["tiros_hit"] = None
+
+            # Tiros al arco
+            if "tiros_al_arco" in scoring_results and scoring_results["tiros_al_arco"]["score"] is not None:
+                data["tiros_al_arco_score"] = scoring_results["tiros_al_arco"]["score"]
+                data["tiros_al_arco_prediction"] = scoring_results["tiros_al_arco"]["prediction"]
+                data["tiros_al_arco_hit"] = None
+
+            # Corners
+            if "corners" in scoring_results and scoring_results["corners"]["score"] is not None:
+                data["corners_score"] = scoring_results["corners"]["score"]
+                data["corners_prediction"] = scoring_results["corners"]["prediction"]
+                data["corners_hit"] = None
+
+            # Tarjetas
+            if "tarjetas" in scoring_results and scoring_results["tarjetas"]["score"] is not None:
+                data["tarjetas_score"] = scoring_results["tarjetas"]["score"]
+                data["tarjetas_prediction"] = scoring_results["tarjetas"]["prediction"]
+                data["tarjetas_hit"] = None
+
+            # Faltas
+            if "faltas" in scoring_results and scoring_results["faltas"]["score"] is not None:
+                data["faltas_score"] = scoring_results["faltas"]["score"]
+                data["faltas_prediction"] = scoring_results["faltas"]["prediction"]
+                data["faltas_hit"] = None
+
+            # Construir query de inserción/actualización
+            columns = ", ".join(data.keys())
+            placeholders = ", ".join([f":{key}" for key in data.keys()])
+
+            # Update set clause (excluir match_id del UPDATE)
+            update_cols = [key for key in data.keys() if key != "match_id"]
+            update_set = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_cols])
+
+            query = text(f"""
+                INSERT INTO h2h_scoring ({columns})
+                VALUES ({placeholders})
+                ON CONFLICT (match_id)
+                DO UPDATE SET
+                    {update_set},
+                    updated_at = NOW()
+            """)
+
+            conn.execute(query, data)
+            return True
+
+    except Exception as e:
+        print(f"❌ Error saving H2H scoring to DB for match {match_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def get_league_effectiveness_stats(season_id: int, min_score: int = 8) -> Dict[str, Any]:
     """
-    Calcula estadísticas de efectividad por liga y por puntuación, 
+    Calcula estadísticas de efectividad por liga y por puntuación,
     similar a lo que muestras en la imagen 1.
-    
+
     Args:
         season_id: ID de la temporada
         min_score: Puntuación mínima para considerar "alta confianza" (default: 8)
-    
+
     Returns:
         {
             "by_stat": {
@@ -447,7 +537,7 @@ def get_league_effectiveness_stats(season_id: int, min_score: int = 8) -> Dict[s
     # Esta función se implementaría para analizar todos los partidos ya jugados
     # y generar las estadísticas como las de tu imagen 1
     # Por ahora devuelvo un placeholder
-    
+
     return {
         "by_stat": {
             "corners": [

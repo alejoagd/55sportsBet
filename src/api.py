@@ -3644,8 +3644,13 @@ def get_h2h_score_effectiveness_by_league(
     date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)")
 ):
     """
-    Endpoint para obtener la efectividad del H2H Score agrupado por liga y estadística
-    Muestra la precisión de cada score (0-13) para cada tipo de apuesta
+    Endpoint para obtener la efectividad del H2H Score agrupado por liga y estadística.
+    Muestra la precisión de cada score (0-12) para cada tipo de apuesta.
+
+    El H2H Score representa cuántas veces de los últimos 12 enfrentamientos directos
+    la predicción actual hubiera sido correcta.
+
+    Usa la tabla h2h_scoring que almacena los scores calculados.
     """
 
     try:
@@ -3660,117 +3665,122 @@ def get_h2h_score_effectiveness_by_league(
                 where_clauses.append("m.date <= :date_to")
                 params["date_to"] = date_to
 
-            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            where_sql = " AND " + " AND ".join(where_clauses) if where_clauses else ""
 
             # Query para obtener efectividad del H2H Score por liga, estadística y score
+            # Lee desde la tabla h2h_scoring
             query = text(f"""
-                WITH h2h_data AS (
-                    SELECT
-                        l.name as league_name,
-                        m.match_id,
-                        m.date,
-
-                        -- Scores y resultados de cada estadística
-                        h2h.goles_score,
-                        h2h.goles_hit,
-
-                        h2h.tiros_score,
-                        h2h.tiros_hit,
-
-                        h2h.tiros_al_arco_score,
-                        h2h.tiros_al_arco_hit,
-
-                        h2h.corners_score,
-                        h2h.corners_hit,
-
-                        h2h.tarjetas_score,
-                        h2h.tarjetas_hit,
-
-                        h2h.faltas_score,
-                        h2h.faltas_hit
-
-                    FROM matches m
-                    JOIN seasons s ON s.id = m.season_id
-                    JOIN leagues l ON l.id = s.league_id
-                    LEFT JOIN h2h_scoring h2h ON h2h.match_id = m.match_id
-                    WHERE {where_sql}
-                    AND h2h.match_id IS NOT NULL
-                )
+                -- GOLES
                 SELECT
-                    league_name,
+                    l.name as league_name,
                     'GOLES' as stat_type,
-                    goles_score as score,
+                    h2h.goles_score as score,
                     COUNT(*) as total,
-                    SUM(CASE WHEN goles_hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(AVG(CASE WHEN goles_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
-                FROM h2h_data
-                WHERE goles_score IS NOT NULL
-                GROUP BY league_name, goles_score
+                    SUM(CASE WHEN h2h.goles_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.goles_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.goles_score IS NOT NULL
+                AND h2h.goles_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.goles_score
 
                 UNION ALL
 
+                -- TIROS
                 SELECT
-                    league_name,
+                    l.name as league_name,
                     'TIROS' as stat_type,
-                    tiros_score as score,
+                    h2h.tiros_score as score,
                     COUNT(*) as total,
-                    SUM(CASE WHEN tiros_hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(AVG(CASE WHEN tiros_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
-                FROM h2h_data
-                WHERE tiros_score IS NOT NULL
-                GROUP BY league_name, tiros_score
+                    SUM(CASE WHEN h2h.tiros_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.tiros_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.tiros_score IS NOT NULL
+                AND h2h.tiros_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.tiros_score
 
                 UNION ALL
 
+                -- TIROS AL ARCO
                 SELECT
-                    league_name,
+                    l.name as league_name,
                     'TIROS AL ARCO' as stat_type,
-                    tiros_al_arco_score as score,
+                    h2h.tiros_al_arco_score as score,
                     COUNT(*) as total,
-                    SUM(CASE WHEN tiros_al_arco_hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(AVG(CASE WHEN tiros_al_arco_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
-                FROM h2h_data
-                WHERE tiros_al_arco_score IS NOT NULL
-                GROUP BY league_name, tiros_al_arco_score
+                    SUM(CASE WHEN h2h.tiros_al_arco_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.tiros_al_arco_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.tiros_al_arco_score IS NOT NULL
+                AND h2h.tiros_al_arco_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.tiros_al_arco_score
 
                 UNION ALL
 
+                -- CORNERS
                 SELECT
-                    league_name,
+                    l.name as league_name,
                     'CORNERS' as stat_type,
-                    corners_score as score,
+                    h2h.corners_score as score,
                     COUNT(*) as total,
-                    SUM(CASE WHEN corners_hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(AVG(CASE WHEN corners_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
-                FROM h2h_data
-                WHERE corners_score IS NOT NULL
-                GROUP BY league_name, corners_score
+                    SUM(CASE WHEN h2h.corners_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.corners_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.corners_score IS NOT NULL
+                AND h2h.corners_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.corners_score
 
                 UNION ALL
 
+                -- TARJETAS
                 SELECT
-                    league_name,
+                    l.name as league_name,
                     'TARJETAS' as stat_type,
-                    tarjetas_score as score,
+                    h2h.tarjetas_score as score,
                     COUNT(*) as total,
-                    SUM(CASE WHEN tarjetas_hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(AVG(CASE WHEN tarjetas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
-                FROM h2h_data
-                WHERE tarjetas_score IS NOT NULL
-                GROUP BY league_name, tarjetas_score
+                    SUM(CASE WHEN h2h.tarjetas_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.tarjetas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.tarjetas_score IS NOT NULL
+                AND h2h.tarjetas_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.tarjetas_score
 
                 UNION ALL
 
+                -- FALTAS
                 SELECT
-                    league_name,
+                    l.name as league_name,
                     'FALTAS' as stat_type,
-                    faltas_score as score,
+                    h2h.faltas_score as score,
                     COUNT(*) as total,
-                    SUM(CASE WHEN faltas_hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(AVG(CASE WHEN faltas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
-                FROM h2h_data
-                WHERE faltas_score IS NOT NULL
-                GROUP BY league_name, faltas_score
+                    SUM(CASE WHEN h2h.faltas_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.faltas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.faltas_score IS NOT NULL
+                AND h2h.faltas_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.faltas_score
 
                 ORDER BY league_name, stat_type, score
             """)
