@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS h2h_scoring (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
 
-    -- Foreign key
-    CONSTRAINT fk_match FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE,
+    -- Foreign key - references matches.id (not match_id)
+    CONSTRAINT fk_match FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
 
     -- Unique constraint: one H2H scoring per match
     CONSTRAINT unique_h2h_per_match UNIQUE (match_id)

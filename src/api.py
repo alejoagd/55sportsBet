@@ -3679,7 +3679,7 @@ def get_h2h_score_effectiveness_by_league(
                     SUM(CASE WHEN h2h.goles_hit THEN 1 ELSE 0 END) as hits,
                     ROUND(AVG(CASE WHEN h2h.goles_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
                 FROM h2h_scoring h2h
-                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN matches m ON m.id = h2h.match_id
                 JOIN seasons s ON s.id = m.season_id
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.goles_score IS NOT NULL
@@ -3698,7 +3698,7 @@ def get_h2h_score_effectiveness_by_league(
                     SUM(CASE WHEN h2h.tiros_hit THEN 1 ELSE 0 END) as hits,
                     ROUND(AVG(CASE WHEN h2h.tiros_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
                 FROM h2h_scoring h2h
-                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN matches m ON m.id = h2h.match_id
                 JOIN seasons s ON s.id = m.season_id
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.tiros_score IS NOT NULL
@@ -3717,7 +3717,7 @@ def get_h2h_score_effectiveness_by_league(
                     SUM(CASE WHEN h2h.tiros_al_arco_hit THEN 1 ELSE 0 END) as hits,
                     ROUND(AVG(CASE WHEN h2h.tiros_al_arco_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
                 FROM h2h_scoring h2h
-                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN matches m ON m.id = h2h.match_id
                 JOIN seasons s ON s.id = m.season_id
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.tiros_al_arco_score IS NOT NULL
@@ -3736,7 +3736,7 @@ def get_h2h_score_effectiveness_by_league(
                     SUM(CASE WHEN h2h.corners_hit THEN 1 ELSE 0 END) as hits,
                     ROUND(AVG(CASE WHEN h2h.corners_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
                 FROM h2h_scoring h2h
-                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN matches m ON m.id = h2h.match_id
                 JOIN seasons s ON s.id = m.season_id
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.corners_score IS NOT NULL
@@ -3755,7 +3755,7 @@ def get_h2h_score_effectiveness_by_league(
                     SUM(CASE WHEN h2h.tarjetas_hit THEN 1 ELSE 0 END) as hits,
                     ROUND(AVG(CASE WHEN h2h.tarjetas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
                 FROM h2h_scoring h2h
-                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN matches m ON m.id = h2h.match_id
                 JOIN seasons s ON s.id = m.season_id
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.tarjetas_score IS NOT NULL
@@ -3774,7 +3774,7 @@ def get_h2h_score_effectiveness_by_league(
                     SUM(CASE WHEN h2h.faltas_hit THEN 1 ELSE 0 END) as hits,
                     ROUND(AVG(CASE WHEN h2h.faltas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
                 FROM h2h_scoring h2h
-                JOIN matches m ON m.match_id = h2h.match_id
+                JOIN matches m ON m.id = h2h.match_id
                 JOIN seasons s ON s.id = m.season_id
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.faltas_score IS NOT NULL
