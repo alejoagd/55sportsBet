@@ -187,11 +187,11 @@ export default function ImprovedDashboard() {
       <div
         key={match.match_id}
         onClick={() => navigate(`/match/${match.match_id}`)}
-        className="bg-slate-800 rounded-lg p-4 hover:bg-slate-700/50 transition-colors border border-slate-700 cursor-pointer"
+        className="bg-slate-800 rounded-lg p-3 sm:p-4 hover:bg-slate-700/50 transition-colors border border-slate-700 cursor-pointer"
       >
         {/* Fecha */}
         <div className="flex items-center justify-between mb-3">
-          <span className="text-slate-400 text-sm">
+          <span className="text-slate-400 text-xs sm:text-sm">
             {formatMatchDate(match.date)}
           </span>
           {showResult && (
@@ -202,28 +202,28 @@ export default function ImprovedDashboard() {
         </div>
 
         {/* Equipos y Resultado */}
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center mb-4">
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center mb-4">
           <div className="text-right">
-            <div className="text-white font-bold text-lg">{match.home_team}</div>
+            <div className="text-white font-bold text-sm sm:text-base md:text-lg truncate">{match.home_team}</div>
           </div>
 
-          <div className="flex flex-col items-center gap-1 min-w-[80px]">
+          <div className="flex flex-col items-center gap-1 min-w-[60px] sm:min-w-[80px]">
             {showResult && match.actual_home_goals !== undefined ? (
-              <div className="text-3xl font-bold text-white">
+              <div className="text-2xl sm:text-3xl font-bold text-white">
                 {match.actual_home_goals} - {match.actual_away_goals}
               </div>
             ) : (
-              <div className="text-slate-400 text-sm font-semibold">vs</div>
+              <div className="text-slate-400 text-xs sm:text-sm font-semibold">vs</div>
             )}
           </div>
 
           <div className="text-left">
-            <div className="text-white font-bold text-lg">{match.away_team}</div>
+            <div className="text-white font-bold text-sm sm:text-base md:text-lg truncate">{match.away_team}</div>
           </div>
         </div>
 
         {/* Predicciones */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Poisson */}
           <div className="bg-slate-900/50 rounded p-3 border border-blue-500/20">
             <div className="flex items-center justify-between mb-2">

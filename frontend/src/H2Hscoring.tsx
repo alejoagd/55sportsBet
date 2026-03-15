@@ -127,26 +127,26 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
   return (
     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg border border-purple-500/30 overflow-hidden">
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="p-4 sm:p-6 border-b border-slate-700 bg-slate-800/50">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="p-2 bg-purple-500/20 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-purple-400" />
+              <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-purple-400">
+              <h3 className="text-lg sm:text-xl font-bold text-purple-400">
                 🎯 H2H Scoring System
               </h3>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-400 text-xs sm:text-sm">
                 Análisis basado en {data.total_h2h_matches} enfrentamientos directos
               </p>
             </div>
           </div>
-          
+
           {/* Confianza General */}
-          <div className="text-right">
+          <div className="text-left sm:text-right w-full sm:w-auto">
             <div className="text-xs text-slate-400 mb-1">Confianza General</div>
-            <div className={`px-3 py-1 rounded-lg font-bold text-sm ${
+            <div className={`px-3 py-1 rounded-lg font-bold text-sm inline-block ${
               data.overall_confidence >= 8 ? 'bg-green-500/20 text-green-400' :
               data.overall_confidence >= 6 ? 'bg-yellow-500/20 text-yellow-400' :
               data.overall_confidence >= 4 ? 'bg-orange-500/20 text-orange-400' :
@@ -159,7 +159,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
       </div>
 
       {/* Tabla de Scoring */}
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

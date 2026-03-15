@@ -513,7 +513,7 @@ export default function MatchDetail() {
               {(match.total_shots || match.total_corners || match.total_fouls || match.total_cards) && (
                 <div className="col-span-2 mt-4 pt-4 border-t border-slate-700">
                   <h3 className="text-slate-400 text-sm font-semibold mb-3">Totales del Partido</h3>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {match.total_shots && (
                       <div className="bg-slate-900/50 rounded-lg p-3 text-center">
                         <div className="text-slate-400 text-xs mb-1">Tiros Totales</div>
@@ -546,9 +546,9 @@ export default function MatchDetail() {
         )}
 
         {/* Predicciones */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Poisson */}
-          <div className="bg-slate-800 rounded-lg p-6 border border-blue-500/20">
+          <div className="bg-slate-800 rounded-lg p-4 sm:p-6 border border-blue-500/20">
             <h3 className="text-xl font-bold text-blue-400 mb-4">Predicción Poisson</h3>
             
             <div className="space-y-3">

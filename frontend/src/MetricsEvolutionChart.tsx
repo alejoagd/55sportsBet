@@ -243,25 +243,25 @@ export default function MetricsEvolutionChart() {
   const weinstonTrend = getTrend(`weinston_${selectedMetric.replace('acc_', '').replace('_pct', '')}`);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6">
+    <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
       {/* 🎯 Header con tabs */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <div className="flex gap-4 border-b border-slate-700">
+      <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
+        <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
           <button
             onClick={() => setActiveTab('metrics')}
-            className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-blue-500"
+            className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-white border-b-2 border-blue-500 whitespace-nowrap text-sm sm:text-base"
           >
-            📈 Evolución de Métricas
+            📈 <span className="hidden sm:inline">Evolución de </span>Métricas
           </button>
           <button
             onClick={() => setActiveTab('best-bets')}
-            className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
+            className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base"
           >
-            🎯 Análisis de Best Bets
+            🎯 <span className="hidden sm:inline">Análisis de </span>Best Bets
           </button>
           <button
             onClick={() => setActiveTab('betting-lines')}
-            className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
+            className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base"
           >
             📊 Estadísticas Betting Lines
           </button>

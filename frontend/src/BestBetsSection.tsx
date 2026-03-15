@@ -202,32 +202,32 @@ export default function BestBetsSection() {
   const leagueStats = getLeagueStats();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-lg p-6 border border-green-500/30">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-4xl">🎯</span>
+      <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-lg p-4 sm:p-6 border border-green-500/30">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-3xl sm:text-4xl">🎯</span>
             <div>
-              <h2 className="text-2xl font-bold text-white">
+              <h2 className="text-xl sm:text-2xl font-bold text-white">
                 Top 4 Apuestas Recomendadas
                 {Object.keys(leagueStats).length > 1 && (
-                  <span className="ml-2 text-sm font-normal text-green-400">✨ Multiliga</span>
+                  <span className="ml-2 text-xs sm:text-sm font-normal text-green-400">✨ Multiliga</span>
                 )}
               </h2>
-              <p className="text-slate-400 text-sm">
-                {Object.keys(leagueStats).length > 1 
-                  ? 'Análisis de todas las ligas disponibles' 
+              <p className="text-slate-400 text-xs sm:text-sm">
+                {Object.keys(leagueStats).length > 1
+                  ? 'Análisis de todas las ligas disponibles'
                   : 'Mejores apuestas de la semana'}
               </p>
             </div>
           </div>
-          
+
           <AdminOnly hideCompletely={true}>
             <button
               onClick={refreshAnalysis}
               disabled={refreshing}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white rounded-lg transition-colors text-sm font-semibold"
+              className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white rounded-lg transition-colors text-sm font-semibold"
             >
               {refreshing ? '⏳ Actualizando...' : '🔄 Actualizar'}
             </button>
@@ -236,10 +236,10 @@ export default function BestBetsSection() {
 
         {/* Estadísticas de ligas */}
         {Object.keys(leagueStats).length > 0 && (
-          <div className="flex gap-3 flex-wrap">
-            <div className="text-slate-400 text-sm font-semibold">Ligas:</div>
+          <div className="flex gap-2 sm:gap-3 flex-wrap">
+            <div className="text-slate-400 text-xs sm:text-sm font-semibold">Ligas:</div>
             {Object.entries(leagueStats).map(([league, count]) => (
-              <div key={league} className="bg-slate-800/50 rounded-full px-3 py-1 text-sm">
+              <div key={league} className="bg-slate-800/50 rounded-full px-2 sm:px-3 py-1 text-xs sm:text-sm">
                 <span className="text-white font-semibold">{league || 'Liga'}</span>
                 <span className="text-slate-400 ml-1">({count})</span>
               </div>
@@ -252,43 +252,43 @@ export default function BestBetsSection() {
       <ScoreRangeEffectiveness seasonId={topBets[0]?.season_id || 2} />
 
       {/* Top 4 Apuestas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {topBets.map((bet) => (
           <div
             key={bet.id}
             onClick={() => navigate(`/match/${bet.match_id}`)}
-            className={`relative bg-slate-800 rounded-lg p-6 border-2 cursor-pointer hover:scale-[1.02] transition-transform ${getScoreBgColor(bet.combined_score)}`}
+            className={`relative bg-slate-800 rounded-lg p-4 sm:p-6 border-2 cursor-pointer hover:scale-[1.02] transition-transform ${getScoreBgColor(bet.combined_score)}`}
           >
             {/* Badge de ranking */}
-            <div className="absolute -top-3 -left-3 w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-lg">
-              <span className="text-slate-900 font-bold text-xl">#{bet.rank}</span>
+            <div className="absolute -top-3 -left-3 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-lg">
+              <span className="text-slate-900 font-bold text-lg sm:text-xl">#{bet.rank}</span>
             </div>
 
             {/* Info de liga (si existe) */}
             {bet.league && (
-              <div className="absolute -top-2 -right-2 bg-slate-900 border border-slate-700 rounded-full px-3 py-1 text-xs font-bold shadow-lg flex items-center gap-1">
+              <div className="absolute -top-2 -right-2 bg-slate-900 border border-slate-700 rounded-full px-2 sm:px-3 py-1 text-xs font-bold shadow-lg flex items-center gap-1">
                 {bet.league_emoji && <span>{bet.league_emoji}</span>}
-                <span className="text-white">{bet.league}</span>
+                <span className="text-white text-xs">{bet.league}</span>
               </div>
             )}
 
             {/* Fecha */}
-            <div className="text-right text-slate-400 text-sm mb-3 mt-2">
+            <div className="text-right text-slate-400 text-xs sm:text-sm mb-3 mt-2">
               {formatMatchDate(bet.date)}
             </div>
 
             {/* Equipos */}
             <div className="text-center mb-4">
-              <div className="text-2xl font-bold text-white mb-1">
-                {bet.home_team} <span className="text-slate-500">vs</span> {bet.away_team}
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-1 leading-tight">
+                {bet.home_team} <span className="text-slate-500 text-base sm:text-lg">vs</span> {bet.away_team}
               </div>
             </div>
 
             {/* Predicción */}
-            <div className="bg-slate-900/50 rounded-lg p-4 mb-4">
+            <div className="bg-slate-900/50 rounded-lg p-3 sm:p-4 mb-4">
               <div className="text-center">
-                <div className="text-slate-400 text-sm mb-1">Apuesta Recomendada</div>
-                <div className="text-2xl font-bold text-green-400 mb-2">
+                <div className="text-slate-400 text-xs sm:text-sm mb-1">Apuesta Recomendada</div>
+                <div className="text-xl sm:text-2xl font-bold text-green-400 mb-2">
                   {bet.prediction}
                 </div>
                 <div className="text-slate-400 text-xs">
@@ -298,7 +298,7 @@ export default function BestBetsSection() {
             </div>
 
             {/* Métricas */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <div className="bg-slate-900/50 rounded-lg p-3 text-center">
                 <div className="text-slate-400 text-xs mb-1">Score</div>
                 <div className={`text-xl font-bold ${getScoreColor(bet.combined_score)}`}>
