@@ -29,13 +29,34 @@ interface BettingLinesStatsResponse {
   date_to: string | null;
 }
 
+interface H2HScoreData {
+  score: number;
+  total: number;
+  hits: number;
+  misses: number;
+  accuracy: number;
+}
+
+interface H2HEffectivenessResponse {
+  h2h_effectiveness: {
+    [league: string]: {
+      [statType: string]: H2HScoreData[];
+    };
+  };
+  total_leagues: number;
+  date_from: string | null;
+  date_to: string | null;
+}
+
 export default function BettingLinesStats() {
   const [data, setData] = useState<BettingLinesStatsResponse | null>(null);
+  const [h2hData, setH2hData] = useState<H2HEffectivenessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
+    fetchH2HEffectiveness();
   }, []);
 
   const fetchStats = async () => {
@@ -59,6 +80,26 @@ export default function BettingLinesStats() {
       setError(error instanceof Error ? error.message : 'Error desconocido');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchH2HEffectiveness = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+      const response = await fetch(`${API_URL}/api/h2h-score/effectiveness-by-league`);
+
+      if (!response.ok) {
+        console.warn('H2H effectiveness data not available');
+        return;
+      }
+
+      const result: H2HEffectivenessResponse = await response.json();
+      setH2hData(result);
+
+    } catch (error) {
+      console.error('Error fetching H2H effectiveness:', error);
+      // Don't set error state - this is optional data
     }
   };
 
@@ -241,6 +282,101 @@ export default function BettingLinesStats() {
           </div>
         </div>
       </div>
+
+      {/* H2H Score Effectiveness Section */}
+      {h2hData && Object.keys(h2hData.h2h_effectiveness).length > 0 && (
+        <>
+          {/* Section Header */}
+          <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg p-6 border border-purple-500/30 mt-8">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-4xl">📈</span>
+              <div>
+                <h3 className="text-2xl font-bold text-white">Efectividad del H2H Score</h3>
+                <p className="text-slate-400 text-sm">
+                  Análisis detallado de precisión por score (0-13) para cada estadística
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* H2H Score Tables by League */}
+          {Object.entries(h2hData.h2h_effectiveness).map(([leagueName, stats]) => {
+            const leagueEmoji = data?.stats_by_league.find(l => l.league_name === leagueName)?.league_emoji || '⚽';
+            const statTypes = ['GOLES', 'TIROS', 'TIROS AL ARCO', 'CORNERS', 'TARJETAS', 'FALTAS'] as const;
+
+            return (
+              <div key={leagueName} className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                {/* League Header */}
+                <div className="bg-gradient-to-r from-slate-700 to-slate-800 p-4 border-b border-slate-600">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{leagueEmoji}</span>
+                    <h4 className="text-xl font-bold text-white">{leagueName}</h4>
+                  </div>
+                </div>
+
+                {/* Stats Tables Grid */}
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {statTypes.map(statType => {
+                    const statData = stats[statType];
+                    if (!statData || statData.length === 0) return null;
+
+                    // Sort by score ascending
+                    const sortedData = [...statData].sort((a, b) => a.score - b.score);
+
+                    return (
+                      <div key={statType} className="bg-slate-900/50 rounded-lg border border-slate-700 overflow-hidden">
+                        {/* Stat Type Header */}
+                        <div className="bg-slate-800 px-3 py-2 border-b border-slate-700">
+                          <h5 className="text-white font-semibold text-sm">{statType}</h5>
+                        </div>
+
+                        {/* Score Table */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-slate-800/50">
+                                <th className="px-2 py-2 text-left text-slate-400 font-semibold">Score</th>
+                                <th className="px-2 py-2 text-center text-slate-400 font-semibold">✓</th>
+                                <th className="px-2 py-2 text-center text-slate-400 font-semibold">✗</th>
+                                <th className="px-2 py-2 text-center text-slate-400 font-semibold">Total</th>
+                                <th className="px-2 py-2 text-center text-slate-400 font-semibold">%</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sortedData.map((scoreData, index) => (
+                                <tr
+                                  key={scoreData.score}
+                                  className={`border-t border-slate-700/30 ${
+                                    index % 2 === 0 ? 'bg-slate-800/20' : ''
+                                  }`}
+                                >
+                                  <td className="px-2 py-2 text-white font-mono font-bold">{scoreData.score}</td>
+                                  <td className="px-2 py-2 text-center text-green-400 font-semibold">{scoreData.hits}</td>
+                                  <td className="px-2 py-2 text-center text-red-400 font-semibold">{scoreData.misses}</td>
+                                  <td className="px-2 py-2 text-center text-slate-300">{scoreData.total}</td>
+                                  <td className="px-2 py-2 text-center">
+                                    <span
+                                      className={`font-bold ${getAccuracyColor(scoreData.accuracy)} px-2 py-0.5 rounded ${getAccuracyBgColor(
+                                        scoreData.accuracy
+                                      )}`}
+                                    >
+                                      {scoreData.accuracy.toFixed(1)}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }

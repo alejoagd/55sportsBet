@@ -3638,6 +3638,184 @@ def get_betting_lines_stats_by_league(
         )
 
 
+@app.get("/api/h2h-score/effectiveness-by-league")
+def get_h2h_score_effectiveness_by_league(
+    date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)")
+):
+    """
+    Endpoint para obtener la efectividad del H2H Score agrupado por liga y estadística
+    Muestra la precisión de cada score (0-13) para cada tipo de apuesta
+    """
+
+    try:
+        with engine.begin() as conn:
+            where_clauses = []
+            params = {}
+
+            if date_from:
+                where_clauses.append("m.date >= :date_from")
+                params["date_from"] = date_from
+            if date_to:
+                where_clauses.append("m.date <= :date_to")
+                params["date_to"] = date_to
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # Query para obtener efectividad del H2H Score por liga, estadística y score
+            query = text(f"""
+                WITH h2h_data AS (
+                    SELECT
+                        l.name as league_name,
+                        m.match_id,
+                        m.date,
+
+                        -- Scores y resultados de cada estadística
+                        h2h.goles_score,
+                        h2h.goles_hit,
+
+                        h2h.tiros_score,
+                        h2h.tiros_hit,
+
+                        h2h.tiros_al_arco_score,
+                        h2h.tiros_al_arco_hit,
+
+                        h2h.corners_score,
+                        h2h.corners_hit,
+
+                        h2h.tarjetas_score,
+                        h2h.tarjetas_hit,
+
+                        h2h.faltas_score,
+                        h2h.faltas_hit
+
+                    FROM matches m
+                    JOIN seasons s ON s.id = m.season_id
+                    JOIN leagues l ON l.id = s.league_id
+                    LEFT JOIN h2h_scoring h2h ON h2h.match_id = m.match_id
+                    WHERE {where_sql}
+                    AND h2h.match_id IS NOT NULL
+                )
+                SELECT
+                    league_name,
+                    'GOLES' as stat_type,
+                    goles_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN goles_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN goles_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_data
+                WHERE goles_score IS NOT NULL
+                GROUP BY league_name, goles_score
+
+                UNION ALL
+
+                SELECT
+                    league_name,
+                    'TIROS' as stat_type,
+                    tiros_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN tiros_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN tiros_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_data
+                WHERE tiros_score IS NOT NULL
+                GROUP BY league_name, tiros_score
+
+                UNION ALL
+
+                SELECT
+                    league_name,
+                    'TIROS AL ARCO' as stat_type,
+                    tiros_al_arco_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN tiros_al_arco_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN tiros_al_arco_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_data
+                WHERE tiros_al_arco_score IS NOT NULL
+                GROUP BY league_name, tiros_al_arco_score
+
+                UNION ALL
+
+                SELECT
+                    league_name,
+                    'CORNERS' as stat_type,
+                    corners_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN corners_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN corners_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_data
+                WHERE corners_score IS NOT NULL
+                GROUP BY league_name, corners_score
+
+                UNION ALL
+
+                SELECT
+                    league_name,
+                    'TARJETAS' as stat_type,
+                    tarjetas_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN tarjetas_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN tarjetas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_data
+                WHERE tarjetas_score IS NOT NULL
+                GROUP BY league_name, tarjetas_score
+
+                UNION ALL
+
+                SELECT
+                    league_name,
+                    'FALTAS' as stat_type,
+                    faltas_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN faltas_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN faltas_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_data
+                WHERE faltas_score IS NOT NULL
+                GROUP BY league_name, faltas_score
+
+                ORDER BY league_name, stat_type, score
+            """)
+
+            results = conn.execute(query, params).mappings().all()
+
+            # Organizar datos por liga y estadística
+            data_by_league = {}
+
+            for row in results:
+                league = row.league_name
+                stat_type = row.stat_type
+
+                if league not in data_by_league:
+                    data_by_league[league] = {}
+
+                if stat_type not in data_by_league[league]:
+                    data_by_league[league][stat_type] = []
+
+                data_by_league[league][stat_type].append({
+                    "score": row.score,
+                    "total": row.total,
+                    "hits": row.hits,
+                    "misses": row.total - row.hits,
+                    "accuracy": row.accuracy
+                })
+
+            return {
+                "h2h_effectiveness": data_by_league,
+                "total_leagues": len(data_by_league),
+                "date_from": date_from,
+                "date_to": date_to
+            }
+
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"❌ Error in /api/h2h-score/effectiveness-by-league: {str(e)}")
+        print(error_detail)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching H2H score effectiveness: {str(e)}"
+        )
+
+
 @router.get("/api/best-bets/debug-data")
 def debug_best_bets_data(season_id: int = Query(2)):
     """
