@@ -323,7 +323,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
               </p>
               <p className="text-slate-300 leading-relaxed">
                 <span className="font-bold text-white">Análisis H2H:</span> En los últimos 12 enfrentamientos directos,
-                hubo más de 9.3 corners en <span className="font-bold text-green-400">9 partidos</span>
+                hubo más de 9.5 corners en <span className="font-bold text-green-400">9 partidos</span>
               </p>
               <p className="text-slate-300 leading-relaxed">
                 <span className="font-bold text-white">Resultado:</span> Score = <span className="bg-green-500 px-2 py-0.5 rounded font-bold text-white">9</span>
