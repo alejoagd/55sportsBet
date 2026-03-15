@@ -319,7 +319,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
             <h5 className="text-slate-300 font-semibold text-xs mb-2">💡 Ejemplo Práctico:</h5>
             <div className="space-y-2 text-xs">
               <p className="text-slate-300 leading-relaxed">
-                <span className="font-bold text-white">Predicción:</span> OVER 9.3 Corners Totales
+                <span className="font-bold text-white">Predicción:</span> OVER 9.5 Corners Totales
               </p>
               <p className="text-slate-300 leading-relaxed">
                 <span className="font-bold text-white">Análisis H2H:</span> En los últimos 12 enfrentamientos directos,
