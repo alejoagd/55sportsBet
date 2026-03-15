@@ -308,8 +308,8 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
                     </p>
                   </div>
                   
-                  <div className="bg-white/5 rounded-lg overflow-hidden border border-slate-700">
-                    <div className="divide-y divide-slate-700">
+                  <div className="bg-white/5 rounded-lg overflow-x-auto border border-slate-700">
+                    <div className="divide-y divide-slate-700 min-w-[600px]">
                       {data.h2h_home.map((match: any, index: number) => (
                         <HistoricalMatchRow
                           key={match.id || index}
@@ -336,8 +336,8 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
                     </p>
                   </div>
                   
-                  <div className="bg-white/5 rounded-lg overflow-hidden border border-slate-700">
-                    <div className="divide-y divide-slate-700">
+                  <div className="bg-white/5 rounded-lg overflow-x-auto border border-slate-700">
+                    <div className="divide-y divide-slate-700 min-w-[600px]">
                       {data.h2h_away.map((match: any, index: number) => (
                         <HistoricalMatchRow
                           key={match.id || index}
@@ -488,33 +488,33 @@ function HistoricalMatchRow({ match, venue, homeTeam, awayTeam }: HistoricalMatc
   };
 
   return (
-    <div className={`flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors ${getResultClass()}`}>
+    <div className={`flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-slate-700/30 transition-colors ${getResultClass()}`}>
       {/* Fecha */}
-      <div className="flex items-center gap-4 min-w-[140px]">
-        <span className="text-slate-400 text-xs font-mono">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4 min-w-[100px] sm:min-w-[140px]">
+        <span className="text-slate-400 text-xs font-mono whitespace-nowrap">
           {formatDate(match.date)}
         </span>
-        <span className="text-slate-500 text-xs">
+        <span className="text-slate-500 text-xs whitespace-nowrap">
           {match.season}
         </span>
       </div>
 
       {/* Equipos y Marcador */}
-      <div className="flex items-center gap-6 flex-1 justify-center">
-        <div className="flex items-center gap-3 min-w-[160px] justify-end">
-          <span className="text-white text-sm font-medium text-right">
+      <div className="flex items-center gap-2 sm:gap-6 flex-1 justify-center">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-[120px] sm:min-w-[160px] justify-end">
+          <span className="text-white text-xs sm:text-sm font-medium text-right truncate">
             {leftTeam}
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-white text-lg font-bold font-mono bg-slate-800 px-4 py-1 rounded">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="text-white text-base sm:text-lg font-bold font-mono bg-slate-800 px-2 sm:px-4 py-1 rounded whitespace-nowrap">
             {leftGoals} - {rightGoals}
           </span>
         </div>
 
-        <div className="flex items-center gap-3 min-w-[160px]">
-          <span className="text-white text-sm font-medium">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-[120px] sm:min-w-[160px]">
+          <span className="text-white text-xs sm:text-sm font-medium truncate">
             {rightTeam}
           </span>
         </div>
