@@ -102,28 +102,28 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
   return (
     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg border border-purple-500/20 overflow-hidden">
       {/* Header con resumen ejecutivo */}
-      <div className="p-6 border-b border-slate-700">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-xl font-bold text-purple-400 mb-2">
+      <div className="p-4 sm:p-6 border-b border-slate-700">
+        <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 sm:gap-4 mb-4">
+          <div className="flex-1">
+            <h3 className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
               📊 Análisis de Enfrentamientos Directos
             </h3>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-400 text-xs sm:text-sm">
               Basado en los últimos {stats.total_matches} partidos entre estos equipos
             </p>
           </div>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl group"
+            className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl group w-full sm:w-auto justify-center sm:justify-start flex-shrink-0"
             aria-label={expanded ? "Ocultar detalles" : "Ver detalles completos"}
           >
-            <span className="text-sm font-semibold">
+            <span className="text-sm sm:text-base font-semibold whitespace-nowrap">
               {expanded ? "Ocultar" : "Ver más"}
             </span>
             {expanded ? (
-              <ChevronUp className="w-5 h-5 group-hover:transform group-hover:-translate-y-0.5 transition-transform" />
+              <ChevronUp className="w-5 h-5 sm:w-5 sm:h-5 group-hover:transform group-hover:-translate-y-0.5 transition-transform" />
             ) : (
-              <ChevronDown className="w-5 h-5 group-hover:transform group-hover:translate-y-0.5 transition-transform" />
+              <ChevronDown className="w-5 h-5 sm:w-5 sm:h-5 group-hover:transform group-hover:translate-y-0.5 transition-transform" />
             )}
           </button>
         </div>
