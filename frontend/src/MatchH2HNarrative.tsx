@@ -114,12 +114,16 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
           </div>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl group"
+            aria-label={expanded ? "Ocultar detalles" : "Ver detalles completos"}
           >
+            <span className="text-sm font-semibold">
+              {expanded ? "Ocultar" : "Ver más"}
+            </span>
             {expanded ? (
-              <ChevronUp className="w-5 h-5 text-slate-400" />
+              <ChevronUp className="w-5 h-5 group-hover:transform group-hover:-translate-y-0.5 transition-transform" />
             ) : (
-              <ChevronDown className="w-5 h-5 text-slate-400" />
+              <ChevronDown className="w-5 h-5 group-hover:transform group-hover:translate-y-0.5 transition-transform" />
             )}
           </button>
         </div>
