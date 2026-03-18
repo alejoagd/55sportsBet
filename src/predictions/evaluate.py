@@ -192,21 +192,27 @@ def evaluate(
                     hit_w_1x2 = (pick_w_1x2 == act_1x2)
                     print(f"   Weinston 1X2: {pick_w_1x2} (acierto: {hit_w_1x2})")
                 
-                pick_w_over = _normalize_string(r["win_over2"])
-                pick_w_btts = _normalize_string(r["win_btts"])
-                
-                print(f"   Weinston normalizados: over='{pick_w_over}', btts='{pick_w_btts}'")
+                # ✅ FIX: Use same logic as /api/recalculate-outcomes for consistency
+                pick_w_over_raw = _normalize_string(r["win_over2"])
+                pick_w_btts_raw = _normalize_string(r["win_btts"])
+
+                # Ensure valid values (matching recalculate-outcomes logic)
+                pick_w_over = pick_w_over_raw if pick_w_over_raw in ['OVER', 'UNDER'] else 'UNDER'
+                pick_w_btts = 'YES' if (pick_w_btts_raw == 'YES') else 'NO'
+
+                print(f"   Weinston raw: over='{pick_w_over_raw}', btts='{pick_w_btts_raw}'")
+                print(f"   Weinston normalized: over='{pick_w_over}', btts='{pick_w_btts}'")
 
                 hit_over = None
                 hit_btts = None
-                
-                if pick_w_over is not None:
+
+                if pick_w_over_raw is not None:
                     hit_over = (pick_w_over == act_over)
                     print(f"   Weinston O/U: {pick_w_over} vs {act_over} = {hit_over}")
                 else:
                     print(f"   Weinston O/U: No hay predicción válida")
-                
-                if pick_w_btts is not None:
+
+                if pick_w_btts_raw is not None:
                     hit_btts = (pick_w_btts == act_btts)
                     print(f"   Weinston BTTS: {pick_w_btts} vs {act_btts} = {hit_btts}")
                 else:
