@@ -46,7 +46,7 @@ function Navigation() {
           <div className={`${isMobile ? 'flex flex-col' : 'flex items-center justify-between h-16'}`}>
             {/* Logo / Título */}
             <div className={`flex items-center justify-center space-x-2 ${isMobile ? 'py-3' : ''}`}>
-              <span className="text-2xl">⚽</span>
+              <img src="/55sports2.svg" alt="55sportsBet Logo" className="w-8 h-8" />
               <h1 className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-white`}>
                 55sportsBet
               </h1>
