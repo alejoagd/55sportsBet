@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <!-- Outer glow -->
+    <radialGradient id="outerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.9"></stop>
+      <stop offset="60%" stop-color="#FF6A00" stop-opacity="0.7"></stop>
+      <stop offset="100%" stop-color="#FF6A00" stop-opacity="0"></stop>
+    </radialGradient>
+
+    <!-- Inner ball gradient -->
+    <radialGradient id="ballGrad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#1FD6FF"></stop>
+      <stop offset="100%" stop-color="#0A1A2F"></stop>
+    </radialGradient>
+
+    <!-- Hex panel -->
+    <g id="hex">
+      <polygon points="0,-6 5,-3 5,3 0,6 -5,3 -5,-3" fill="#08121F" stroke="#FF6A00" stroke-width="0.6"></polygon>
+    </g>
+  </defs>
+
+  <!-- Background -->
+  <rect width="64" height="64" fill="#0A1A2F"></rect>
+
+  <!-- Glow burst -->
+  <circle cx="32" cy="32" r="30" fill="url(#outerGlow)"></circle>
+
+  <!-- Ball -->
+  <circle cx="32" cy="32" r="20" fill="url(#ballGrad)" stroke="#FF6A00" stroke-width="1.5"></circle>
+
+  <!-- Football hex pattern -->
+  <g transform="translate(32 32)">
+    <use href="#hex" x="0" y="0"></use>
+    <use href="#hex" x="-10" y="0"></use>
+    <use href="#hex" x="10" y="0"></use>
+    <use href="#hex" x="-5" y="-8"></use>
+    <use href="#hex" x="5" y="-8"></use>
+    <use href="#hex" x="-5" y="8"></use>
+    <use href="#hex" x="5" y="8"></use>
+  </g>
+
+  <!-- Simplified continents (digital feel) -->
+  <g fill="#00E5FF" opacity="0.75">
+    <path d="M20 28c5-5 12-5 16-1-2 5-8 7-13 5-2-1-3-2-3-4z"></path>
+    <path d="M30 36c4-2 9 1 10 4-3 3-8 3-11 0-1-1-1-2 1-4z"></path>
+  </g>
+
+  <!-- Energy rays -->
+  <g stroke="#FF6A00" stroke-width="1.2" stroke-linecap="round">
+    <line x1="32" y1="2" x2="32" y2="10"></line>
+    <line x1="32" y1="54" x2="32" y2="62"></line>
+    <line x1="2" y1="32" x2="10" y2="32"></line>
+    <line x1="54" y1="32" x2="62" y2="32"></line>
+    <line x1="10" y1="10" x2="16" y2="16"></line>
+    <line x1="48" y1="48" x2="54" y2="54"></line>
+    <line x1="10" y1="54" x2="16" y2="48"></line>
+    <line x1="48" y1="16" x2="54" y2="10"></line>
+  </g>
+
+  <!-- Central highlight -->
+  <circle cx="32" cy="28" r="6" fill="#FFFFFF" opacity="0.08"></circle>
+
+  <!-- Brand mark -->
+  <text x="32" y="38" text-anchor="middle" font-size="13" font-family="Arial, sans-serif" font-weight="bold" fill="#FFFFFF">
+    55
+  </text>
+</svg>
