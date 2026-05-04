@@ -94,7 +94,7 @@ def _upsert_match(s: Session, date: datetime, home_id: int, away_id: int, row: d
                 Match.home_team_id == home_id,
                 Match.away_team_id == away_id,
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
     )
 
     # ═══════════════════════════════════════════════════════════════════
