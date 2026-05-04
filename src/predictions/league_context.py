@@ -81,6 +81,7 @@ class LeagueContext:
             LEFT JOIN weinston_params wp ON wp.season_id = s.id
             LEFT JOIN league_parameters lp ON lp.league_id = l.id
             WHERE s.id = :season_id
+            LIMIT 1
         """)
         
         try:
