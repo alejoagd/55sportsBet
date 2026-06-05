@@ -1,0 +1,65 @@
+Year,Datetime,Stage,Stadium,City,Home Team Name,Home Team Goals,Away Team Goals,Away Team Name,Win conditions,Attendance,Half-time Home Goals,Half-time Away Goals,Referee,Assistant 1,Assistant 2,RoundID,MatchID,Home Team Initials,Away Team Initials
+2018,14 Jun 2018 - 18:00,Group A,Luzhniki Stadium,Moscow,Russia,5,0,Saudi Arabia,,78011,2,0,,,,301,4001,RUS,KSA
+2018,15 Jun 2018 - 15:00,Group A,Ekaterinburg Arena,Ekaterinburg,Egypt,0,1,Uruguay,,27015,0,0,,,,301,4002,EGY,URU
+2018,15 Jun 2018 - 18:00,Group B,Fisht Stadium,Sochi,Morocco,0,1,Iran,,42145,0,0,,,,302,4003,MAR,IRN
+2018,15 Jun 2018 - 21:00,Group B,Fisht Stadium,Sochi,Portugal,3,3,Spain,,44287,2,1,,,,302,4004,POR,ESP
+2018,16 Jun 2018 - 12:00,Group C,Kazan Arena,Kazan,France,2,1,Australia,,42873,1,1,,,,303,4005,FRA,AUS
+2018,16 Jun 2018 - 15:00,Group C,Saransk Stadium,Saransk,Peru,0,1,Denmark,,41153,0,0,,,,303,4006,PER,DEN
+2018,16 Jun 2018 - 18:00,Group D,Spartak Stadium,Moscow,Argentina,1,1,Iceland,,44190,0,1,,,,304,4007,ARG,ISL
+2018,16 Jun 2018 - 21:00,Group D,Volgograd Arena,Volgograd,Croatia,2,0,Nigeria,,42832,0,0,,,,304,4008,CRO,NGA
+2018,17 Jun 2018 - 12:00,Group E,Samara Arena,Samara,Costa Rica,0,1,Serbia,,41776,0,0,,,,305,4009,CRC,SRB
+2018,17 Jun 2018 - 15:00,Group E,Rostov Arena,Rostov-on-Don,Brazil,1,1,Switzerland,,41749,1,0,,,,305,4010,BRA,SUI
+2018,17 Jun 2018 - 18:00,Group F,CSKA Stadium,Moscow,Germany,0,1,Mexico,,80692,0,1,,,,306,4011,GER,MEX
+2018,18 Jun 2018 - 12:00,Group F,Nizhny Novgorod Stadium,Nizhny Novgorod,Sweden,1,0,South Korea,,43234,0,0,,,,306,4012,SWE,KOR
+2018,18 Jun 2018 - 15:00,Group G,Spartak Stadium,Moscow,Belgium,3,0,Panama,,42628,2,0,,,,307,4013,BEL,PAN
+2018,18 Jun 2018 - 21:00,Group G,Volgograd Arena,Volgograd,Tunisia,1,2,England,,42869,1,1,,,,307,4014,TUN,ENG
+2018,19 Jun 2018 - 15:00,Group H,Mordovia Arena,Saransk,Colombia,1,2,Japan,,41170,0,1,,,,308,4015,COL,JPN
+2018,19 Jun 2018 - 18:00,Group H,Spartak Stadium,Moscow,Poland,1,2,Senegal,,44071,0,1,,,,308,4016,POL,SEN
+2018,19 Jun 2018 - 21:00,Group A,Saint Petersburg Stadium,Saint Petersburg,Russia,3,0,Egypt,,64468,0,0,,,,301,4017,RUS,EGY
+2018,20 Jun 2018 - 18:00,Group A,Rostov Arena,Rostov-on-Don,Uruguay,1,0,Saudi Arabia,,39605,0,0,,,,301,4018,URU,KSA
+2018,20 Jun 2018 - 15:00,Group B,Luzhniki Stadium,Moscow,Portugal,1,0,Morocco,,77959,1,0,,,,302,4019,POR,MAR
+2018,20 Jun 2018 - 21:00,Group B,Kazan Arena,Kazan,Iran,0,1,Spain,,42465,0,0,,,,302,4020,IRN,ESP
+2018,21 Jun 2018 - 12:00,Group C,Ekaterinburg Arena,Ekaterinburg,France,1,0,Peru,,34745,0,0,,,,303,4021,FRA,PER
+2018,21 Jun 2018 - 18:00,Group C,Samara Arena,Samara,Denmark,1,1,Australia,,41210,1,1,,,,303,4022,DEN,AUS
+2018,21 Jun 2018 - 15:00,Group D,Nizhny Novgorod Stadium,Nizhny Novgorod,Argentina,0,3,Croatia,,44896,0,1,,,,304,4023,ARG,CRO
+2018,22 Jun 2018 - 12:00,Group D,Volgograd Arena,Volgograd,Nigeria,2,0,Iceland,,43699,1,0,,,,304,4024,NGA,ISL
+2018,22 Jun 2018 - 18:00,Group E,Saint Petersburg Stadium,Saint Petersburg,Brazil,2,0,Costa Rica,,64682,0,0,,,,305,4025,BRA,CRC
+2018,22 Jun 2018 - 21:00,Group E,Kaliningrad Stadium,Kaliningrad,Serbia,1,2,Switzerland,,33973,0,1,,,,305,4026,SRB,SUI
+2018,23 Jun 2018 - 18:00,Group F,Fisht Stadium,Sochi,Germany,2,1,Sweden,,44287,0,0,,,,306,4027,GER,SWE
+2018,23 Jun 2018 - 21:00,Group F,Rostov Arena,Rostov-on-Don,South Korea,1,2,Mexico,,42271,0,1,,,,306,4028,KOR,MEX
+2018,23 Jun 2018 - 15:00,Group G,Spartak Stadium,Moscow,Belgium,5,2,Tunisia,,43727,3,1,,,,307,4029,BEL,TUN
+2018,24 Jun 2018 - 18:00,Group G,Nizhny Novgorod Stadium,Nizhny Novgorod,England,6,1,Panama,,43319,5,0,,,,307,4030,ENG,PAN
+2018,24 Jun 2018 - 12:00,Group H,Kazan Arena,Kazan,Japan,2,2,Senegal,,42651,1,2,,,,308,4031,JPN,SEN
+2018,24 Jun 2018 - 21:00,Group H,Kazan Arena,Kazan,Poland,0,3,Colombia,,42781,0,0,,,,308,4032,POL,COL
+2018,25 Jun 2018 - 18:00,Group A,Samara Arena,Samara,Uruguay,3,0,Russia,,44268,1,0,,,,301,4033,URU,RUS
+2018,25 Jun 2018 - 18:00,Group A,Volgograd Arena,Volgograd,Saudi Arabia,2,1,Egypt,,32080,0,0,,,,301,4034,KSA,EGY
+2018,25 Jun 2018 - 21:00,Group B,Luzhniki Stadium,Moscow,Iran,1,1,Portugal,,80082,0,0,,,,302,4035,IRN,POR
+2018,25 Jun 2018 - 21:00,Group B,Kaliningrad Stadium,Kaliningrad,Spain,2,2,Morocco,,34602,0,0,,,,302,4036,ESP,MAR
+2018,26 Jun 2018 - 21:00,Group C,Ekaterinburg Arena,Ekaterinburg,France,0,0,Denmark,,34745,0,0,,,,303,4037,FRA,DEN
+2018,26 Jun 2018 - 21:00,Group C,Fisht Stadium,Sochi,Australia,0,2,Peru,,42837,0,1,,,,303,4038,AUS,PER
+2018,26 Jun 2018 - 18:00,Group D,Saint Petersburg Stadium,Saint Petersburg,Iceland,1,2,Croatia,,64287,0,1,,,,304,4039,ISL,CRO
+2018,26 Jun 2018 - 18:00,Group D,Volgograd Arena,Volgograd,Nigeria,1,2,Argentina,,39608,0,1,,,,304,4040,NGA,ARG
+2018,27 Jun 2018 - 18:00,Group E,Rostov Arena,Rostov-on-Don,Serbia,0,2,Brazil,,43888,0,0,,,,305,4041,SRB,BRA
+2018,27 Jun 2018 - 18:00,Group E,Nizhny Novgorod Stadium,Nizhny Novgorod,Switzerland,2,2,Costa Rica,,43299,0,0,,,,305,4042,SUI,CRC
+2018,27 Jun 2018 - 21:00,Group F,Kazan Arena,Kazan,Mexico,0,3,Sweden,,41630,0,2,,,,306,4043,MEX,SWE
+2018,27 Jun 2018 - 21:00,Group F,Kazan Arena,Kazan,South Korea,2,0,Germany,,42350,0,0,,,,306,4044,KOR,GER
+2018,28 Jun 2018 - 18:00,Group G,Kaliningrad Stadium,Kaliningrad,England,0,1,Belgium,,34579,0,0,,,,307,4045,ENG,BEL
+2018,28 Jun 2018 - 18:00,Group G,Mordovia Arena,Saransk,Panama,1,2,Tunisia,,41168,0,1,,,,307,4046,PAN,TUN
+2018,28 Jun 2018 - 21:00,Group H,Spartak Stadium,Moscow,Senegal,0,1,Colombia,,44190,0,0,,,,308,4047,SEN,COL
+2018,28 Jun 2018 - 21:00,Group H,Ekaterinburg Arena,Ekaterinburg,Japan,0,1,Poland,,34519,0,1,,,,308,4048,JPN,POL
+2018,30 Jun 2018 - 15:00,Round of 16,Kazan Arena,Kazan,France,4,3,Argentina,,44190,1,2,,,,309,4049,FRA,ARG
+2018,30 Jun 2018 - 19:00,Round of 16,Fisht Stadium,Sochi,Uruguay,2,1,Portugal,,43712,1,0,,,,309,4050,URU,POR
+2018,01 Jul 2018 - 15:00,Round of 16,Luzhniki Stadium,Moscow,Spain,1,1,Russia,AET,78011,1,1,,,,309,4051,ESP,RUS
+2018,01 Jul 2018 - 19:00,Round of 16,Nizhny Novgorod Stadium,Nizhny Novgorod,Croatia,1,1,Denmark,AET,43319,1,1,,,,309,4052,CRO,DEN
+2018,02 Jul 2018 - 15:00,Round of 16,Samara Arena,Samara,Brazil,2,0,Mexico,,44268,0,0,,,,309,4053,BRA,MEX
+2018,02 Jul 2018 - 19:00,Round of 16,Rostov Arena,Rostov-on-Don,Belgium,3,2,Japan,,43688,0,2,,,,309,4054,BEL,JPN
+2018,03 Jul 2018 - 15:00,Round of 16,Saint Petersburg Stadium,Saint Petersburg,Sweden,1,0,Switzerland,,64468,0,0,,,,309,4055,SWE,SUI
+2018,03 Jul 2018 - 19:00,Round of 16,Spartak Stadium,Moscow,Colombia,1,1,England,AET,44190,0,0,,,,309,4056,COL,ENG
+2018,06 Jul 2018 - 15:00,Quarter-finals,Nizhny Novgorod Stadium,Nizhny Novgorod,Uruguay,0,2,France,,43319,0,1,,,,310,4057,URU,FRA
+2018,06 Jul 2018 - 19:00,Quarter-finals,Kazan Arena,Kazan,Brazil,1,2,Belgium,,44190,0,0,,,,310,4058,BRA,BEL
+2018,07 Jul 2018 - 15:00,Quarter-finals,Samara Arena,Samara,Sweden,0,2,England,,44268,0,0,,,,310,4059,SWE,ENG
+2018,07 Jul 2018 - 19:00,Quarter-finals,Fisht Stadium,Sochi,Russia,2,2,Croatia,AET,44287,0,0,,,,310,4060,RUS,CRO
+2018,10 Jul 2018 - 20:00,Semi-finals,Saint Petersburg Stadium,Saint Petersburg,France,1,0,Belgium,,64182,0,0,,,,311,4061,FRA,BEL
+2018,11 Jul 2018 - 20:00,Semi-finals,Luzhniki Stadium,Moscow,Croatia,2,1,England,AET,78011,0,1,,,,311,4062,CRO,ENG
+2018,14 Jul 2018 - 16:00,Third place play-off,Saint Petersburg Stadium,Saint Petersburg,Belgium,2,0,England,,64286,2,0,,,,312,4063,BEL,ENG
+2018,15 Jul 2018 - 18:00,Final,Luzhniki Stadium,Moscow,France,4,2,Croatia,,78011,2,1,,,,313,4064,FRA,CRO

@@ -1,0 +1,65 @@
+Year,Datetime,Stage,Stadium,City,Home Team Name,Home Team Goals,Away Team Goals,Away Team Name,Win conditions,Attendance,Half-time Home Goals,Half-time Away Goals,Referee,Assistant 1,Assistant 2,RoundID,MatchID,Home Team Initials,Away Team Initials
+2022,20 Nov 2022 - 19:00,Group A,Al Bayt Stadium,Al Khor,Qatar,0,2,Ecuador,,67372,0,1,,,,401,5001,QAT,ECU
+2022,21 Nov 2022 - 13:00,Group A,Al Thumama Stadium,Doha,Senegal,0,2,Netherlands,,41721,0,0,,,,401,5002,SEN,NED
+2022,21 Nov 2022 - 16:00,Group B,Khalifa International Stadium,Al Rayyan,England,6,2,Iran,,45334,3,0,,,,402,5003,ENG,IRN
+2022,21 Nov 2022 - 22:00,Group B,Ahmad Bin Ali Stadium,Al Rayyan,USA,1,1,Wales,,44407,1,0,,,,402,5004,USA,WAL
+2022,22 Nov 2022 - 13:00,Group C,Lusail Stadium,Lusail,Argentina,1,2,Saudi Arabia,,88012,1,0,,,,403,5005,ARG,KSA
+2022,22 Nov 2022 - 16:00,Group C,Stadium 974,Doha,Mexico,0,0,Poland,,44907,0,0,,,,403,5006,MEX,POL
+2022,22 Nov 2022 - 19:00,Group D,Education City Stadium,Al Rayyan,Denmark,0,0,Tunisia,,43520,0,0,,,,404,5007,DEN,TUN
+2022,22 Nov 2022 - 22:00,Group D,Al Janoub Stadium,Al Wakrah,France,4,1,Australia,,40000,2,1,,,,404,5008,FRA,AUS
+2022,23 Nov 2022 - 13:00,Group E,Khalifa International Stadium,Al Rayyan,Germany,1,2,Japan,,42608,1,0,,,,405,5009,GER,JPN
+2022,23 Nov 2022 - 16:00,Group E,Al Thumama Stadium,Doha,Spain,7,0,Costa Rica,,44825,3,0,,,,405,5010,ESP,CRC
+2022,23 Nov 2022 - 19:00,Group F,Al Bayt Stadium,Al Khor,Morocco,0,0,Croatia,,45116,0,0,,,,406,5011,MAR,CRO
+2022,23 Nov 2022 - 22:00,Group F,Ahmad Bin Ali Stadium,Al Rayyan,Belgium,1,0,Canada,,44069,1,0,,,,406,5012,BEL,CAN
+2022,24 Nov 2022 - 13:00,Group G,Lusail Stadium,Lusail,Switzerland,1,0,Cameroon,,88235,1,0,,,,407,5013,SUI,CMR
+2022,24 Nov 2022 - 16:00,Group G,Lusail Stadium,Lusail,Brazil,2,0,Serbia,,88103,0,0,,,,407,5014,BRA,SRB
+2022,24 Nov 2022 - 19:00,Group H,Education City Stadium,Al Rayyan,Uruguay,0,0,South Korea,,43825,0,0,,,,408,5015,URU,KOR
+2022,24 Nov 2022 - 22:00,Group H,Stadium 974,Doha,Portugal,3,2,Ghana,,44782,2,0,,,,408,5016,POR,GHA
+2022,25 Nov 2022 - 13:00,Group A,Al Bayt Stadium,Al Khor,Qatar,1,3,Senegal,,66152,0,1,,,,401,5017,QAT,SEN
+2022,25 Nov 2022 - 16:00,Group A,Khalifa International Stadium,Al Rayyan,Netherlands,1,1,Ecuador,,44825,0,0,,,,401,5018,NED,ECU
+2022,25 Nov 2022 - 19:00,Group B,Ahmad Bin Ali Stadium,Al Rayyan,Wales,0,2,Iran,,42127,0,1,,,,402,5019,WAL,IRN
+2022,25 Nov 2022 - 22:00,Group B,Al Bayt Stadium,Al Khor,England,0,0,USA,,88103,0,0,,,,402,5020,ENG,USA
+2022,26 Nov 2022 - 13:00,Group C,Lusail Stadium,Lusail,Poland,2,0,Saudi Arabia,,88012,1,0,,,,403,5021,POL,KSA
+2022,26 Nov 2022 - 16:00,Group C,Lusail Stadium,Lusail,Argentina,2,0,Mexico,,88966,0,0,,,,403,5022,ARG,MEX
+2022,26 Nov 2022 - 19:00,Group D,Al Janoub Stadium,Al Wakrah,Tunisia,0,1,Australia,,39217,0,0,,,,404,5023,TUN,AUS
+2022,26 Nov 2022 - 22:00,Group D,Al Thumama Stadium,Doha,France,2,1,Denmark,,40000,1,0,,,,404,5024,FRA,DEN
+2022,27 Nov 2022 - 13:00,Group E,Al Bayt Stadium,Al Khor,Japan,0,1,Costa Rica,,47452,0,0,,,,405,5025,JPN,CRC
+2022,27 Nov 2022 - 16:00,Group E,Al Bayt Stadium,Al Khor,Spain,1,1,Germany,,45116,0,0,,,,405,5026,ESP,GER
+2022,27 Nov 2022 - 19:00,Group F,Al Thumama Stadium,Doha,Belgium,0,2,Morocco,,44825,0,1,,,,406,5027,BEL,MAR
+2022,27 Nov 2022 - 22:00,Group F,Education City Stadium,Al Rayyan,Croatia,4,1,Canada,,44667,2,1,,,,406,5028,CRO,CAN
+2022,28 Nov 2022 - 13:00,Group G,Al Janoub Stadium,Al Wakrah,Cameroon,3,3,Serbia,,38526,0,1,,,,407,5029,CMR,SRB
+2022,28 Nov 2022 - 16:00,Group G,Lusail Stadium,Lusail,Brazil,1,0,Switzerland,,88235,0,0,,,,407,5030,BRA,SUI
+2022,28 Nov 2022 - 19:00,Group H,Education City Stadium,Al Rayyan,South Korea,2,3,Ghana,,43854,0,2,,,,408,5031,KOR,GHA
+2022,28 Nov 2022 - 22:00,Group H,Lusail Stadium,Lusail,Portugal,2,0,Uruguay,,88966,0,0,,,,408,5032,POR,URU
+2022,29 Nov 2022 - 18:00,Group A,Al Thumama Stadium,Doha,Netherlands,2,0,Qatar,,40721,1,0,,,,401,5033,NED,QAT
+2022,29 Nov 2022 - 18:00,Group A,Al Janoub Stadium,Al Wakrah,Ecuador,1,2,Senegal,,38646,0,0,,,,401,5034,ECU,SEN
+2022,29 Nov 2022 - 22:00,Group B,Ahmad Bin Ali Stadium,Al Rayyan,Wales,0,3,England,,44297,0,0,,,,402,5035,WAL,ENG
+2022,29 Nov 2022 - 22:00,Group B,Al Thumama Stadium,Doha,Iran,0,1,USA,,44127,0,0,,,,402,5036,IRN,USA
+2022,30 Nov 2022 - 18:00,Group C,Stadium 974,Doha,Poland,0,2,Argentina,,44089,0,0,,,,403,5037,POL,ARG
+2022,30 Nov 2022 - 18:00,Group C,Lusail Stadium,Lusail,Saudi Arabia,1,2,Mexico,,88966,1,0,,,,403,5038,KSA,MEX
+2022,30 Nov 2022 - 22:00,Group D,Al Janoub Stadium,Al Wakrah,Australia,1,0,Denmark,,39543,0,0,,,,404,5039,AUS,DEN
+2022,30 Nov 2022 - 22:00,Group D,Education City Stadium,Al Rayyan,Tunisia,1,0,France,,44667,0,0,,,,404,5040,TUN,FRA
+2022,01 Dec 2022 - 18:00,Group E,Khalifa International Stadium,Al Rayyan,Japan,2,1,Spain,,44825,0,0,,,,405,5041,JPN,ESP
+2022,01 Dec 2022 - 18:00,Group E,Al Bayt Stadium,Al Khor,Costa Rica,2,4,Germany,,45116,1,1,,,,405,5042,CRC,GER
+2022,01 Dec 2022 - 22:00,Group F,Ahmad Bin Ali Stadium,Al Rayyan,Croatia,0,0,Belgium,,44069,0,0,,,,406,5043,CRO,BEL
+2022,01 Dec 2022 - 22:00,Group F,Al Thumama Stadium,Doha,Canada,1,2,Morocco,,44825,0,0,,,,406,5044,CAN,MAR
+2022,02 Dec 2022 - 18:00,Group G,Al Janoub Stadium,Al Wakrah,Cameroon,1,0,Brazil,,39074,1,0,,,,407,5045,CMR,BRA
+2022,02 Dec 2022 - 18:00,Group G,Stadium 974,Doha,Serbia,2,3,Switzerland,,44407,0,1,,,,407,5046,SRB,SUI
+2022,02 Dec 2022 - 22:00,Group H,Education City Stadium,Al Rayyan,South Korea,2,1,Portugal,,44667,0,0,,,,408,5047,KOR,POR
+2022,02 Dec 2022 - 22:00,Group H,Lusail Stadium,Lusail,Ghana,0,2,Uruguay,,88966,0,0,,,,408,5048,GHA,URU
+2022,03 Dec 2022 - 18:00,Round of 16,Khalifa International Stadium,Al Rayyan,Netherlands,3,1,USA,,44846,2,0,,,,409,5049,NED,USA
+2022,03 Dec 2022 - 22:00,Round of 16,Ahmad Bin Ali Stadium,Al Rayyan,Argentina,2,1,Australia,,44246,1,0,,,,409,5050,ARG,AUS
+2022,04 Dec 2022 - 18:00,Round of 16,Al Thumama Stadium,Doha,France,3,1,Poland,,44929,1,0,,,,409,5051,FRA,POL
+2022,04 Dec 2022 - 22:00,Round of 16,Al Bayt Stadium,Al Khor,England,3,0,Senegal,,88103,2,0,,,,409,5052,ENG,SEN
+2022,05 Dec 2022 - 18:00,Round of 16,Al Janoub Stadium,Al Wakrah,Japan,1,1,Croatia,AET,39974,0,0,,,,409,5053,JPN,CRO
+2022,05 Dec 2022 - 22:00,Round of 16,Stadium 974,Doha,Brazil,4,1,South Korea,,44698,2,0,,,,409,5054,BRA,KOR
+2022,06 Dec 2022 - 18:00,Round of 16,Education City Stadium,Al Rayyan,Morocco,0,0,Spain,AET,44667,0,0,,,,409,5055,MAR,ESP
+2022,06 Dec 2022 - 22:00,Round of 16,Lusail Stadium,Lusail,Portugal,6,1,Switzerland,,88966,3,0,,,,409,5056,POR,SUI
+2022,09 Dec 2022 - 18:00,Quarter-finals,Lusail Stadium,Lusail,Netherlands,2,2,Argentina,AET,88235,0,0,,,,410,5057,NED,ARG
+2022,09 Dec 2022 - 22:00,Quarter-finals,Education City Stadium,Al Rayyan,Croatia,1,1,Brazil,AET,44667,0,0,,,,410,5058,CRO,BRA
+2022,10 Dec 2022 - 18:00,Quarter-finals,Al Thumama Stadium,Doha,Morocco,1,0,Portugal,,44825,0,0,,,,410,5059,MAR,POR
+2022,10 Dec 2022 - 22:00,Quarter-finals,Al Bayt Stadium,Al Khor,France,2,1,England,,88103,0,0,,,,410,5060,FRA,ENG
+2022,13 Dec 2022 - 22:00,Semi-finals,Lusail Stadium,Lusail,Argentina,3,0,Croatia,,88966,2,0,,,,411,5061,ARG,CRO
+2022,14 Dec 2022 - 22:00,Semi-finals,Al Bayt Stadium,Al Khor,France,2,0,Morocco,,88012,1,0,,,,411,5062,FRA,MAR
+2022,17 Dec 2022 - 18:00,Third place play-off,Khalifa International Stadium,Al Rayyan,Croatia,2,1,Morocco,,44137,1,0,,,,412,5063,CRO,MAR
+2022,18 Dec 2022 - 18:00,Final,Lusail Stadium,Lusail,Argentina,3,3,France,AET,88966,2,0,,,,413,5064,ARG,FRA
