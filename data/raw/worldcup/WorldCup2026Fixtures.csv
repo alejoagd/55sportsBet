@@ -1,0 +1,73 @@
+Year,Datetime,Stage,Stadium,City,Home Team Name,Home Team Goals,Away Team Goals,Away Team Name,Win conditions,Attendance,Half-time Home Goals,Half-time Away Goals,Referee,Assistant 1,Assistant 2,RoundID,MatchID,Home Team Initials,Away Team Initials
+2026,11 Jun 2026 - 19:00,Group A,,Mexico City,Mexico,,,South Africa,,,,,,,,201,3001,MEX,RSA
+2026,11 Jun 2026 - 22:00,Group A,,Guadalajara,South Korea,,,Czechia,,,,,,,,201,3002,KOR,CZE
+2026,12 Jun 2026 - 18:00,Group B,,Toronto,Canada,,,Bosnia and Herzegovina,,,,,,,,202,3003,CAN,BIH
+2026,12 Jun 2026 - 22:00,Group B,,Dallas,Qatar,,,Switzerland,,,,,,,,202,3004,QAT,SUI
+2026,12 Jun 2026 - 19:00,Group D,,Los Angeles,United States,,,Paraguay,,,,,,,,204,3005,USA,PAR
+2026,13 Jun 2026 - 15:00,Group D,,Kansas City,Australia,,,Turkey,,,,,,,,204,3006,AUS,TUR
+2026,13 Jun 2026 - 19:00,Group C,,San Francisco,Brazil,,,Morocco,,,,,,,,203,3007,BRA,MAR
+2026,13 Jun 2026 - 22:00,Group C,,Seattle,Haiti,,,Scotland,,,,,,,,203,3008,HAI,SCO
+2026,13 Jun 2026 - 18:00,Group E,,Miami,Germany,,,Curacao,,,,,,,,205,3009,GER,CUW
+2026,14 Jun 2026 - 18:00,Group E,,Houston,Ivory Coast,,,Ecuador,,,,,,,,205,3010,CIV,ECU
+2026,14 Jun 2026 - 18:00,Group F,,New York,Netherlands,,,Japan,,,,,,,,206,3011,NED,JPN
+2026,14 Jun 2026 - 22:00,Group F,,Philadelphia,Sweden,,,Tunisia,,,,,,,,206,3012,SWE,TUN
+2026,15 Jun 2026 - 15:00,Group G,,Seattle,Belgium,,,Egypt,,,,,,,,207,3013,BEL,EGY
+2026,15 Jun 2026 - 19:00,Group G,,Boston,Iran,,,New Zealand,,,,,,,,207,3014,IRN,NZL
+2026,15 Jun 2026 - 19:00,Group H,,Atlanta,Spain,,,Cape Verde,,,,,,,,208,3015,ESP,CPV
+2026,15 Jun 2026 - 22:00,Group H,,Dallas,Saudi Arabia,,,Uruguay,,,,,,,,208,3016,KSA,URU
+2026,16 Jun 2026 - 18:00,Group I,,Los Angeles,France,,,Senegal,,,,,,,,209,3017,FRA,SEN
+2026,16 Jun 2026 - 22:00,Group I,,Miami,Iraq,,,Norway,,,,,,,,209,3018,IRQ,NOR
+2026,16 Jun 2026 - 18:00,Group J,,New York,Argentina,,,Algeria,,,,,,,,210,3019,ARG,ALG
+2026,16 Jun 2026 - 22:00,Group J,,San Francisco,Austria,,,Jordan,,,,,,,,210,3020,AUT,JOR
+2026,17 Jun 2026 - 18:00,Group K,,Boston,Portugal,,,Congo DR,,,,,,,,211,3021,POR,COD
+2026,17 Jun 2026 - 22:00,Group K,,Kansas City,Uzbekistan,,,Colombia,,,,,,,,211,3022,UZB,COL
+2026,17 Jun 2026 - 18:00,Group L,,Houston,England,,,Croatia,,,,,,,,212,3023,ENG,CRO
+2026,17 Jun 2026 - 22:00,Group L,,Atlanta,Ghana,,,Panama,,,,,,,,212,3024,GHA,PAN
+2026,17 Jun 2026 - 19:00,Group A,,Monterrey,Mexico,,,South Korea,,,,,,,,201,3025,MEX,KOR
+2026,18 Jun 2026 - 15:00,Group A,,Mexico City,South Africa,,,Czechia,,,,,,,,201,3026,RSA,CZE
+2026,18 Jun 2026 - 19:00,Group B,,Vancouver,Canada,,,Qatar,,,,,,,,202,3027,CAN,QAT
+2026,18 Jun 2026 - 22:00,Group B,,Toronto,Bosnia and Herzegovina,,,Switzerland,,,,,,,,202,3028,BIH,SUI
+2026,18 Jun 2026 - 19:00,Group C,,Dallas,Brazil,,,Haiti,,,,,,,,203,3029,BRA,HAI
+2026,19 Jun 2026 - 15:00,Group C,,San Francisco,Morocco,,,Scotland,,,,,,,,203,3030,MAR,SCO
+2026,18 Jun 2026 - 22:00,Group D,,Seattle,United States,,,Australia,,,,,,,,204,3031,USA,AUS
+2026,19 Jun 2026 - 19:00,Group D,,Houston,Paraguay,,,Turkey,,,,,,,,204,3032,PAR,TUR
+2026,19 Jun 2026 - 18:00,Group E,,Atlanta,Germany,,,Ivory Coast,,,,,,,,205,3033,GER,CIV
+2026,20 Jun 2026 - 15:00,Group E,,Miami,Curacao,,,Ecuador,,,,,,,,205,3034,CUW,ECU
+2026,19 Jun 2026 - 22:00,Group F,,Los Angeles,Netherlands,,,Sweden,,,,,,,,206,3035,NED,SWE
+2026,20 Jun 2026 - 19:00,Group F,,New York,Japan,,,Tunisia,,,,,,,,206,3036,JPN,TUN
+2026,20 Jun 2026 - 18:00,Group G,,Philadelphia,Belgium,,,Iran,,,,,,,,207,3037,BEL,IRN
+2026,21 Jun 2026 - 15:00,Group G,,Boston,Egypt,,,New Zealand,,,,,,,,207,3038,EGY,NZL
+2026,20 Jun 2026 - 22:00,Group H,,Atlanta,Spain,,,Saudi Arabia,,,,,,,,208,3039,ESP,KSA
+2026,21 Jun 2026 - 19:00,Group H,,Dallas,Cape Verde,,,Uruguay,,,,,,,,208,3040,CPV,URU
+2026,21 Jun 2026 - 18:00,Group I,,Los Angeles,France,,,Iraq,,,,,,,,209,3041,FRA,IRQ
+2026,22 Jun 2026 - 15:00,Group I,,Miami,Senegal,,,Norway,,,,,,,,209,3042,SEN,NOR
+2026,21 Jun 2026 - 22:00,Group J,,New York,Argentina,,,Austria,,,,,,,,210,3043,ARG,AUT
+2026,22 Jun 2026 - 19:00,Group J,,San Francisco,Algeria,,,Jordan,,,,,,,,210,3044,ALG,JOR
+2026,22 Jun 2026 - 18:00,Group K,,Boston,Portugal,,,Uzbekistan,,,,,,,,211,3045,POR,UZB
+2026,23 Jun 2026 - 15:00,Group K,,Houston,Congo DR,,,Colombia,,,,,,,,211,3046,COD,COL
+2026,22 Jun 2026 - 22:00,Group L,,Atlanta,England,,,Ghana,,,,,,,,212,3047,ENG,GHA
+2026,23 Jun 2026 - 19:00,Group L,,Kansas City,Croatia,,,Panama,,,,,,,,212,3048,CRO,PAN
+2026,24 Jun 2026 - 20:00,Group A,,Mexico City,Mexico,,,Czechia,,,,,,,,201,3049,MEX,CZE
+2026,24 Jun 2026 - 20:00,Group A,,Guadalajara,South Africa,,,South Korea,,,,,,,,201,3050,RSA,KOR
+2026,24 Jun 2026 - 20:00,Group B,,Toronto,Canada,,,Switzerland,,,,,,,,202,3051,CAN,SUI
+2026,24 Jun 2026 - 20:00,Group B,,Dallas,Bosnia and Herzegovina,,,Qatar,,,,,,,,202,3052,BIH,QAT
+2026,24 Jun 2026 - 20:00,Group C,,San Francisco,Brazil,,,Scotland,,,,,,,,203,3053,BRA,SCO
+2026,24 Jun 2026 - 20:00,Group C,,Seattle,Morocco,,,Haiti,,,,,,,,203,3054,MAR,HAI
+2026,25 Jun 2026 - 20:00,Group D,,Los Angeles,United States,,,Turkey,,,,,,,,204,3055,USA,TUR
+2026,25 Jun 2026 - 20:00,Group D,,Kansas City,Paraguay,,,Australia,,,,,,,,204,3056,PAR,AUS
+2026,25 Jun 2026 - 20:00,Group E,,Miami,Germany,,,Ecuador,,,,,,,,205,3057,GER,ECU
+2026,25 Jun 2026 - 20:00,Group E,,Houston,Curacao,,,Ivory Coast,,,,,,,,205,3058,CUW,CIV
+2026,25 Jun 2026 - 20:00,Group F,,New York,Netherlands,,,Tunisia,,,,,,,,206,3059,NED,TUN
+2026,25 Jun 2026 - 20:00,Group F,,Philadelphia,Japan,,,Sweden,,,,,,,,206,3060,JPN,SWE
+2026,26 Jun 2026 - 20:00,Group G,,Seattle,Belgium,,,New Zealand,,,,,,,,207,3061,BEL,NZL
+2026,26 Jun 2026 - 20:00,Group G,,Boston,Egypt,,,Iran,,,,,,,,207,3062,EGY,IRN
+2026,26 Jun 2026 - 20:00,Group H,,Atlanta,Spain,,,Uruguay,,,,,,,,208,3063,ESP,URU
+2026,26 Jun 2026 - 20:00,Group H,,Dallas,Cape Verde,,,Saudi Arabia,,,,,,,,208,3064,CPV,KSA
+2026,26 Jun 2026 - 20:00,Group I,,Los Angeles,France,,,Norway,,,,,,,,209,3065,FRA,NOR
+2026,26 Jun 2026 - 20:00,Group I,,Miami,Iraq,,,Senegal,,,,,,,,209,3066,IRQ,SEN
+2026,27 Jun 2026 - 20:00,Group J,,New York,Argentina,,,Jordan,,,,,,,,210,3067,ARG,JOR
+2026,27 Jun 2026 - 20:00,Group J,,San Francisco,Algeria,,,Austria,,,,,,,,210,3068,ALG,AUT
+2026,27 Jun 2026 - 20:00,Group K,,Boston,Portugal,,,Colombia,,,,,,,,211,3069,POR,COL
+2026,27 Jun 2026 - 20:00,Group K,,Kansas City,Uzbekistan,,,Congo DR,,,,,,,,211,3070,UZB,COD
+2026,27 Jun 2026 - 20:00,Group L,,Houston,England,,,Panama,,,,,,,,212,3071,ENG,PAN
+2026,27 Jun 2026 - 20:00,Group L,,Atlanta,Ghana,,,Croatia,,,,,,,,212,3072,GHA,CRO
