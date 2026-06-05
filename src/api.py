@@ -3979,22 +3979,25 @@ def get_active_leagues():
             GROUP BY l.id, l.name, s.id, s.year_start
             HAVING COUNT(DISTINCT m.id) > 0
         )
-        SELECT 
+        SELECT
             league_id as id,
             league_name as name,
-            CASE league_id
-                WHEN 1 THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'  -- Premier League
-                WHEN 2 THEN '🇪🇸'  -- La Liga
-                WHEN 3 THEN '🇮🇹'  -- Serie A
-                WHEN 4 THEN '🇩🇪'  -- Bundesliga
-                WHEN 5 THEN '🇫🇷'  -- Ligue 1
+            CASE league_name
+                WHEN 'Premier League' THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'
+                WHEN 'La Liga' THEN '🇪🇸'
+                WHEN 'Serie A' THEN '🇮🇹'
+                WHEN 'Bundesliga' THEN '🇩🇪'
+                WHEN 'Ligue 1' THEN '🇫🇷'
+                WHEN 'FIFA World Cup' THEN '🏆'
                 ELSE '⚽'
             END as emoji,
             season_id,
             upcoming_count
         FROM ranked_seasons
         WHERE rn = 1  -- Solo la season con más partidos próximos por liga
-        ORDER BY league_id
+        ORDER BY
+            CASE league_name WHEN 'FIFA World Cup' THEN 0 ELSE 1 END,
+            league_id
     """)
     
     with engine.begin() as conn:
@@ -4042,12 +4045,13 @@ def get_league_detail(league_id: int):
         SELECT 
             l.id,
             l.name,
-            CASE l.id
-                WHEN 1 THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'
-                WHEN 2 THEN '🇪🇸'
-                WHEN 3 THEN '🇮🇹'
-                WHEN 4 THEN '🇩🇪'
-                WHEN 5 THEN '🇫🇷'
+            CASE l.name
+                WHEN 'Premier League' THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'
+                WHEN 'La Liga' THEN '🇪🇸'
+                WHEN 'Serie A' THEN '🇮🇹'
+                WHEN 'Bundesliga' THEN '🇩🇪'
+                WHEN 'Ligue 1' THEN '🇫🇷'
+                WHEN 'FIFA World Cup' THEN '🏆'
                 ELSE '⚽'
             END as emoji,
             a.season_id,

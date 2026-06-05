@@ -1,5 +1,5 @@
 import { useState, useEffect, type JSX } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MatchH2HNarrative from './MatchH2HNarrative';
 import H2HScoring from './H2Hscoring';
 
@@ -93,6 +93,9 @@ interface BettingLinesData {
 export default function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnSearch: string = (location.state as any)?.returnSearch ?? '';
+  const fromWorldCup: boolean = !!(location.state as any)?.group;
   const [match, setMatch] = useState<MatchStats | null>(null);
   const [bettingLines, setBettingLines] = useState<BettingLinesData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -307,8 +310,12 @@ export default function MatchDetail() {
             <p className="text-red-300">{error}</p>
             <button
                 onClick={() => {
-                  const leagueId = match?.league_id || 1;
-                  navigate(`/?league=${leagueId}`);
+                  if (fromWorldCup) {
+                    navigate(-1);
+                  } else {
+                    const leagueId = match?.league_id || 1;
+                    navigate(returnSearch ? `/?${returnSearch}` : `/?league=${leagueId}`);
+                  }
                 }}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
             >

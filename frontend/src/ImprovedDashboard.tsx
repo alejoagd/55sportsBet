@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
 import LeagueSwitcher from './Leagueswitcher';
+import WorldCupDashboard from './WorldCupDashboard';
 
 
 
@@ -47,7 +48,7 @@ interface Match {
 
 export default function ImprovedDashboard() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
   const [recentMatches, setRecentMatches] = useState<Match[]>([]);
@@ -58,6 +59,8 @@ export default function ImprovedDashboard() {
   const [currentLeagueId, setCurrentLeagueId] = useState(leagueIdFromUrl);
 
   const [seasonId, setSeasonId] = useState<number | null>(null);
+  const [upcomingLimit, setUpcomingLimit] = useState<number>(10);
+  const [leagueName, setLeagueName] = useState<string>('');
   const { isAdmin } = useAdminMode();
   
   useEffect(() => {
@@ -82,6 +85,8 @@ export default function ImprovedDashboard() {
           const leagueData = await response.json();
           console.log('✅ Season data:', leagueData);
           setSeasonId(leagueData.seasonId);
+          setLeagueName(leagueData.name || '');
+          setUpcomingLimit(Math.max(leagueData.upcomingCount || 10, 10));
         }
       } catch (error) {
         console.error('❌ Error obteniendo season_id:', error);
@@ -96,7 +101,7 @@ export default function ImprovedDashboard() {
       console.log('📊 Fetching data for season_id:', seasonId);
       fetchData();
     }
-  }, [seasonId]);
+  }, [seasonId, upcomingLimit]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -105,7 +110,7 @@ export default function ImprovedDashboard() {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       console.log('🚀 Fetching upcoming matches with season_id:', seasonId);
       const upcomingResponse = await fetch(
-        `${API_URL}/api/matches/upcoming?season_id=${seasonId}&limit=10`
+        `${API_URL}/api/matches/upcoming?season_id=${seasonId}&limit=${upcomingLimit}`
       );
       
       if (!upcomingResponse.ok) {
@@ -522,18 +527,32 @@ export default function ImprovedDashboard() {
 // Reemplaza desde la línea 446 hasta el final (línea 532)
 // ═══════════════════════════════════════════════════════════════════
 
+  const isWorldCup = leagueName === 'FIFA World Cup';
+
   return (
     <>
-      {/* ✨ SELECTOR DE LIGAS - DEBE IR AQUÍ ARRIBA */}
-      <LeagueSwitcher 
+      {/* ✨ SELECTOR DE LIGAS */}
+      <LeagueSwitcher
         currentLeagueId={currentLeagueId}
         onLeagueChange={(leagueId) => {
           setCurrentLeagueId(leagueId);
           setLoading(true);
+          setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('league', leagueId.toString());
+            next.delete('group');
+            return next;
+          });
         }}
       />
 
-      {/* CONTENIDO DEL DASHBOARD */}
+      {/* VISTA ESPECIAL MUNDIAL */}
+      {isWorldCup && (
+        <WorldCupDashboard matches={upcomingMatches} initialGroup={searchParams.get('group')} />
+      )}
+
+      {/* CONTENIDO DEL DASHBOARD (solo para ligas normales) */}
+      {!isWorldCup && (
       <div className="min-h-screen bg-slate-900 p-6">
         <div className="max-w-7xl mx-auto space-y-8">
 
@@ -619,6 +638,7 @@ export default function ImprovedDashboard() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }
