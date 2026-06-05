@@ -15,7 +15,8 @@ Puebla:
   - matches  (resultados históricos)
 
 Uso:
-  python -m src.ingest.load_worldcup run data/raw/worldcup/WorldCupMatches.csv
+  python -m src.ingest.load_worldcup data/raw/worldcup/WorldCupMatches.csv
+  python -m src.ingest.load_worldcup data/raw/worldcup/WorldCupMatches.csv --dry-run
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ def _get_or_create_league(s: Session) -> int:
     row = s.execute(select(League).where(League.name == LEAGUE_NAME)).scalar_one_or_none()
     if row:
         return row.id
-    league = League(name=LEAGUE_NAME)
+    league = League(name=LEAGUE_NAME, country="International")
     s.add(league)
     s.flush()
     print(f"  Liga creada: {LEAGUE_NAME} (id={league.id})")

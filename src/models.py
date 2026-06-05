@@ -9,6 +9,7 @@ class League(Base):
     __tablename__ = "leagues"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
+    country: Mapped[str | None] = mapped_column(String, nullable=True)
 
 class Team(Base):
     __tablename__ = "teams"
