@@ -1,12 +1,13 @@
 """
 Genera ratings Weinston para el Mundial 2026 (season_id=76)
-usando los datos históricos de los Mundiales 2006, 2010 y 2014.
+usando TODOS los datos históricos disponibles (1930-2022).
 
-Pasos:
-1. Entrena Weinston en cada uno de los últimos 3 Mundiales con resultados
-2. Para cada equipo del Mundial 2026, busca su rating más reciente
-3. Inserta esos ratings en weinston_ratings para season_id=76
-4. Inserta parámetros de liga promediando los últimos Mundiales
+Estrategia:
+- Entrena Weinston en CADA Mundial histórico con suficientes partidos
+- Para cada equipo del 2026, promedia sus ratings de TODOS sus Mundiales
+  dando más peso a los torneos más recientes (decaimiento exponencial)
+- Equipos sin historial reciben rating neutro (1.0)
+- Los parámetros de liga se promedian sobre todos los torneos
 
 Uso:
   python populate_wc2026_ratings.py
@@ -14,10 +15,10 @@ Uso:
 from sqlalchemy import text
 from src.db import SessionLocal, engine
 from src.weinston.fit import fit_weinston, save_ratings, save_league_params
+import math
 
 WC_2026_SEASON_ID = 76
-TRAINING_SEASONS = []  # se llenan dinámicamente
-TARGET_RECENT_WC_COUNT = 3  # usar los últimos N Mundiales con datos suficientes
+RECENCY_DECAY = 0.85  # cada Mundial más antiguo vale 85% del anterior
 
 
 def get_wc_seasons_with_results(conn):
@@ -84,10 +85,10 @@ def main():
         for s in wc_seasons:
             print(f"  Season {s.id}: World Cup {s.year_start} ({s.matches_with_results} partidos)")
 
-        # Usar los últimos N Mundiales
-        training_seasons = wc_seasons[:TARGET_RECENT_WC_COUNT]
+        # Usar TODOS los Mundiales disponibles
+        training_seasons = wc_seasons  # ordenados desc por año
         training_ids = [s.id for s in training_seasons]
-        print(f"\nUsando para entrenamiento: {[s.year_start for s in training_seasons]}")
+        print(f"\nUsando TODOS los Mundiales: {sorted([s.year_start for s in training_seasons])}")
 
     # 2. Entrenar Weinston en cada temporada histórica
     print("\n" + "-" * 60)
@@ -124,13 +125,42 @@ def main():
         league_id = get_league_id_for_season(conn, WC_2026_SEASON_ID)
         all_ratings = get_existing_ratings(conn, trained_ids)
 
-        # Para cada equipo tomar el rating del Mundial más reciente disponible
-        # (trained_ids ya está ordenado desc por año)
-        best_rating = {}
+        # Construir mapa season_id -> posición (0 = más reciente)
+        # trained_ids está ordenado desc, así que índice 0 = más reciente
+        season_rank = {sid: i for i, sid in enumerate(trained_ids)}
+
+        # Promedio ponderado por recencia: peso = RECENCY_DECAY ^ posición
+        # posición 0 (más reciente) tiene peso 1.0, posición 1 tiene 0.85, etc.
+        weighted_sums = {}   # team_id -> {campo: suma_ponderada}
+        weight_totals = {}   # team_id -> peso_total
+
         for r in all_ratings:
             tid = r.team_id
-            if tid not in best_rating:
-                best_rating[tid] = r
+            rank = season_rank.get(r.season_id, 999)
+            weight = RECENCY_DECAY ** rank
+
+            if tid not in weighted_sums:
+                weighted_sums[tid] = {"atk_home": 0, "def_home": 0, "atk_away": 0, "def_away": 0}
+                weight_totals[tid] = 0
+
+            weighted_sums[tid]["atk_home"] += float(r.atk_home) * weight
+            weighted_sums[tid]["def_home"] += float(r.def_home) * weight
+            weighted_sums[tid]["atk_away"] += float(r.atk_away) * weight
+            weighted_sums[tid]["def_away"] += float(r.def_away) * weight
+            weight_totals[tid] += weight
+
+        # Calcular promedio ponderado final por equipo
+        best_rating = {}
+        for tid, sums in weighted_sums.items():
+            total = weight_totals[tid]
+            best_rating[tid] = {
+                "atk_home": sums["atk_home"] / total,
+                "def_home": sums["def_home"] / total,
+                "atk_away": sums["atk_away"] / total,
+                "def_away": sums["def_away"] / total,
+            }
+
+        print(f"  Equipos con historial en BD: {len(best_rating)}")
 
         # Promediar parámetros de liga de los Mundiales entrenados
         params_rows = conn.execute(text("""
@@ -166,8 +196,8 @@ def main():
                         def_away = EXCLUDED.def_away
                 """), {
                     "sid": WC_2026_SEASON_ID, "tid": team_id, "lid": league_id,
-                    "ah": float(r.atk_home), "dh": float(r.def_home),
-                    "aa": float(r.atk_away), "da": float(r.def_away),
+                    "ah": r["atk_home"], "dh": r["def_home"],
+                    "aa": r["atk_away"], "da": r["def_away"],
                 })
                 inserted += 1
             else:
