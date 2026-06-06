@@ -88,13 +88,6 @@ const GROUP_TEAMS: Record<string, string[]> = {
   'L': ['England','Croatia','Ghana','Panama'],
 };
 
-// Round of 32 cross-group matchup: 1st of group X faces 2nd of group Y
-// e.g. 'A' -> 'C' means 1st of A faces 2nd of C, and 2nd of A faces 1st of C
-const R32_CROSS: Record<string, string> = {
-  'A': 'C', 'C': 'A', 'B': 'D', 'D': 'B',
-  'E': 'G', 'G': 'E', 'F': 'H', 'H': 'F',
-  'I': 'K', 'K': 'I', 'J': 'L', 'L': 'J',
-};
 
 // ── Standings computation ────────────────────────────────────────────
 function computeStandings(group: string, allMatches: GroupMatch[]): TeamStanding[] {
@@ -253,11 +246,9 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
 // ── Group selector ────────────────────────────────────────────────────
 function GroupSelector({
   selected,
-  matchesByGroup,
   onSelect,
 }: {
   selected: string | null;
-  matchesByGroup: Record<string, unknown[]>;
   onSelect: (g: string | null) => void;
 }) {
   return (
@@ -746,10 +737,6 @@ function BracketHalf({
     [matches[6], matches[7]],
   ];
 
-  const roundLabels = side === 'L'
-    ? ['R32', 'R16', 'QF', 'SF']
-    : ['SF', 'QF', 'R16', 'R32'];
-
   const r32 = (
     <div className="space-y-3">
       {pairs.map((pair, pi) => (
@@ -902,110 +889,6 @@ function InteractiveBracketView() {
   );
 }
 
-// ── Unused RouteCard kept for reference ───────────────────────────────
-function RouteCard({ group }: { group: string }) {
-  const crossGroup = R32_CROSS[group] || '?';
-  const teams = GROUP_TEAMS[group] ?? [];
-
-  const positions = [
-    {
-      pos: 1,
-      medal: '🥇',
-      label: '1er lugar',
-      status: 'CLASIFICADO',
-      statusColor: 'text-green-400 bg-green-400/10 border-green-400/30',
-      detail: `R32 vs 2º Grupo ${crossGroup}`,
-      path: ['R32', 'Octavos', 'Cuartos', 'Semis', 'Final'],
-      borderColor: 'border-l-green-500',
-    },
-    {
-      pos: 2,
-      medal: '🥈',
-      label: '2do lugar',
-      status: 'CLASIFICADO',
-      statusColor: 'text-green-400 bg-green-400/10 border-green-400/30',
-      detail: `R32 vs 1º Grupo ${crossGroup}`,
-      path: ['R32', 'Octavos', 'Cuartos', 'Semis', 'Final'],
-      borderColor: 'border-l-green-500',
-    },
-    {
-      pos: 3,
-      medal: '🥉',
-      label: '3er lugar',
-      status: 'POSIBLE',
-      statusColor: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
-      detail: 'Si es uno de los 8 mejores 3eros → R32',
-      path: ['(R32)', 'Octavos', 'Cuartos', 'Semis', 'Final'],
-      borderColor: 'border-l-yellow-500',
-    },
-    {
-      pos: 4,
-      medal: '4️⃣',
-      label: '4to lugar',
-      status: 'ELIMINADO',
-      statusColor: 'text-red-400 bg-red-400/10 border-red-400/30',
-      detail: 'No avanza a la fase eliminatoria',
-      path: [],
-      borderColor: 'border-l-slate-700',
-    },
-  ];
-
-  return (
-    <div className="mb-8">
-      <GroupHeader group={group} />
-      <div className="space-y-3">
-        {positions.map((pos) => (
-          <div
-            key={pos.pos}
-            className={`bg-slate-800 rounded-xl border border-slate-700 border-l-4 ${pos.borderColor} overflow-hidden`}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
-              {/* Position + team name */}
-              <div className="flex items-center gap-3 min-w-0 sm:w-48">
-                <span className="text-2xl">{pos.medal}</span>
-                <div className="min-w-0">
-                  <p className="text-xs text-slate-500 font-medium">{pos.label}</p>
-                  {teams[pos.pos - 1] && (
-                    <p className="text-sm font-bold text-white truncate">
-                      {TEAM_FLAG[teams[pos.pos - 1]]} {teams[pos.pos - 1]}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Status badge */}
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border self-start sm:self-center flex-shrink-0 ${pos.statusColor}`}>
-                {pos.status}
-              </span>
-
-              {/* Detail + path */}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-slate-400 mb-2">{pos.detail}</p>
-                {pos.path.length > 0 && (
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {pos.path.map((round, idx) => (
-                      <div key={round} className="flex items-center gap-1">
-                        <span className={`text-xs px-2 py-0.5 rounded font-semibold
-                          ${idx === 0 ? 'bg-slate-700 text-slate-300'
-                          : idx === pos.path.length - 1 ? 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/30'
-                          : 'bg-slate-700/50 text-slate-400'}`}>
-                          {round}
-                        </span>
-                        {idx < pos.path.length - 1 && (
-                          <span className="text-slate-600 text-xs">→</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function BracketView() {
   return <InteractiveBracketView />;
@@ -1067,7 +950,6 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
         {activeTab !== 'bracket' && (
           <GroupSelector
             selected={selectedGroup}
-            matchesByGroup={matchesByGroup}
             onSelect={handleSelectGroup}
           />
         )}
