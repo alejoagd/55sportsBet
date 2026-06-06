@@ -682,6 +682,34 @@ def get_upcoming_matches(
         return [dict(row) for row in rows]
 
 
+@router.get("/api/wc2026/group-matches")
+def get_wc2026_group_matches():
+    """Returns all WC 2026 group stage matches with results for standings calculation."""
+    query = text("""
+        SELECT
+            m.id as match_id,
+            th.name as home_team,
+            ta.name as away_team,
+            m.home_goals,
+            m.away_goals,
+            m.date
+        FROM matches m
+        JOIN teams th ON th.id = m.home_team_id
+        JOIN teams ta ON ta.id = m.away_team_id
+        WHERE m.season_id = 76
+        ORDER BY m.date, m.id
+    """)
+    with engine.begin() as conn:
+        rows = conn.execute(query).mappings().all()
+    result = []
+    for row in rows:
+        d = dict(row)
+        if d.get('date') and hasattr(d['date'], 'isoformat'):
+            d['date'] = d['date'].isoformat()
+        result.append(d)
+    return result
+
+
 @router.get("/api/matches/recent-results")
 def get_recent_results(
     season_id: int = Query(..., description="ID de la temporada"),
