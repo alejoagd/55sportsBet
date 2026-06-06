@@ -541,8 +541,8 @@ function StandingsView({
 // ── Interactive Bracket ───────────────────────────────────────────────
 
 type BracketSlot =
-  | { kind: 'pos'; group: string; pos: 0 | 1 }   // 0=1st, 1=2nd
-  | { kind: 'third'; label: string };
+  | { kind: 'pos'; group: string; pos: 0 | 1 }
+  | { kind: 'third'; fromGroups: string[] };
 
 interface R32Match {
   num: number;
@@ -554,24 +554,58 @@ interface R32Match {
 // Official 2026 WC Round of 32 bracket matchups
 const R32_MATCHES: R32Match[] = [
   // ── Left half ──────────────────────────────────────────────────────
-  { num: 1,  side: 'L', slotA: { kind: 'pos', group: 'E', pos: 0 }, slotB: { kind: 'third', label: '3° ABCDF' } },
-  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', label: '3° GHJKL' } },
+  { num: 1,  side: 'L', slotA: { kind: 'pos', group: 'E', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','B','C','D','F'] } },
+  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', fromGroups: ['G','H','J','K','L'] } },
   { num: 3,  side: 'L', slotA: { kind: 'pos', group: 'A', pos: 1 }, slotB: { kind: 'pos', group: 'B', pos: 1 } },
   { num: 4,  side: 'L', slotA: { kind: 'pos', group: 'F', pos: 0 }, slotB: { kind: 'pos', group: 'C', pos: 1 } },
   { num: 5,  side: 'L', slotA: { kind: 'pos', group: 'K', pos: 1 }, slotB: { kind: 'pos', group: 'L', pos: 1 } },
   { num: 6,  side: 'L', slotA: { kind: 'pos', group: 'H', pos: 0 }, slotB: { kind: 'pos', group: 'J', pos: 1 } },
-  { num: 7,  side: 'L', slotA: { kind: 'pos', group: 'D', pos: 0 }, slotB: { kind: 'third', label: '3° BEFIJ' } },
-  { num: 8,  side: 'L', slotA: { kind: 'pos', group: 'G', pos: 0 }, slotB: { kind: 'third', label: '3° AEHIJ' } },
+  { num: 7,  side: 'L', slotA: { kind: 'pos', group: 'D', pos: 0 }, slotB: { kind: 'third', fromGroups: ['B','E','F','I','J'] } },
+  { num: 8,  side: 'L', slotA: { kind: 'pos', group: 'G', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','E','H','I','J'] } },
   // ── Right half ─────────────────────────────────────────────────────
   { num: 9,  side: 'R', slotA: { kind: 'pos', group: 'C', pos: 0 }, slotB: { kind: 'pos', group: 'F', pos: 1 } },
   { num: 10, side: 'R', slotA: { kind: 'pos', group: 'E', pos: 1 }, slotB: { kind: 'pos', group: 'I', pos: 1 } },
-  { num: 11, side: 'R', slotA: { kind: 'pos', group: 'A', pos: 0 }, slotB: { kind: 'third', label: '3° GEFH' } },
-  { num: 12, side: 'R', slotA: { kind: 'pos', group: 'L', pos: 0 }, slotB: { kind: 'third', label: '3° EHIJK' } },
+  { num: 11, side: 'R', slotA: { kind: 'pos', group: 'A', pos: 0 }, slotB: { kind: 'third', fromGroups: ['G','E','F','H'] } },
+  { num: 12, side: 'R', slotA: { kind: 'pos', group: 'L', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','H','I','K','J'] } },
   { num: 13, side: 'R', slotA: { kind: 'pos', group: 'J', pos: 0 }, slotB: { kind: 'pos', group: 'H', pos: 1 } },
   { num: 14, side: 'R', slotA: { kind: 'pos', group: 'D', pos: 1 }, slotB: { kind: 'pos', group: 'G', pos: 1 } },
-  { num: 15, side: 'R', slotA: { kind: 'pos', group: 'B', pos: 0 }, slotB: { kind: 'third', label: '3° EFGL' } },
-  { num: 16, side: 'R', slotA: { kind: 'pos', group: 'K', pos: 0 }, slotB: { kind: 'third', label: '3° EHIJK' } },
+  { num: 15, side: 'R', slotA: { kind: 'pos', group: 'B', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','F','G','L'] } },
+  { num: 16, side: 'R', slotA: { kind: 'pos', group: 'K', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','H','I','J','K'] } },
 ];
+
+// Bracket connectivity: which two matches feed each subsequent match
+const BRACKET_PAIRS: Record<string, [string, string]> = {
+  'R16-1': ['R32-1',  'R32-2'],  'R16-2': ['R32-3',  'R32-4'],
+  'R16-3': ['R32-5',  'R32-6'],  'R16-4': ['R32-7',  'R32-8'],
+  'R16-5': ['R32-9',  'R32-10'], 'R16-6': ['R32-11', 'R32-12'],
+  'R16-7': ['R32-13', 'R32-14'], 'R16-8': ['R32-15', 'R32-16'],
+  'QF-1':  ['R16-1', 'R16-2'],  'QF-2':  ['R16-3', 'R16-4'],
+  'QF-3':  ['R16-5', 'R16-6'],  'QF-4':  ['R16-7', 'R16-8'],
+  'SF-1':  ['QF-1',  'QF-2'],   'SF-2':  ['QF-3',  'QF-4'],
+  'Final': ['SF-1',  'SF-2'],
+};
+
+// Resolve which team occupies a bracket slot
+function resolveTeam(
+  matchId: string,
+  pos: 'a' | 'b',
+  rankings: Record<string, string[]>,
+  thirdPicks: Record<number, string>,
+  winners: Record<string, string>,
+): string | null {
+  if (matchId.startsWith('R32-')) {
+    const num = parseInt(matchId.split('-')[1]);
+    const match = R32_MATCHES.find(m => m.num === num);
+    if (!match) return null;
+    const slot = pos === 'a' ? match.slotA : match.slotB;
+    if (slot.kind === 'pos') return rankings[slot.group]?.[slot.pos] ?? null;
+    const group = thirdPicks[num];
+    return group ? (rankings[group]?.[2] ?? null) : null;
+  }
+  const pair = BRACKET_PAIRS[matchId];
+  if (!pair) return null;
+  return winners[pos === 'a' ? pair[0] : pair[1]] ?? null;
+}
 
 // Draggable group card ─────────────────────────────────────────────────
 function DraggableGroupCard({
@@ -630,34 +664,72 @@ function DraggableGroupCard({
   );
 }
 
+// Shared team row ─────────────────────────────────────────────────────
+function TeamRow({
+  team, winner, canPick, onClick, badge, thirdLabel,
+}: {
+  team: string | null;
+  winner: string | null;
+  canPick: boolean;
+  onClick: () => void;
+  badge?: { text: string; cls: string };
+  thirdLabel?: string;
+}) {
+  const isWinner = !!team && team === winner;
+  const isLoser  = !!winner && team !== winner;
+  return (
+    <div
+      onClick={canPick && !!team ? onClick : undefined}
+      className={`flex items-center gap-1.5 px-2 py-2 min-w-0 transition-all
+        ${canPick && team ? 'cursor-pointer' : ''}
+        ${isWinner ? 'bg-green-500/20' : ''}
+        ${isLoser  ? 'opacity-30' : ''}
+        ${canPick && team && !winner ? 'hover:bg-slate-700/60' : ''}`}
+    >
+      {badge && (
+        <span className={`text-xs font-bold px-1 rounded flex-shrink-0 ${badge.cls}`}>{badge.text}</span>
+      )}
+      {team ? (
+        <>
+          <span className="text-sm leading-none flex-shrink-0">{TEAM_FLAG[team] ?? '🏳'}</span>
+          <span className="text-xs font-semibold text-white truncate flex-1">{team}</span>
+          {isWinner && <span className="text-green-400 text-xs flex-shrink-0">✓</span>}
+        </>
+      ) : (
+        <span className={`text-xs italic truncate ${thirdLabel ? 'text-yellow-500/60' : 'text-slate-600'}`}>
+          {thirdLabel ?? 'Ganador'}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // R32 match card ──────────────────────────────────────────────────────
 function R32Card({
-  match, rankings, isTopOfPair, isBottomOfPair,
+  match, rankings, thirdPicks, winners, onPickWinner, isTopOfPair, isBottomOfPair,
 }: {
   match: R32Match;
   rankings: Record<string, string[]>;
+  thirdPicks: Record<number, string>;
+  winners: Record<string, string>;
+  onPickWinner: (matchId: string, team: string) => void;
   isTopOfPair: boolean;
   isBottomOfPair: boolean;
 }) {
-  const getTeam = (slot: BracketSlot): string | null => {
-    if (slot.kind === 'third') return null;
-    return rankings[slot.group]?.[slot.pos] ?? null;
-  };
-
-  const labelFor = (slot: BracketSlot) => {
-    if (slot.kind === 'third') return slot.label;
-    return `${slot.pos === 0 ? '1°' : '2°'} Grp ${slot.group}`;
-  };
+  const matchId = `R32-${match.num}`;
+  const teamA = resolveTeam(matchId, 'a', rankings, thirdPicks, winners);
+  const teamB = resolveTeam(matchId, 'b', rankings, thirdPicks, winners);
+  const winner = winners[matchId] ?? null;
+  const canPick = !!teamA && !!teamB;
 
   const badgeFor = (slot: BracketSlot) => {
     if (slot.kind === 'third') return { text: '3°', cls: 'text-yellow-400 bg-yellow-400/10' };
-    if (slot.pos === 0) return { text: '1°', cls: 'text-green-400 bg-green-400/10' };
+    if (slot.pos === 0)        return { text: '1°', cls: 'text-green-400 bg-green-400/10' };
     return { text: '2°', cls: 'text-blue-400 bg-blue-400/10' };
   };
 
-  const teamA = getTeam(match.slotA);
-  const teamB = getTeam(match.slotB);
-  const badge = { a: badgeFor(match.slotA), b: badgeFor(match.slotB) };
+  const thirdLabelFor = (slot: BracketSlot) =>
+    slot.kind === 'third' ? `3° (${slot.fromGroups.join('')})` : undefined;
 
   const connectorStyle = isTopOfPair
     ? 'rounded-t-xl rounded-br-none border-b-0 border-r-2 border-r-yellow-400/40'
@@ -667,89 +739,98 @@ function R32Card({
 
   return (
     <div className={`bg-slate-800 border border-slate-700 overflow-hidden ${connectorStyle}`}>
-      <div className="flex items-center px-2 py-1 bg-slate-900/60 border-b border-slate-700/50">
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-900/60 border-b border-slate-700/50">
         <span className="text-xs text-slate-500 font-bold">M{match.num}</span>
-      </div>
-      {/* Team A */}
-      <div className="flex items-center gap-2 px-2 py-2 min-w-0">
-        <span className={`text-xs font-bold px-1 rounded flex-shrink-0 ${badge.a.cls}`}>{badge.a.text}</span>
-        {teamA ? (
-          <>
-            <span className="text-base leading-none flex-shrink-0">{TEAM_FLAG[teamA] ?? '🏳'}</span>
-            <span className="text-xs font-semibold text-white truncate">{teamA}</span>
-          </>
-        ) : (
-          <span className="text-xs text-slate-500 italic truncate">{labelFor(match.slotA)}</span>
+        {winner && (
+          <button
+            onClick={() => onPickWinner(matchId, '')}
+            className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+            title="Deshacer selección"
+          >↺</button>
         )}
       </div>
+      <TeamRow team={teamA} winner={winner} canPick={canPick}
+        onClick={() => teamA && onPickWinner(matchId, teamA)}
+        badge={badgeFor(match.slotA)} thirdLabel={thirdLabelFor(match.slotA)} />
       <div className="mx-2 h-px bg-slate-700" />
-      {/* Team B */}
-      <div className="flex items-center gap-2 px-2 py-2 min-w-0">
-        <span className={`text-xs font-bold px-1 rounded flex-shrink-0 ${badge.b.cls}`}>{badge.b.text}</span>
-        {teamB ? (
-          <>
-            <span className="text-base leading-none flex-shrink-0">{TEAM_FLAG[teamB] ?? '🏳'}</span>
-            <span className="text-xs font-semibold text-white truncate">{teamB}</span>
-          </>
-        ) : (
-          <span className={`text-xs italic truncate ${match.slotB.kind === 'third' ? 'text-yellow-500/70' : 'text-slate-500'}`}>
-            {labelFor(match.slotB)}
-          </span>
-        )}
-      </div>
+      <TeamRow team={teamB} winner={winner} canPick={canPick}
+        onClick={() => teamB && onPickWinner(matchId, teamB)}
+        badge={badgeFor(match.slotB)} thirdLabel={thirdLabelFor(match.slotB)} />
     </div>
   );
 }
 
-// TBD match slot ──────────────────────────────────────────────────────
-function TBDSlot({ label }: { label: string }) {
+// Clickable match card for R16/QF/SF/Final ────────────────────────────
+function ClickableMatchCard({
+  matchId, rankings, thirdPicks, winners, onPickWinner, label,
+}: {
+  matchId: string;
+  rankings: Record<string, string[]>;
+  thirdPicks: Record<number, string>;
+  winners: Record<string, string>;
+  onPickWinner: (matchId: string, team: string) => void;
+  label: string;
+}) {
+  const teamA = resolveTeam(matchId, 'a', rankings, thirdPicks, winners);
+  const teamB = resolveTeam(matchId, 'b', rankings, thirdPicks, winners);
+  const winner = winners[matchId] ?? null;
+  const canPick = !!teamA && !!teamB;
+  const isFinal = matchId === 'Final';
+
   return (
-    <div className="bg-slate-800/50 border border-dashed border-slate-700 rounded-xl overflow-hidden w-36">
-      <div className="px-2 py-1 bg-slate-900/40 border-b border-slate-700/50">
-        <span className="text-xs text-slate-600 font-bold">{label}</span>
+    <div className={`border rounded-xl overflow-hidden w-40
+      ${isFinal ? 'border-2 border-yellow-400/60 bg-yellow-400/5' : 'border border-dashed border-slate-600 bg-slate-800/50'}`}>
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-900/40 border-b border-slate-700/40">
+        <span className={`text-xs font-bold ${isFinal ? 'text-yellow-400' : 'text-slate-500'}`}>{label}</span>
+        {winner && (
+          <button
+            onClick={() => onPickWinner(matchId, '')}
+            className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+            title="Deshacer selección"
+          >↺</button>
+        )}
       </div>
-      <div className="flex items-center gap-2 px-2 py-2">
-        <span className="w-4 h-4 rounded bg-slate-700 flex-shrink-0" />
-        <span className="text-xs text-slate-600">Ganador</span>
-      </div>
+      <TeamRow team={teamA} winner={winner} canPick={canPick}
+        onClick={() => teamA && onPickWinner(matchId, teamA)} />
       <div className="mx-2 h-px bg-slate-700/50" />
-      <div className="flex items-center gap-2 px-2 py-2">
-        <span className="w-4 h-4 rounded bg-slate-700 flex-shrink-0" />
-        <span className="text-xs text-slate-600">Ganador</span>
-      </div>
+      <TeamRow team={teamB} winner={winner} canPick={canPick}
+        onClick={() => teamB && onPickWinner(matchId, teamB)} />
     </div>
   );
 }
 
 // Bracket half (left or right) ────────────────────────────────────────
 function BracketHalf({
-  matches, rankings, side,
+  matches, rankings, thirdPicks, winners, onPickWinner, side,
 }: {
   matches: R32Match[];
   rankings: Record<string, string[]>;
+  thirdPicks: Record<number, string>;
+  winners: Record<string, string>;
+  onPickWinner: (matchId: string, team: string) => void;
   side: 'L' | 'R';
 }) {
-  // Pairs: matches come in groups of 2 feeding into same R16 match
   const pairs = [
-    [matches[0], matches[1]],
-    [matches[2], matches[3]],
-    [matches[4], matches[5]],
-    [matches[6], matches[7]],
+    [matches[0], matches[1]], [matches[2], matches[3]],
+    [matches[4], matches[5]], [matches[6], matches[7]],
   ];
+
+  const sharedProps = { rankings, thirdPicks, winners, onPickWinner };
 
   const r32 = (
     <div className="space-y-3">
       {pairs.map((pair, pi) => (
         <div key={pi} className="space-y-0">
-          <R32Card match={pair[0]} rankings={rankings} isTopOfPair isBottomOfPair={false} />
-          <R32Card match={pair[1]} rankings={rankings} isTopOfPair={false} isBottomOfPair />
+          <R32Card match={pair[0]} {...sharedProps} isTopOfPair isBottomOfPair={false} />
+          <R32Card match={pair[1]} {...sharedProps} isTopOfPair={false} isBottomOfPair />
         </div>
       ))}
     </div>
   );
 
   const connector = (count: number, key: string) => (
-    <div key={key} className="flex flex-col justify-around py-4" style={{ gap: count === 4 ? '0.75rem' : count === 2 ? '3.5rem' : '8.5rem' }}>
+    <div key={key} className="flex flex-col justify-around py-4"
+      style={{ gap: count === 4 ? '0.75rem' : count === 2 ? '3.5rem' : '8.5rem' }}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="flex items-center">
           <div className="w-3 h-px bg-slate-600" />
@@ -758,39 +839,122 @@ function BracketHalf({
     </div>
   );
 
+  const r16Offset = side === 'R' ? 4 : 0;
+  const qfOffset  = side === 'R' ? 2 : 0;
+
   const r16 = (
     <div className="flex flex-col justify-around py-1" style={{ gap: '1.5rem' }}>
-      {[0,1,2,3].map(i => <TBDSlot key={i} label={`R16 M${i+1+(side === 'R' ? 4 : 0)}`} />)}
+      {[0,1,2,3].map(i => (
+        <ClickableMatchCard key={i} matchId={`R16-${i+1+r16Offset}`}
+          label={`R16 M${i+1+r16Offset}`} {...sharedProps} />
+      ))}
     </div>
   );
 
   const qf = (
     <div className="flex flex-col justify-around py-1" style={{ gap: '5.5rem' }}>
-      {[0,1].map(i => <TBDSlot key={i} label={`QF M${i+1+(side === 'R' ? 2 : 0)}`} />)}
+      {[0,1].map(i => (
+        <ClickableMatchCard key={i} matchId={`QF-${i+1+qfOffset}`}
+          label={`QF M${i+1+qfOffset}`} {...sharedProps} />
+      ))}
     </div>
   );
 
   const sf = (
     <div className="flex items-center justify-center h-full">
-      <TBDSlot label={`SF M${side === 'R' ? 2 : 1}`} />
+      <ClickableMatchCard matchId={`SF-${side === 'R' ? 2 : 1}`}
+        label={`SF M${side === 'R' ? 2 : 1}`} {...sharedProps} />
     </div>
   );
 
   const columns = side === 'L'
-    ? [r32, connector(4, 'c1'), r16, connector(2, 'c2'), qf, connector(1, 'c3'), sf]
-    : [sf, connector(1, 'c3'), qf, connector(2, 'c2'), r16, connector(4, 'c1'), r32];
+    ? [r32, connector(4,'c1'), r16, connector(2,'c2'), qf, connector(1,'c3'), sf]
+    : [sf, connector(1,'c3'), qf, connector(2,'c2'), r16, connector(4,'c1'), r32];
+
+  return <div className="flex items-stretch gap-0">{columns}</div>;
+}
+
+// 3rd-place qualifier picker ──────────────────────────────────────────
+function ThirdPickerPanel({
+  rankings, thirdPicks, onPick,
+}: {
+  rankings: Record<string, string[]>;
+  thirdPicks: Record<number, string>;
+  onPick: (matchNum: number, group: string) => void;
+}) {
+  const thirdMatches = R32_MATCHES.filter(m =>
+    m.slotA.kind === 'third' || m.slotB.kind === 'third'
+  );
+  const pickedGroups = new Set(Object.values(thirdPicks));
 
   return (
-    <div className="flex items-stretch gap-0">
-      {columns}
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <h3 className="text-white font-bold text-base">Terceros clasificados</h3>
+        <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+          {Object.keys(thirdPicks).length}/8 asignados
+        </span>
+      </div>
+      <p className="text-xs text-slate-500 mb-4">
+        De los 12 grupos, solo clasifican los <strong className="text-yellow-400">8 mejores terceros</strong>.
+        Asigna qué grupo ocupa cada slot del bracket.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {thirdMatches.map(match => {
+          const thirdSlot = (match.slotA.kind === 'third' ? match.slotA : match.slotB) as Extract<BracketSlot, { kind: 'third' }>;
+          const oppSlot   = (match.slotA.kind === 'pos' ? match.slotA : match.slotB) as Extract<BracketSlot, { kind: 'pos' }>;
+          const opponent  = rankings[oppSlot.group]?.[oppSlot.pos] ?? `${oppSlot.pos === 0 ? '1°' : '2°'} Grp ${oppSlot.group}`;
+          const current   = thirdPicks[match.num] ?? '';
+
+          return (
+            <div key={match.num} className="bg-slate-800 border border-slate-700 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">M{match.num}</span>
+                <span className="text-xs text-slate-400 truncate">
+                  vs {TEAM_FLAG[opponent] ?? ''} {opponent}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 mb-2">
+                Grupos elegibles: <span className="text-yellow-300 font-semibold">{thirdSlot.fromGroups.join(', ')}</span>
+              </div>
+              <select
+                value={current}
+                onChange={e => onPick(match.num, e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white
+                  focus:outline-none focus:border-yellow-400/60 cursor-pointer"
+              >
+                <option value="">-- Sin asignar --</option>
+                {thirdSlot.fromGroups.map(g => {
+                  const team = rankings[g]?.[2] ?? `3° Grp ${g}`;
+                  const taken = pickedGroups.has(g) && current !== g;
+                  return (
+                    <option key={g} value={g} disabled={taken}>
+                      {taken ? '⛔ ' : ''}{TEAM_FLAG[team] ?? '🏳'} {team} (3° Grp {g})
+                    </option>
+                  );
+                })}
+              </select>
+              {current && (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-green-400">
+                  <span>{TEAM_FLAG[rankings[current]?.[2] ?? ''] ?? '🏳'}</span>
+                  <span className="font-semibold">{rankings[current]?.[2]}</span>
+                  <span className="text-slate-500">— 3° Grp {current}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 // Interactive bracket view ────────────────────────────────────────────
 function InteractiveBracketView() {
-  const [rankings, setRankings] = useState<Record<string, string[]>>({ ...GROUP_TEAMS });
-  const [dragState, setDragState] = useState<{ group: string; fromIdx: number } | null>(null);
+  const [rankings, setRankings]     = useState<Record<string, string[]>>({ ...GROUP_TEAMS });
+  const [dragState, setDragState]   = useState<{ group: string; fromIdx: number } | null>(null);
+  const [thirdPicks, setThirdPicks] = useState<Record<number, string>>({});
+  const [winners, setWinners]       = useState<Record<string, string>>({});
 
   const handleDrop = (toGroup: string, toIdx: number) => {
     if (!dragState || dragState.group !== toGroup || dragState.fromIdx === toIdx) {
@@ -803,59 +967,132 @@ function InteractiveBracketView() {
       arr.splice(toIdx, 0, removed);
       return { ...prev, [toGroup]: arr };
     });
+    // Reset winners when group positions change
+    setWinners({});
     setDragState(null);
   };
 
-  const leftMatches = R32_MATCHES.filter(m => m.side === 'L');
+  const handlePickWinner = (matchId: string, team: string) => {
+    setWinners(prev => {
+      const next = { ...prev };
+      if (!team) {
+        delete next[matchId];
+        // Cascade: clear any downstream winners that depended on this match
+        const cascade = (id: string) => {
+          delete next[id];
+          Object.entries(BRACKET_PAIRS).forEach(([key, [a, b]]) => {
+            if (a === id || b === id) cascade(key);
+          });
+        };
+        cascade(matchId);
+      } else {
+        next[matchId] = team;
+        // Clear downstream when we repick
+        const cascade = (id: string) => {
+          Object.entries(BRACKET_PAIRS).forEach(([key, [a, b]]) => {
+            if (a === id || b === id) { delete next[key]; cascade(key); }
+          });
+        };
+        cascade(matchId);
+      }
+      return next;
+    });
+  };
+
+  const handlePickThird = (matchNum: number, group: string) => {
+    setThirdPicks(prev => {
+      const next = { ...prev };
+      if (!group) delete next[matchNum];
+      else next[matchNum] = group;
+      return next;
+    });
+    // Reset R32 winner for that match when 3rd changes
+    setWinners(prev => {
+      const next = { ...prev };
+      const cascade = (id: string) => {
+        delete next[id];
+        Object.entries(BRACKET_PAIRS).forEach(([key, [a, b]]) => {
+          if (a === id || b === id) cascade(key);
+        });
+      };
+      cascade(`R32-${matchNum}`);
+      return next;
+    });
+  };
+
+  const sharedBracketProps = { rankings, thirdPicks, winners, onPickWinner: handlePickWinner };
+  const leftMatches  = R32_MATCHES.filter(m => m.side === 'L');
   const rightMatches = R32_MATCHES.filter(m => m.side === 'R');
+  const champion     = winners['Final'] ?? null;
 
   return (
-    <div className="space-y-6">
-      {/* Info */}
-      <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm">
-        <span className="text-xl flex-shrink-0">🎮</span>
-        <div>
-          <p className="text-blue-300 font-semibold mb-0.5">Simulador interactivo</p>
-          <p className="text-slate-400">Arrastra los equipos dentro de cada grupo para cambiar posiciones. El bracket de arriba se actualiza automáticamente.</p>
-        </div>
+    <div className="space-y-8">
+      {/* Info bar */}
+      <div className="flex flex-wrap gap-4 text-xs bg-slate-800/60 border border-slate-700/50 rounded-xl p-3">
+        <span className="flex items-center gap-1.5 text-slate-300">
+          <span>⠿</span><strong>Paso 1:</strong> Arrastra equipos en los grupos
+        </span>
+        <span className="text-slate-600">·</span>
+        <span className="flex items-center gap-1.5 text-slate-300">
+          <span>🟡</span><strong>Paso 2:</strong> Asigna los 8 terceros clasificados
+        </span>
+        <span className="text-slate-600">·</span>
+        <span className="flex items-center gap-1.5 text-slate-300">
+          <span>👆</span><strong>Paso 3:</strong> Haz clic en el ganador de cada partido
+        </span>
       </div>
 
-      {/* Bracket preview */}
+      {/* Bracket visual */}
       <div>
-        <h3 className="text-white font-bold text-base mb-3">Round of 32 — Vista del Bracket</h3>
-        <div className="overflow-x-auto pb-2">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-bold text-base">Vista del Bracket</h3>
+          {Object.keys(winners).length > 0 && (
+            <button
+              onClick={() => setWinners({})}
+              className="text-xs text-slate-500 hover:text-red-400 transition-colors flex items-center gap-1"
+            >
+              ↺ Reiniciar simulación
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto pb-3">
           <div className="flex items-stretch gap-1 min-w-max">
-            {/* Left half */}
-            <BracketHalf matches={leftMatches} rankings={rankings} side="L" />
+            <BracketHalf matches={leftMatches} side="L" {...sharedBracketProps} />
 
             {/* Final */}
-            <div className="flex flex-col items-center justify-center px-4 gap-3">
-              <span className="text-4xl">🏆</span>
-              <div className="text-center">
-                <p className="text-yellow-400 font-black text-xs uppercase tracking-widest">FINAL</p>
-                <p className="text-slate-500 text-xs">19 Jul · NY</p>
-              </div>
-              <div className="bg-slate-800 border-2 border-yellow-400/50 rounded-xl overflow-hidden w-36">
-                <div className="px-2 py-1 bg-yellow-400/10 border-b border-yellow-400/20">
-                  <span className="text-xs font-black text-yellow-400">CAMPEÓN</span>
+            <div className="flex flex-col items-center justify-center px-3 gap-3">
+              {champion ? (
+                <div className="text-center animate-pulse">
+                  <div className="text-4xl mb-1">{TEAM_FLAG[champion] ?? '🏆'}</div>
+                  <p className="text-yellow-400 font-black text-xs uppercase tracking-widest">¡Campeón!</p>
+                  <p className="text-white font-bold text-sm mt-0.5">{champion}</p>
                 </div>
-                <div className="flex items-center gap-2 px-2 py-2">
-                  <span className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-slate-500 text-xs flex-shrink-0">?</span>
-                  <span className="text-xs text-slate-500">Semi 1</span>
-                </div>
-                <div className="mx-2 h-px bg-slate-700" />
-                <div className="flex items-center gap-2 px-2 py-2">
-                  <span className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-slate-500 text-xs flex-shrink-0">?</span>
-                  <span className="text-xs text-slate-500">Semi 2</span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <span className="text-4xl">🏆</span>
+                  <div className="text-center">
+                    <p className="text-yellow-400 font-black text-xs uppercase tracking-widest">FINAL</p>
+                    <p className="text-slate-500 text-xs">19 Jul · NY</p>
+                  </div>
+                </>
+              )}
+              <ClickableMatchCard matchId="Final" label="FINAL" {...sharedBracketProps} />
             </div>
 
-            {/* Right half */}
-            <BracketHalf matches={rightMatches} rankings={rankings} side="R" />
+            <BracketHalf matches={rightMatches} side="R" {...sharedBracketProps} />
           </div>
         </div>
       </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-slate-700" />
+        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Configuración del simulador</span>
+        <div className="flex-1 h-px bg-slate-700" />
+      </div>
+
+      {/* Third place picker */}
+      <ThirdPickerPanel rankings={rankings} thirdPicks={thirdPicks} onPick={handlePickThird} />
 
       {/* Divider */}
       <div className="flex items-center gap-3">
@@ -868,10 +1105,7 @@ function InteractiveBracketView() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {GROUPS.map(g => (
           <DraggableGroupCard
-            key={g}
-            group={g}
-            ranking={rankings[g]}
-            dragState={dragState}
+            key={g} group={g} ranking={rankings[g]} dragState={dragState}
             onDragStart={(grp, idx) => setDragState({ group: grp, fromIdx: idx })}
             onDrop={handleDrop}
             onDragEnd={() => setDragState(null)}
@@ -880,15 +1114,14 @@ function InteractiveBracketView() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-slate-500 pt-2">
-        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span>Clasificado directo (R32)</span>
+      <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span>Clasificado directo</span>
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-500"></span>Posible 3er clasificado</span>
-        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-600"></span>Eliminado</span>
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400"></span>Ganador seleccionado</span>
       </div>
     </div>
   );
 }
-
 
 function BracketView() {
   return <InteractiveBracketView />;
