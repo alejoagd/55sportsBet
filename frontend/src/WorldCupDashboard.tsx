@@ -547,7 +547,362 @@ function StandingsView({
   );
 }
 
-// ── Bracket / Routes view ─────────────────────────────────────────────
+// ── Interactive Bracket ───────────────────────────────────────────────
+
+type BracketSlot =
+  | { kind: 'pos'; group: string; pos: 0 | 1 }   // 0=1st, 1=2nd
+  | { kind: 'third'; label: string };
+
+interface R32Match {
+  num: number;
+  slotA: BracketSlot;
+  slotB: BracketSlot;
+  side: 'L' | 'R';
+}
+
+// Official 2026 WC Round of 32 bracket matchups
+const R32_MATCHES: R32Match[] = [
+  // ── Left half ──────────────────────────────────────────────────────
+  { num: 1,  side: 'L', slotA: { kind: 'pos', group: 'E', pos: 0 }, slotB: { kind: 'third', label: '3° ABCDF' } },
+  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', label: '3° GHJKL' } },
+  { num: 3,  side: 'L', slotA: { kind: 'pos', group: 'A', pos: 1 }, slotB: { kind: 'pos', group: 'B', pos: 1 } },
+  { num: 4,  side: 'L', slotA: { kind: 'pos', group: 'F', pos: 0 }, slotB: { kind: 'pos', group: 'C', pos: 1 } },
+  { num: 5,  side: 'L', slotA: { kind: 'pos', group: 'K', pos: 1 }, slotB: { kind: 'pos', group: 'L', pos: 1 } },
+  { num: 6,  side: 'L', slotA: { kind: 'pos', group: 'H', pos: 0 }, slotB: { kind: 'pos', group: 'J', pos: 1 } },
+  { num: 7,  side: 'L', slotA: { kind: 'pos', group: 'D', pos: 0 }, slotB: { kind: 'third', label: '3° BEFIJ' } },
+  { num: 8,  side: 'L', slotA: { kind: 'pos', group: 'G', pos: 0 }, slotB: { kind: 'third', label: '3° AEHIJ' } },
+  // ── Right half ─────────────────────────────────────────────────────
+  { num: 9,  side: 'R', slotA: { kind: 'pos', group: 'C', pos: 0 }, slotB: { kind: 'pos', group: 'F', pos: 1 } },
+  { num: 10, side: 'R', slotA: { kind: 'pos', group: 'E', pos: 1 }, slotB: { kind: 'pos', group: 'I', pos: 1 } },
+  { num: 11, side: 'R', slotA: { kind: 'pos', group: 'A', pos: 0 }, slotB: { kind: 'third', label: '3° GEFH' } },
+  { num: 12, side: 'R', slotA: { kind: 'pos', group: 'L', pos: 0 }, slotB: { kind: 'third', label: '3° EHIJK' } },
+  { num: 13, side: 'R', slotA: { kind: 'pos', group: 'J', pos: 0 }, slotB: { kind: 'pos', group: 'H', pos: 1 } },
+  { num: 14, side: 'R', slotA: { kind: 'pos', group: 'D', pos: 1 }, slotB: { kind: 'pos', group: 'G', pos: 1 } },
+  { num: 15, side: 'R', slotA: { kind: 'pos', group: 'B', pos: 0 }, slotB: { kind: 'third', label: '3° EFGL' } },
+  { num: 16, side: 'R', slotA: { kind: 'pos', group: 'K', pos: 0 }, slotB: { kind: 'third', label: '3° EHIJK' } },
+];
+
+// Draggable group card ─────────────────────────────────────────────────
+function DraggableGroupCard({
+  group, ranking, dragState,
+  onDragStart, onDrop, onDragEnd,
+}: {
+  group: string;
+  ranking: string[];
+  dragState: { group: string; fromIdx: number } | null;
+  onDragStart: (g: string, i: number) => void;
+  onDrop: (g: string, toIdx: number) => void;
+  onDragEnd: () => void;
+}) {
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/60 border-b border-slate-700">
+        <div className="w-5 h-5 bg-yellow-400 rounded flex items-center justify-center flex-shrink-0">
+          <span className="text-slate-900 font-black text-xs">{group}</span>
+        </div>
+        <span className="text-xs font-bold text-slate-300">Grupo {group}</span>
+      </div>
+      <div className="p-1.5 space-y-1">
+        {ranking.map((team, idx) => {
+          const isDraggingThis = dragState?.group === group && dragState?.fromIdx === idx;
+          const isDragTarget = dragState?.group === group && dragState?.fromIdx !== idx;
+          const rowBg =
+            idx === 0 ? 'bg-green-500/15 border-green-500/30' :
+            idx === 1 ? 'bg-green-500/8 border-green-500/20' :
+            idx === 2 ? 'bg-yellow-500/10 border-yellow-500/30' :
+            'bg-slate-700/20 border-slate-700/50';
+          return (
+            <div
+              key={team}
+              draggable
+              onDragStart={() => onDragStart(group, idx)}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={() => onDrop(group, idx)}
+              onDragEnd={onDragEnd}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border cursor-grab active:cursor-grabbing select-none transition-all
+                ${rowBg}
+                ${isDraggingThis ? 'opacity-30 scale-95' : ''}
+                ${isDragTarget ? 'ring-1 ring-yellow-400/50' : ''}`}
+            >
+              <span className={`text-xs font-black w-3 flex-shrink-0
+                ${idx < 2 ? 'text-green-400' : idx === 2 ? 'text-yellow-400' : 'text-slate-600'}`}>
+                {idx + 1}
+              </span>
+              <span className="text-sm leading-none flex-shrink-0">{TEAM_FLAG[team] ?? '🏳'}</span>
+              <span className="text-xs font-medium text-white truncate flex-1">{team}</span>
+              <span className="text-slate-600 text-xs flex-shrink-0">⠿</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// R32 match card ──────────────────────────────────────────────────────
+function R32Card({
+  match, rankings, isTopOfPair, isBottomOfPair,
+}: {
+  match: R32Match;
+  rankings: Record<string, string[]>;
+  isTopOfPair: boolean;
+  isBottomOfPair: boolean;
+}) {
+  const getTeam = (slot: BracketSlot): string | null => {
+    if (slot.kind === 'third') return null;
+    return rankings[slot.group]?.[slot.pos] ?? null;
+  };
+
+  const labelFor = (slot: BracketSlot) => {
+    if (slot.kind === 'third') return slot.label;
+    return `${slot.pos === 0 ? '1°' : '2°'} Grp ${slot.group}`;
+  };
+
+  const badgeFor = (slot: BracketSlot) => {
+    if (slot.kind === 'third') return { text: '3°', cls: 'text-yellow-400 bg-yellow-400/10' };
+    if (slot.pos === 0) return { text: '1°', cls: 'text-green-400 bg-green-400/10' };
+    return { text: '2°', cls: 'text-blue-400 bg-blue-400/10' };
+  };
+
+  const teamA = getTeam(match.slotA);
+  const teamB = getTeam(match.slotB);
+  const badge = { a: badgeFor(match.slotA), b: badgeFor(match.slotB) };
+
+  const connectorStyle = isTopOfPair
+    ? 'rounded-t-xl rounded-br-none border-b-0 border-r-2 border-r-yellow-400/40'
+    : isBottomOfPair
+    ? 'rounded-b-xl rounded-tr-none border-r-2 border-r-yellow-400/40'
+    : 'rounded-xl';
+
+  return (
+    <div className={`bg-slate-800 border border-slate-700 overflow-hidden ${connectorStyle}`}>
+      <div className="flex items-center px-2 py-1 bg-slate-900/60 border-b border-slate-700/50">
+        <span className="text-xs text-slate-500 font-bold">M{match.num}</span>
+      </div>
+      {/* Team A */}
+      <div className="flex items-center gap-2 px-2 py-2 min-w-0">
+        <span className={`text-xs font-bold px-1 rounded flex-shrink-0 ${badge.a.cls}`}>{badge.a.text}</span>
+        {teamA ? (
+          <>
+            <span className="text-base leading-none flex-shrink-0">{TEAM_FLAG[teamA] ?? '🏳'}</span>
+            <span className="text-xs font-semibold text-white truncate">{teamA}</span>
+          </>
+        ) : (
+          <span className="text-xs text-slate-500 italic truncate">{labelFor(match.slotA)}</span>
+        )}
+      </div>
+      <div className="mx-2 h-px bg-slate-700" />
+      {/* Team B */}
+      <div className="flex items-center gap-2 px-2 py-2 min-w-0">
+        <span className={`text-xs font-bold px-1 rounded flex-shrink-0 ${badge.b.cls}`}>{badge.b.text}</span>
+        {teamB ? (
+          <>
+            <span className="text-base leading-none flex-shrink-0">{TEAM_FLAG[teamB] ?? '🏳'}</span>
+            <span className="text-xs font-semibold text-white truncate">{teamB}</span>
+          </>
+        ) : (
+          <span className={`text-xs italic truncate ${match.slotB.kind === 'third' ? 'text-yellow-500/70' : 'text-slate-500'}`}>
+            {labelFor(match.slotB)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// TBD match slot ──────────────────────────────────────────────────────
+function TBDSlot({ label }: { label: string }) {
+  return (
+    <div className="bg-slate-800/50 border border-dashed border-slate-700 rounded-xl overflow-hidden w-36">
+      <div className="px-2 py-1 bg-slate-900/40 border-b border-slate-700/50">
+        <span className="text-xs text-slate-600 font-bold">{label}</span>
+      </div>
+      <div className="flex items-center gap-2 px-2 py-2">
+        <span className="w-4 h-4 rounded bg-slate-700 flex-shrink-0" />
+        <span className="text-xs text-slate-600">Ganador</span>
+      </div>
+      <div className="mx-2 h-px bg-slate-700/50" />
+      <div className="flex items-center gap-2 px-2 py-2">
+        <span className="w-4 h-4 rounded bg-slate-700 flex-shrink-0" />
+        <span className="text-xs text-slate-600">Ganador</span>
+      </div>
+    </div>
+  );
+}
+
+// Bracket half (left or right) ────────────────────────────────────────
+function BracketHalf({
+  matches, rankings, side,
+}: {
+  matches: R32Match[];
+  rankings: Record<string, string[]>;
+  side: 'L' | 'R';
+}) {
+  // Pairs: matches come in groups of 2 feeding into same R16 match
+  const pairs = [
+    [matches[0], matches[1]],
+    [matches[2], matches[3]],
+    [matches[4], matches[5]],
+    [matches[6], matches[7]],
+  ];
+
+  const roundLabels = side === 'L'
+    ? ['R32', 'R16', 'QF', 'SF']
+    : ['SF', 'QF', 'R16', 'R32'];
+
+  const r32 = (
+    <div className="space-y-3">
+      {pairs.map((pair, pi) => (
+        <div key={pi} className="space-y-0">
+          <R32Card match={pair[0]} rankings={rankings} isTopOfPair isBottomOfPair={false} />
+          <R32Card match={pair[1]} rankings={rankings} isTopOfPair={false} isBottomOfPair />
+        </div>
+      ))}
+    </div>
+  );
+
+  const connector = (count: number, key: string) => (
+    <div key={key} className="flex flex-col justify-around py-4" style={{ gap: count === 4 ? '0.75rem' : count === 2 ? '3.5rem' : '8.5rem' }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center">
+          <div className="w-3 h-px bg-slate-600" />
+        </div>
+      ))}
+    </div>
+  );
+
+  const r16 = (
+    <div className="flex flex-col justify-around py-1" style={{ gap: '1.5rem' }}>
+      {[0,1,2,3].map(i => <TBDSlot key={i} label={`R16 M${i+1+(side === 'R' ? 4 : 0)}`} />)}
+    </div>
+  );
+
+  const qf = (
+    <div className="flex flex-col justify-around py-1" style={{ gap: '5.5rem' }}>
+      {[0,1].map(i => <TBDSlot key={i} label={`QF M${i+1+(side === 'R' ? 2 : 0)}`} />)}
+    </div>
+  );
+
+  const sf = (
+    <div className="flex items-center justify-center h-full">
+      <TBDSlot label={`SF M${side === 'R' ? 2 : 1}`} />
+    </div>
+  );
+
+  const columns = side === 'L'
+    ? [r32, connector(4, 'c1'), r16, connector(2, 'c2'), qf, connector(1, 'c3'), sf]
+    : [sf, connector(1, 'c3'), qf, connector(2, 'c2'), r16, connector(4, 'c1'), r32];
+
+  return (
+    <div className="flex items-stretch gap-0">
+      {columns}
+    </div>
+  );
+}
+
+// Interactive bracket view ────────────────────────────────────────────
+function InteractiveBracketView() {
+  const [rankings, setRankings] = useState<Record<string, string[]>>({ ...GROUP_TEAMS });
+  const [dragState, setDragState] = useState<{ group: string; fromIdx: number } | null>(null);
+
+  const handleDrop = (toGroup: string, toIdx: number) => {
+    if (!dragState || dragState.group !== toGroup || dragState.fromIdx === toIdx) {
+      setDragState(null);
+      return;
+    }
+    setRankings(prev => {
+      const arr = [...prev[toGroup]];
+      const [removed] = arr.splice(dragState.fromIdx, 1);
+      arr.splice(toIdx, 0, removed);
+      return { ...prev, [toGroup]: arr };
+    });
+    setDragState(null);
+  };
+
+  const leftMatches = R32_MATCHES.filter(m => m.side === 'L');
+  const rightMatches = R32_MATCHES.filter(m => m.side === 'R');
+
+  return (
+    <div className="space-y-6">
+      {/* Info */}
+      <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm">
+        <span className="text-xl flex-shrink-0">🎮</span>
+        <div>
+          <p className="text-blue-300 font-semibold mb-0.5">Simulador interactivo</p>
+          <p className="text-slate-400">Arrastra los equipos dentro de cada grupo para cambiar posiciones. El bracket de arriba se actualiza automáticamente.</p>
+        </div>
+      </div>
+
+      {/* Bracket preview */}
+      <div>
+        <h3 className="text-white font-bold text-base mb-3">Round of 32 — Vista del Bracket</h3>
+        <div className="overflow-x-auto pb-2">
+          <div className="flex items-stretch gap-1 min-w-max">
+            {/* Left half */}
+            <BracketHalf matches={leftMatches} rankings={rankings} side="L" />
+
+            {/* Final */}
+            <div className="flex flex-col items-center justify-center px-4 gap-3">
+              <span className="text-4xl">🏆</span>
+              <div className="text-center">
+                <p className="text-yellow-400 font-black text-xs uppercase tracking-widest">FINAL</p>
+                <p className="text-slate-500 text-xs">19 Jul · NY</p>
+              </div>
+              <div className="bg-slate-800 border-2 border-yellow-400/50 rounded-xl overflow-hidden w-36">
+                <div className="px-2 py-1 bg-yellow-400/10 border-b border-yellow-400/20">
+                  <span className="text-xs font-black text-yellow-400">CAMPEÓN</span>
+                </div>
+                <div className="flex items-center gap-2 px-2 py-2">
+                  <span className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-slate-500 text-xs flex-shrink-0">?</span>
+                  <span className="text-xs text-slate-500">Semi 1</span>
+                </div>
+                <div className="mx-2 h-px bg-slate-700" />
+                <div className="flex items-center gap-2 px-2 py-2">
+                  <span className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-slate-500 text-xs flex-shrink-0">?</span>
+                  <span className="text-xs text-slate-500">Semi 2</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right half */}
+            <BracketHalf matches={rightMatches} rankings={rankings} side="R" />
+          </div>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-slate-700" />
+        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Reordena los grupos</span>
+        <div className="flex-1 h-px bg-slate-700" />
+      </div>
+
+      {/* Group editors */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {GROUPS.map(g => (
+          <DraggableGroupCard
+            key={g}
+            group={g}
+            ranking={rankings[g]}
+            dragState={dragState}
+            onDragStart={(grp, idx) => setDragState({ group: grp, fromIdx: idx })}
+            onDrop={handleDrop}
+            onDragEnd={() => setDragState(null)}
+          />
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-slate-500 pt-2">
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span>Clasificado directo (R32)</span>
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-500"></span>Posible 3er clasificado</span>
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-600"></span>Eliminado</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Unused RouteCard kept for reference ───────────────────────────────
 function RouteCard({ group }: { group: string }) {
   const crossGroup = R32_CROSS[group] || '?';
   const teams = GROUP_TEAMS[group] ?? [];
@@ -652,27 +1007,8 @@ function RouteCard({ group }: { group: string }) {
   );
 }
 
-function BracketView({ selectedGroup }: { selectedGroup: string | null }) {
-  const groupsToShow = selectedGroup ? [selectedGroup] : GROUPS;
-
-  return (
-    <div>
-      {/* Info banner */}
-      <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 mb-6 text-sm text-slate-400 flex gap-3">
-        <span className="text-xl flex-shrink-0">ℹ️</span>
-        <div>
-          <p className="text-white font-semibold mb-1">Formato de clasificación</p>
-          <p>Los <strong className="text-green-400">2 primeros</strong> de cada grupo avanzan directamente al Round of 32.
-          Los <strong className="text-yellow-400">8 mejores terceros</strong> de los 12 grupos también clasifican.
-          El <strong className="text-slate-300">4to lugar</strong> queda eliminado.</p>
-        </div>
-      </div>
-
-      {groupsToShow.map(g => (
-        <RouteCard key={g} group={g} />
-      ))}
-    </div>
-  );
+function BracketView() {
+  return <InteractiveBracketView />;
 }
 
 // ── Main component ────────────────────────────────────────────────────
@@ -728,11 +1064,13 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
         <WorldCupBanner matchCount={matches.length} />
         <TabNav active={activeTab} onChange={setActiveTab} />
 
-        <GroupSelector
-          selected={selectedGroup}
-          matchesByGroup={matchesByGroup}
-          onSelect={handleSelectGroup}
-        />
+        {activeTab !== 'bracket' && (
+          <GroupSelector
+            selected={selectedGroup}
+            matchesByGroup={matchesByGroup}
+            onSelect={handleSelectGroup}
+          />
+        )}
 
         {activeTab === 'matches' && (
           matches.length === 0 ? (
@@ -764,9 +1102,7 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
           />
         )}
 
-        {activeTab === 'bracket' && (
-          <BracketView selectedGroup={selectedGroup} />
-        )}
+        {activeTab === 'bracket' && <BracketView />}
       </div>
     </div>
   );
