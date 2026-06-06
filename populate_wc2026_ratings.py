@@ -85,10 +85,13 @@ def main():
         for s in wc_seasons:
             print(f"  Season {s.id}: World Cup {s.year_start} ({s.matches_with_results} partidos)")
 
-        # Usar TODOS los Mundiales disponibles
-        training_seasons = wc_seasons  # ordenados desc por año
+        # Usar solo Mundiales de la era moderna (2002+) para evitar
+        # que datos de eras de alto marcador (1950-1990) inflen los ratings
+        training_seasons = [s for s in wc_seasons if s.year_start >= 2002]
+        if not training_seasons:
+            training_seasons = wc_seasons[:5]  # fallback: últimos 5
         training_ids = [s.id for s in training_seasons]
-        print(f"\nUsando TODOS los Mundiales: {sorted([s.year_start for s in training_seasons])}")
+        print(f"\nUsando Mundiales modernos (2002+): {sorted([s.year_start for s in training_seasons])}")
 
     # 2. Entrenar Weinston en cada temporada histórica
     print("\n" + "-" * 60)

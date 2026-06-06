@@ -281,8 +281,12 @@ def _calculate_weinston_lambdas(
     
     lam_home = mu_home * home_ratings["atk_home"] * away_ratings["def_away"] * home_adv
     lam_away = mu_away * away_ratings["atk_away"] * home_ratings["def_home"]
-    
-    return float(lam_home), float(lam_away)
+
+    # Cap to realistic range: no team should be predicted > 6 goals in a single match
+    lam_home = min(float(lam_home), 6.0)
+    lam_away = min(float(lam_away), 6.0)
+
+    return lam_home, lam_away
 
 
 def predict_and_upsert_weinston(

@@ -242,8 +242,8 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
     : awayProb > homeProb && awayProb > drawProb ? 'away'
     : 'draw';
 
-  const wHomeGoals = safeNum(match.weinston_home_goals);
-  const wAwayGoals = safeNum(match.weinston_away_goals);
+  const pHomeGoals = safeNum(match.poisson_home_goals);
+  const pAwayGoals = safeNum(match.poisson_away_goals);
   const overProb = safeNum(match.poisson_over_25);
 
   const hasPredictions = match.poisson_prob_home != null && match.poisson_prob_home !== undefined;
@@ -277,7 +277,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             {hasPredictions ? (
               <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-600">
                 <div className="text-white font-black text-lg sm:text-xl font-mono">
-                  {wHomeGoals.toFixed(1)} — {wAwayGoals.toFixed(1)}
+                  {Math.round(pHomeGoals)} — {Math.round(pAwayGoals)}
                 </div>
                 <div className="text-slate-500 text-xs mt-0.5">marcador esperado</div>
               </div>
