@@ -55,38 +55,63 @@ export default function ImprovedDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const leagueIdFromUrl = parseInt(searchParams.get('league') || '9', 10);
-  const [currentLeagueId, setCurrentLeagueId] = useState(leagueIdFromUrl);
+  const leagueParam = searchParams.get('league');
+  const [currentLeagueId, setCurrentLeagueId] = useState<number | null>(
+    leagueParam ? parseInt(leagueParam, 10) : null
+  );
 
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [upcomingLimit, setUpcomingLimit] = useState<number>(10);
   const [leagueName, setLeagueName] = useState<string>('');
   const { isAdmin } = useAdminMode();
-  
+
+  // If no ?league= param, fetch active leagues and pick the first one (World Cup is ordered first)
   useEffect(() => {
-    const leagueFromUrl = parseInt(searchParams.get('league') || '9', 10);
-    console.log('🔄 URL changed, league from URL:', leagueFromUrl, 'current:', currentLeagueId);
+    if (currentLeagueId !== null) return;
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${API_URL}/api/leagues/active`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((leagues: { id: number }[]) => {
+        if (leagues.length > 0) {
+          setCurrentLeagueId(leagues[0].id);
+          setSearchParams({ league: String(leagues[0].id) }, { replace: true });
+        }
+      })
+      .catch(() => setCurrentLeagueId(1));
+  }, []);
+
+  useEffect(() => {
+    const param = searchParams.get('league');
+    if (!param) return;
+    const leagueFromUrl = parseInt(param, 10);
     if (leagueFromUrl !== currentLeagueId) {
-      console.log('📍 URL changed, updating league to:', leagueFromUrl);
       setCurrentLeagueId(leagueFromUrl);
     }
   }, [searchParams]);
 
-
   // Actualizar season_id cuando cambia la liga
   useEffect(() => {
+    if (currentLeagueId === null) return;
     const updateSeasonForLeague = async () => {
       try {
-        console.log('🔍 Fetching season_id for league:', currentLeagueId);
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         const response = await fetch(`${API_URL}/api/leagues/${currentLeagueId}`);
 
         if (response.ok) {
           const leagueData = await response.json();
-          console.log('✅ Season data:', leagueData);
           setSeasonId(leagueData.seasonId);
           setLeagueName(leagueData.name || '');
           setUpcomingLimit(Math.max(leagueData.upcomingCount || 10, 10));
+        } else {
+          // League id not found — fall back to first active league
+          const activeResp = await fetch(`${API_URL}/api/leagues/active`);
+          if (activeResp.ok) {
+            const leagues: { id: number }[] = await activeResp.json();
+            if (leagues.length > 0) {
+              setCurrentLeagueId(leagues[0].id);
+              setSearchParams({ league: String(leagues[0].id) }, { replace: true });
+            }
+          }
         }
       } catch (error) {
         console.error('❌ Error obteniendo season_id:', error);
@@ -533,7 +558,7 @@ export default function ImprovedDashboard() {
     <>
       {/* ✨ SELECTOR DE LIGAS */}
       <LeagueSwitcher
-        currentLeagueId={currentLeagueId}
+        currentLeagueId={currentLeagueId ?? 0}
         onLeagueChange={(leagueId) => {
           setCurrentLeagueId(leagueId);
           setLoading(true);
