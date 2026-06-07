@@ -55,7 +55,7 @@ export default function ImprovedDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const leagueIdFromUrl = parseInt(searchParams.get('league') || '1', 10);
+  const leagueIdFromUrl = parseInt(searchParams.get('league') || '9', 10);
   const [currentLeagueId, setCurrentLeagueId] = useState(leagueIdFromUrl);
 
   const [seasonId, setSeasonId] = useState<number | null>(null);
@@ -64,7 +64,7 @@ export default function ImprovedDashboard() {
   const { isAdmin } = useAdminMode();
   
   useEffect(() => {
-    const leagueFromUrl = parseInt(searchParams.get('league') || '1', 10);
+    const leagueFromUrl = parseInt(searchParams.get('league') || '9', 10);
     console.log('🔄 URL changed, league from URL:', leagueFromUrl, 'current:', currentLeagueId);
     if (leagueFromUrl !== currentLeagueId) {
       console.log('📍 URL changed, updating league to:', leagueFromUrl);

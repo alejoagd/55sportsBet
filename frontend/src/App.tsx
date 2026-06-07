@@ -33,7 +33,7 @@ function Navigation() {
   };
 
   const navItems = [
-    { path: '/', icon: '📊', label: 'Dashboard' },
+    { path: '/?league=9', icon: '📊', label: 'Dashboard' },
     { path: '/best-bets', icon: '🎯', label: isMobile ? 'Apuestas' : 'Mejores Apuestas' },
     { path: '/evolution', icon: '📈', label: isMobile ? 'Evolución' : 'Evolución' },
     { path: '/statistics', icon: '📋', label: isMobile ? 'Stats' : 'Estadísticas' }
