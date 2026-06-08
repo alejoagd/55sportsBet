@@ -225,21 +225,24 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { id: 'news', label: 'Noticias', icon: '📰' },
   ];
   return (
-    <div className="flex gap-1 bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50">
-      {tabs.map(t => (
-        <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all
-            ${active === t.id
-              ? 'bg-yellow-400 text-slate-900 shadow-md shadow-yellow-400/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-            }`}
-        >
-          <span>{t.icon}</span>
-          <span>{t.label}</span>
-        </button>
-      ))}
+    <div className="bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50 overflow-x-auto scrollbar-hide">
+      <div className="flex gap-1 w-full">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            className={`flex flex-1 items-center justify-center gap-1 py-2.5 rounded-lg font-semibold
+                        transition-all whitespace-nowrap min-w-[72px] text-xs sm:text-sm sm:gap-1.5 sm:px-3
+              ${active === t.id
+                ? 'bg-yellow-400 text-slate-900 shadow-md shadow-yellow-400/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+          >
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
