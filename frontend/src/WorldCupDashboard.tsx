@@ -215,13 +215,14 @@ function WorldCupBanner({ matchCount }: { matchCount: number }) {
 }
 
 // ── Tab navigation ────────────────────────────────────────────────────
-type Tab = 'matches' | 'standings' | 'bracket';
+type Tab = 'matches' | 'standings' | 'bracket' | 'news';
 
 function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'matches', label: 'Partidos', icon: '⚽' },
     { id: 'standings', label: 'Posiciones', icon: '📊' },
     { id: 'bracket', label: 'Bracket', icon: '🗺️' },
+    { id: 'news', label: 'Noticias', icon: '📰' },
   ];
   return (
     <div className="flex gap-1 bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50">
@@ -1127,6 +1128,96 @@ function BracketView() {
   return <InteractiveBracketView />;
 }
 
+// ── News ──────────────────────────────────────────────────────────────
+interface NewsArticle {
+  title: string;
+  url: string;
+  source: string;
+  published_at: string;
+}
+
+function formatRelativeDate(isoStr: string): string {
+  try {
+    const diffMs = Date.now() - new Date(isoStr).getTime();
+    const diffM = Math.floor(diffMs / 60000);
+    if (diffM < 2) return 'ahora';
+    if (diffM < 60) return `hace ${diffM}m`;
+    const diffH = Math.floor(diffM / 60);
+    if (diffH < 24) return `hace ${diffH}h`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD === 1) return 'ayer';
+    return `hace ${diffD} días`;
+  } catch {
+    return '';
+  }
+}
+
+function NewsView() {
+  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/wc2026/news`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((data: NewsArticle[]) => { setNews(data); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
+  }, []);
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+      <div className="text-5xl animate-pulse">📰</div>
+      <p className="text-sm">Cargando noticias del Mundial...</p>
+    </div>
+  );
+
+  if (error || news.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-500">
+      <div className="text-5xl">📭</div>
+      <p className="text-sm">No se pudieron cargar las noticias</p>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-white font-bold text-lg">Noticias del Mundial 2026</h2>
+        <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">
+          Actualizado cada hora
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {news.map((article, i) => (
+          <a
+            key={i}
+            href={article.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col gap-2 bg-slate-800/60 border border-slate-700/50 rounded-xl p-4
+                       hover:bg-slate-800 hover:border-yellow-500/40 hover:shadow-md hover:shadow-yellow-400/5
+                       transition-all group"
+          >
+            <p className="text-white text-sm font-medium leading-snug line-clamp-3
+                          group-hover:text-yellow-400 transition-colors">
+              {article.title}
+            </p>
+            <div className="flex items-center gap-2 mt-auto text-xs">
+              {article.source && (
+                <span className="bg-blue-500/15 text-blue-300 px-2 py-0.5 rounded-full font-medium truncate max-w-[140px]">
+                  {article.source}
+                </span>
+              )}
+              <span className="text-slate-500 ml-auto flex-shrink-0">
+                {formatRelativeDate(article.published_at)}
+              </span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 interface Props {
   matches: Match[];
@@ -1180,7 +1271,7 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
         <WorldCupBanner matchCount={matches.length} />
         <TabNav active={activeTab} onChange={setActiveTab} />
 
-        {activeTab !== 'bracket' && (
+        {activeTab !== 'bracket' && activeTab !== 'news' && (
           <GroupSelector
             selected={selectedGroup}
             onSelect={handleSelectGroup}
@@ -1218,6 +1309,8 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
         )}
 
         {activeTab === 'bracket' && <BracketView />}
+
+        {activeTab === 'news' && <NewsView />}
       </div>
     </div>
   );

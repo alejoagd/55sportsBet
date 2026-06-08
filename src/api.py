@@ -9,6 +9,9 @@ from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
 from datetime import datetime, date
 import math
+import time
+import xml.etree.ElementTree as ET
+import requests as http_requests
 from pydantic import BaseModel
 
 app = FastAPI(title="Predictions API")
@@ -708,6 +711,81 @@ def get_wc2026_group_matches():
             d['date'] = d['date'].isoformat()
         result.append(d)
     return result
+
+
+# ── WC 2026 News ────────────────────────────────────────────────────────────
+_wc_news_cache: dict = {"data": None, "expires": 0.0}
+
+@router.get("/api/wc2026/news")
+def get_wc2026_news():
+    """Fetch FIFA World Cup 2026 news from Google News RSS. Cached 1 hour."""
+    global _wc_news_cache
+    now = time.time()
+    if _wc_news_cache["data"] is not None and now < _wc_news_cache["expires"]:
+        return _wc_news_cache["data"]
+
+    feeds = [
+        "https://news.google.com/rss/search?q=%22FIFA+World+Cup+2026%22&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Mundial+FIFA+2026&hl=es-419&gl=US&ceid=US:es-419",
+    ]
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; 55sportsnews/1.0)"}
+
+    articles: list[dict] = []
+    seen: set[str] = set()
+
+    for feed_url in feeds:
+        try:
+            resp = http_requests.get(feed_url, timeout=10, headers=headers)
+            if not resp.ok:
+                continue
+            root = ET.fromstring(resp.content)
+            channel = root.find("channel")
+            if channel is None:
+                continue
+            for item in channel.findall("item"):
+                raw_title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                pub_date = (item.findtext("pubDate") or "").strip()
+
+                # Google News titles often end with " - Source Name"
+                source_el = item.find("source")
+                if source_el is not None and source_el.text:
+                    source = source_el.text.strip()
+                    title = raw_title
+                else:
+                    parts = raw_title.rsplit(" - ", 1)
+                    title = parts[0].strip() if len(parts) == 2 else raw_title
+                    source = parts[1].strip() if len(parts) == 2 else ""
+
+                key = title.lower()[:60]
+                if key in seen or not title:
+                    continue
+                seen.add(key)
+
+                published_at = pub_date
+                try:
+                    from email.utils import parsedate_to_datetime
+                    published_at = parsedate_to_datetime(pub_date).isoformat()
+                except Exception:
+                    pass
+
+                articles.append({
+                    "title": title,
+                    "url": link,
+                    "source": source,
+                    "published_at": published_at,
+                })
+
+                if len(articles) >= 24:
+                    break
+        except Exception as exc:
+            print(f"[news] Error fetching {feed_url}: {exc}")
+
+        if len(articles) >= 24:
+            break
+
+    _wc_news_cache = {"data": articles, "expires": now + 3600}
+    return articles
 
 
 @router.get("/api/matches/recent-results")
