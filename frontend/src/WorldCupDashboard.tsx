@@ -226,13 +226,13 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
   ];
   return (
     <div className="bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50 overflow-x-auto scrollbar-hide">
-      <div className="flex gap-1 w-full">
+      <div className="flex gap-1">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex flex-1 items-center justify-center gap-1 py-2.5 rounded-lg font-semibold
-                        transition-all whitespace-nowrap min-w-[72px] text-xs sm:text-sm sm:gap-1.5 sm:px-3
+            className={`flex-shrink-0 flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-lg
+                        text-sm font-semibold transition-all whitespace-nowrap
               ${active === t.id
                 ? 'bg-yellow-400 text-slate-900 shadow-md shadow-yellow-400/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
