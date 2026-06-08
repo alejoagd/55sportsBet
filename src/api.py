@@ -716,72 +716,95 @@ def get_wc2026_group_matches():
 # ── WC 2026 News ────────────────────────────────────────────────────────────
 _wc_news_cache: dict = {"data": None, "expires": 0.0}
 
+_MEDIA_NS = "{http://search.yahoo.com/mrss/}"
+_WC_KEYWORDS = {"mundial", "world cup", "copa del mundo", "fifa world"}
+
+_NEWS_FEEDS = [
+    "https://www.marca.com/rss/futbol.xml",
+    "https://www.marca.com/rss/portada.xml",
+]
+
+
+def _is_wc_article(title: str, desc: str, link: str) -> bool:
+    text = (title + " " + desc + " " + link).lower()
+    return any(kw in text for kw in _WC_KEYWORDS)
+
+
+def _parse_pub_date(pub_date: str) -> str:
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(pub_date).isoformat()
+    except Exception:
+        return pub_date
+
+
 @router.get("/api/wc2026/news")
 def get_wc2026_news():
-    """Fetch FIFA World Cup 2026 news from Google News RSS. Cached 1 hour."""
+    """
+    Fetch FIFA World Cup 2026 news from Marca RSS.
+    Each article includes title, summary, image and direct URL.
+    Cached 1 hour.
+    """
     global _wc_news_cache
     now = time.time()
     if _wc_news_cache["data"] is not None and now < _wc_news_cache["expires"]:
         return _wc_news_cache["data"]
 
-    feeds = [
-        "https://news.google.com/rss/search?q=%22FIFA+World+Cup+2026%22&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=Mundial+FIFA+2026&hl=es-419&gl=US&ceid=US:es-419",
-    ]
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; 55sportsnews/1.0)"}
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
 
     articles: list[dict] = []
     seen: set[str] = set()
 
-    for feed_url in feeds:
+    for feed_url in _NEWS_FEEDS:
         try:
             resp = http_requests.get(feed_url, timeout=10, headers=headers)
             if not resp.ok:
                 continue
             root = ET.fromstring(resp.content)
-            channel = root.find("channel")
-            if channel is None:
-                continue
-            for item in channel.findall("item"):
-                raw_title = (item.findtext("title") or "").strip()
-                link = (item.findtext("link") or "").strip()
+            for item in root.findall(".//item"):
+                title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or item.findtext("guid") or "").strip()
+                description = (item.findtext("description") or "").strip()
                 pub_date = (item.findtext("pubDate") or "").strip()
 
-                # Google News titles often end with " - Source Name"
-                source_el = item.find("source")
-                if source_el is not None and source_el.text:
-                    source = source_el.text.strip()
-                    title = raw_title
-                else:
-                    parts = raw_title.rsplit(" - ", 1)
-                    title = parts[0].strip() if len(parts) == 2 else raw_title
-                    source = parts[1].strip() if len(parts) == 2 else ""
+                if not _is_wc_article(title, description, link):
+                    continue
 
                 key = title.lower()[:60]
                 if key in seen or not title:
                     continue
                 seen.add(key)
 
-                published_at = pub_date
-                try:
-                    from email.utils import parsedate_to_datetime
-                    published_at = parsedate_to_datetime(pub_date).isoformat()
-                except Exception:
-                    pass
+                # Image from media:content url attribute
+                image = None
+                for tag in [f"{_MEDIA_NS}content", f"{_MEDIA_NS}thumbnail"]:
+                    el = item.find(tag)
+                    if el is not None:
+                        url_val = el.attrib.get("url", "")
+                        if url_val:
+                            image = url_val
+                            break
 
                 articles.append({
                     "title": title,
+                    "description": description,
+                    "image": image,
                     "url": link,
-                    "source": source,
-                    "published_at": published_at,
+                    "source": "Marca",
+                    "published_at": _parse_pub_date(pub_date),
                 })
 
-                if len(articles) >= 24:
+                if len(articles) >= 15:
                     break
         except Exception as exc:
             print(f"[news] Error fetching {feed_url}: {exc}")
 
-        if len(articles) >= 24:
+        if len(articles) >= 15:
             break
 
     _wc_news_cache = {"data": articles, "expires": now + 3600}

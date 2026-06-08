@@ -1131,6 +1131,8 @@ function BracketView() {
 // ── News ──────────────────────────────────────────────────────────────
 interface NewsArticle {
   title: string;
+  description: string | null;
+  image: string | null;
   url: string;
   source: string;
   published_at: string;
@@ -1150,6 +1152,75 @@ function formatRelativeDate(isoStr: string): string {
   } catch {
     return '';
   }
+}
+
+// Gradient backgrounds for articles without images
+const CARD_GRADIENTS = [
+  'from-blue-900/60 to-slate-900',
+  'from-emerald-900/60 to-slate-900',
+  'from-amber-900/60 to-slate-900',
+  'from-purple-900/60 to-slate-900',
+  'from-rose-900/60 to-slate-900',
+];
+
+function NewsCard({ article, index }: { article: NewsArticle; index: number }) {
+  const [imgError, setImgError] = useState(false);
+  const gradient = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
+  const showImg = article.image && !imgError;
+
+  return (
+    <a
+      href={article.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col overflow-hidden rounded-xl border border-slate-700/50
+                 hover:border-yellow-500/40 hover:shadow-lg hover:shadow-yellow-400/5
+                 transition-all group bg-slate-800/60"
+    >
+      {/* Image / gradient header */}
+      <div className="relative w-full h-44 overflow-hidden flex-shrink-0">
+        {showImg ? (
+          <img
+            src={article.image!}
+            alt={article.title}
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+            <span className="text-5xl opacity-30">⚽</span>
+          </div>
+        )}
+        {/* Source badge over image */}
+        <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[11px]
+                         font-semibold px-2 py-0.5 rounded-full">
+          {article.source}
+        </span>
+        {/* Date badge */}
+        <span className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-slate-300 text-[11px]
+                         px-2 py-0.5 rounded-full">
+          {formatRelativeDate(article.published_at)}
+        </span>
+      </div>
+
+      {/* Text content */}
+      <div className="flex flex-col gap-2 p-4 flex-1">
+        <h3 className="text-white font-semibold text-sm leading-snug line-clamp-2
+                       group-hover:text-yellow-400 transition-colors">
+          {article.title}
+        </h3>
+        {article.description && (
+          <p className="text-slate-400 text-xs leading-relaxed line-clamp-3">
+            {article.description}
+          </p>
+        )}
+        <span className="mt-auto pt-2 text-xs text-yellow-500/70 font-medium group-hover:text-yellow-400 transition-colors">
+          Leer más →
+        </span>
+      </div>
+    </a>
+  );
 }
 
 function NewsView() {
@@ -1180,38 +1251,15 @@ function NewsView() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5">
         <h2 className="text-white font-bold text-lg">Noticias del Mundial 2026</h2>
-        <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">
-          Actualizado cada hora
+        <span className="text-xs text-slate-500 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
+          Fuente: Marca · actualizado cada hora
         </span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {news.map((article, i) => (
-          <a
-            key={i}
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col gap-2 bg-slate-800/60 border border-slate-700/50 rounded-xl p-4
-                       hover:bg-slate-800 hover:border-yellow-500/40 hover:shadow-md hover:shadow-yellow-400/5
-                       transition-all group"
-          >
-            <p className="text-white text-sm font-medium leading-snug line-clamp-3
-                          group-hover:text-yellow-400 transition-colors">
-              {article.title}
-            </p>
-            <div className="flex items-center gap-2 mt-auto text-xs">
-              {article.source && (
-                <span className="bg-blue-500/15 text-blue-300 px-2 py-0.5 rounded-full font-medium truncate max-w-[140px]">
-                  {article.source}
-                </span>
-              )}
-              <span className="text-slate-500 ml-auto flex-shrink-0">
-                {formatRelativeDate(article.published_at)}
-              </span>
-            </div>
-          </a>
+          <NewsCard key={i} article={article} index={i} />
         ))}
       </div>
     </div>
