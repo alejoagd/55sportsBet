@@ -7,7 +7,7 @@ Year,Datetime,Stage,Stadium,City,Home Team Name,Home Team Goals,Away Team Goals,
 2026,13 Jun 2026 - 15:00,Group D,,Kansas City,Australia,,,Turkey,,,,,,,,204,3006,AUS,TUR
 2026,13 Jun 2026 - 19:00,Group C,,San Francisco,Brazil,,,Morocco,,,,,,,,203,3007,BRA,MAR
 2026,13 Jun 2026 - 22:00,Group C,,Seattle,Haiti,,,Scotland,,,,,,,,203,3008,HAI,SCO
-2026,13 Jun 2026 - 18:00,Group E,,Miami,Germany,,,Curacao,,,,,,,,205,3009,GER,CUW
+2026,14 Jun 2026 - 18:00,Group E,,Miami,Germany,,,Curacao,,,,,,,,205,3009,GER,CUW
 2026,14 Jun 2026 - 18:00,Group E,,Houston,Ivory Coast,,,Ecuador,,,,,,,,205,3010,CIV,ECU
 2026,14 Jun 2026 - 18:00,Group F,,New York,Netherlands,,,Japan,,,,,,,,206,3011,NED,JPN
 2026,14 Jun 2026 - 22:00,Group F,,Philadelphia,Sweden,,,Tunisia,,,,,,,,206,3012,SWE,TUN
@@ -23,29 +23,29 @@ Year,Datetime,Stage,Stadium,City,Home Team Name,Home Team Goals,Away Team Goals,
 2026,17 Jun 2026 - 22:00,Group K,,Kansas City,Uzbekistan,,,Colombia,,,,,,,,211,3022,UZB,COL
 2026,17 Jun 2026 - 18:00,Group L,,Houston,England,,,Croatia,,,,,,,,212,3023,ENG,CRO
 2026,17 Jun 2026 - 22:00,Group L,,Atlanta,Ghana,,,Panama,,,,,,,,212,3024,GHA,PAN
-2026,17 Jun 2026 - 19:00,Group A,,Monterrey,Mexico,,,South Korea,,,,,,,,201,3025,MEX,KOR
+2026,18 Jun 2026 - 19:00,Group A,,Monterrey,Mexico,,,South Korea,,,,,,,,201,3025,MEX,KOR
 2026,18 Jun 2026 - 15:00,Group A,,Mexico City,South Africa,,,Czechia,,,,,,,,201,3026,RSA,CZE
 2026,18 Jun 2026 - 19:00,Group B,,Vancouver,Canada,,,Qatar,,,,,,,,202,3027,CAN,QAT
 2026,18 Jun 2026 - 22:00,Group B,,Toronto,Bosnia and Herzegovina,,,Switzerland,,,,,,,,202,3028,BIH,SUI
-2026,18 Jun 2026 - 19:00,Group C,,Dallas,Brazil,,,Haiti,,,,,,,,203,3029,BRA,HAI
+2026,19 Jun 2026 - 19:00,Group C,,Dallas,Brazil,,,Haiti,,,,,,,,203,3029,BRA,HAI
 2026,19 Jun 2026 - 15:00,Group C,,San Francisco,Morocco,,,Scotland,,,,,,,,203,3030,MAR,SCO
-2026,18 Jun 2026 - 22:00,Group D,,Seattle,United States,,,Australia,,,,,,,,204,3031,USA,AUS
+2026,19 Jun 2026 - 22:00,Group D,,Seattle,United States,,,Australia,,,,,,,,204,3031,USA,AUS
 2026,19 Jun 2026 - 19:00,Group D,,Houston,Paraguay,,,Turkey,,,,,,,,204,3032,PAR,TUR
-2026,19 Jun 2026 - 18:00,Group E,,Atlanta,Germany,,,Ivory Coast,,,,,,,,205,3033,GER,CIV
+2026,20 Jun 2026 - 18:00,Group E,,Atlanta,Germany,,,Ivory Coast,,,,,,,,205,3033,GER,CIV
 2026,20 Jun 2026 - 15:00,Group E,,Miami,Curacao,,,Ecuador,,,,,,,,205,3034,CUW,ECU
-2026,19 Jun 2026 - 22:00,Group F,,Los Angeles,Netherlands,,,Sweden,,,,,,,,206,3035,NED,SWE
+2026,20 Jun 2026 - 22:00,Group F,,Los Angeles,Netherlands,,,Sweden,,,,,,,,206,3035,NED,SWE
 2026,20 Jun 2026 - 19:00,Group F,,New York,Japan,,,Tunisia,,,,,,,,206,3036,JPN,TUN
-2026,20 Jun 2026 - 18:00,Group G,,Philadelphia,Belgium,,,Iran,,,,,,,,207,3037,BEL,IRN
+2026,21 Jun 2026 - 18:00,Group G,,Philadelphia,Belgium,,,Iran,,,,,,,,207,3037,BEL,IRN
 2026,21 Jun 2026 - 15:00,Group G,,Boston,Egypt,,,New Zealand,,,,,,,,207,3038,EGY,NZL
-2026,20 Jun 2026 - 22:00,Group H,,Atlanta,Spain,,,Saudi Arabia,,,,,,,,208,3039,ESP,KSA
+2026,21 Jun 2026 - 22:00,Group H,,Atlanta,Spain,,,Saudi Arabia,,,,,,,,208,3039,ESP,KSA
 2026,21 Jun 2026 - 19:00,Group H,,Dallas,Cape Verde,,,Uruguay,,,,,,,,208,3040,CPV,URU
-2026,21 Jun 2026 - 18:00,Group I,,Los Angeles,France,,,Iraq,,,,,,,,209,3041,FRA,IRQ
+2026,22 Jun 2026 - 18:00,Group I,,Los Angeles,France,,,Iraq,,,,,,,,209,3041,FRA,IRQ
 2026,22 Jun 2026 - 15:00,Group I,,Miami,Senegal,,,Norway,,,,,,,,209,3042,SEN,NOR
-2026,21 Jun 2026 - 22:00,Group J,,New York,Argentina,,,Austria,,,,,,,,210,3043,ARG,AUT
+2026,22 Jun 2026 - 22:00,Group J,,New York,Argentina,,,Austria,,,,,,,,210,3043,ARG,AUT
 2026,22 Jun 2026 - 19:00,Group J,,San Francisco,Algeria,,,Jordan,,,,,,,,210,3044,ALG,JOR
-2026,22 Jun 2026 - 18:00,Group K,,Boston,Portugal,,,Uzbekistan,,,,,,,,211,3045,POR,UZB
+2026,23 Jun 2026 - 18:00,Group K,,Boston,Portugal,,,Uzbekistan,,,,,,,,211,3045,POR,UZB
 2026,23 Jun 2026 - 15:00,Group K,,Houston,Congo DR,,,Colombia,,,,,,,,211,3046,COD,COL
-2026,22 Jun 2026 - 22:00,Group L,,Atlanta,England,,,Ghana,,,,,,,,212,3047,ENG,GHA
+2026,23 Jun 2026 - 22:00,Group L,,Atlanta,England,,,Ghana,,,,,,,,212,3047,ENG,GHA
 2026,23 Jun 2026 - 19:00,Group L,,Kansas City,Croatia,,,Panama,,,,,,,,212,3048,CRO,PAN
 2026,24 Jun 2026 - 20:00,Group A,,Mexico City,Mexico,,,Czechia,,,,,,,,201,3049,MEX,CZE
 2026,24 Jun 2026 - 20:00,Group A,,Guadalajara,South Africa,,,South Korea,,,,,,,,201,3050,RSA,KOR

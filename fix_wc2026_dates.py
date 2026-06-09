@@ -18,8 +18,20 @@ WC_2026_SEASON_ID = 76
 # Formato: (home_team, away_team, fecha_incorrecta, fecha_correcta)
 # Añade más líneas si encuentras otros partidos con fechas erróneas.
 FIXES: list[tuple[str, str, str, str]] = [
-    ("Qatar",      "Switzerland", "2026-06-12", "2026-06-13"),
-    # Añade aquí más correcciones si son necesarias, por ejemplo:
+    ("Qatar",   "Switzerland", "2026-06-12", "2026-06-13"),
+    ("Mexico",  "South Korea", "2026-06-17", "2026-06-18"),
+    ("Brazil",        "Haiti",     "2026-06-18", "2026-06-19"),
+    ("United States", "Australia",  "2026-06-18", "2026-06-19"),
+    ("Germany",       "Curacao",    "2026-06-13", "2026-06-14"),
+    ("Germany",       "Ivory Coast",  "2026-06-19", "2026-06-20"),
+    ("Netherlands",   "Sweden",       "2026-06-19", "2026-06-20"),
+    ("Belgium",       "Iran",         "2026-06-20", "2026-06-21"),
+    ("Spain",         "Saudi Arabia", "2026-06-20", "2026-06-21"),
+    ("France",        "Iraq",         "2026-06-21", "2026-06-22"),
+    ("Argentina",     "Austria",      "2026-06-21", "2026-06-22"),
+    ("Portugal",      "Uzbekistan",   "2026-06-22", "2026-06-23"),
+    ("England",       "Ghana",        "2026-06-22", "2026-06-23"),
+    # Añade aquí más correcciones si encuentras otras fechas erróneas:
     # ("TeamA", "TeamB", "2026-06-XX", "2026-06-YY"),
 ]
 
