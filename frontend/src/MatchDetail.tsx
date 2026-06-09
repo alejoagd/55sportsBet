@@ -2,6 +2,7 @@ import { useState, useEffect, type JSX } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MatchH2HNarrative from './MatchH2HNarrative';
 import H2HScoring from './H2Hscoring';
+import TeamFormSection from './TeamFormSection';
 
 interface MatchStats {
   match_id: number;
@@ -382,6 +383,9 @@ export default function MatchDetail() {
 
         {/* 🎯 H2H SCORING SYSTEM - NUEVO */}
         <H2HScoring matchId={Number(matchId)} />
+
+        {/* Últimos 6 partidos de cada equipo */}
+        <TeamFormSection matchId={Number(matchId)} />
 
         {/* Predicciones de Estadísticas Detalladas */}
         <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-orange-500/20">

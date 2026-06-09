@@ -2285,6 +2285,64 @@ def get_betting_lines_accuracy(season_id: int):
         return [dict(r) for r in results]   
 
 
+@app.get("/api/matches/{match_id}/team-form")
+def get_team_form(match_id: int, limit: int = 10):
+    """Devuelve los últimos N partidos completados para cada equipo del partido."""
+    with engine.connect() as conn:
+        match_row = conn.execute(text("""
+            SELECT m.home_team_id, m.away_team_id,
+                   ht.name as home_team, at.name as away_team
+            FROM matches m
+            JOIN teams ht ON m.home_team_id = ht.id
+            JOIN teams at ON m.away_team_id = at.id
+            WHERE m.id = :mid
+        """), {"mid": match_id}).fetchone()
+
+        if not match_row:
+            raise HTTPException(404, "Match not found")
+
+        def get_form(team_id: int):
+            rows = conn.execute(text("""
+                SELECT m.date, ht.name as home_team, at.name as away_team,
+                       m.home_goals, m.away_goals, m.home_team_id,
+                       l.name as tournament
+                FROM matches m
+                JOIN teams ht ON m.home_team_id = ht.id
+                JOIN teams at ON m.away_team_id = at.id
+                JOIN seasons s ON m.season_id = s.id
+                JOIN leagues l ON s.league_id = l.id
+                WHERE (m.home_team_id = :tid OR m.away_team_id = :tid)
+                  AND m.home_goals IS NOT NULL
+                ORDER BY m.date DESC
+                LIMIT :lim
+            """), {"tid": team_id, "lim": limit}).fetchall()
+
+            result = []
+            for r in rows:
+                is_home = (r.home_team_id == team_id)
+                team_g = r.home_goals if is_home else r.away_goals
+                opp_g  = r.away_goals if is_home else r.home_goals
+                res = 'W' if team_g > opp_g else ('D' if team_g == opp_g else 'L')
+                result.append({
+                    "date": r.date.isoformat() if hasattr(r.date, 'isoformat') else str(r.date),
+                    "home_team": r.home_team,
+                    "away_team": r.away_team,
+                    "home_goals": r.home_goals,
+                    "away_goals": r.away_goals,
+                    "tournament": r.tournament,
+                    "is_home": is_home,
+                    "result": res,
+                })
+            return result
+
+        return {
+            "home_team": match_row.home_team,
+            "away_team": match_row.away_team,
+            "home_form": get_form(match_row.home_team_id),
+            "away_form": get_form(match_row.away_team_id),
+        }
+
+
 @app.get("/api/matches/{match_id}/h2h-analysis")
 async def get_h2h_analysis(match_id: int):
     """
