@@ -651,19 +651,22 @@ def get_upcoming_matches(
             -- Weinston predictions
             wp.local_goals as weinston_home_goals,
             wp.away_goals as weinston_away_goals,
-            
+            wp.prob_home_win as weinston_prob_home,
+            wp.prob_draw as weinston_prob_draw,
+            wp.prob_away_win as weinston_prob_away,
+
             -- Convertir result_1x2 a formato letra (0=D, 1=H, 2=A)
-            CASE 
+            CASE
                 WHEN wp.result_1x2 = 0 THEN 'D'
                 WHEN wp.result_1x2 = 1 THEN 'H'
                 WHEN wp.result_1x2 = 2 THEN 'A'
                 ELSE NULL
             END as weinston_result,
-            
+
             -- ✅ USAR VALORES DE BD (el frontend ya sabe cómo mostrarlos)
             wp.prob_over_25 as weinston_over_25,
             wp.prob_btts as weinston_btts
-            
+
         FROM matches m
         JOIN teams th ON th.id = m.home_team_id
         JOIN teams ta ON ta.id = m.away_team_id

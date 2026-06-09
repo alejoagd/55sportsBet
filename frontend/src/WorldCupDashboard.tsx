@@ -18,11 +18,12 @@ interface Match {
   poisson_btts: number;
   weinston_home_goals: number;
   weinston_away_goals: number;
+  weinston_prob_home: number;
+  weinston_prob_draw: number;
+  weinston_prob_away: number;
   weinston_result: string;
   weinston_over_25: number;
   weinston_btts: number;
-  weinston_prob_over_25?: number;
-  weinston_prob_btts?: number;
 }
 
 interface GroupMatch {
@@ -296,9 +297,10 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   const homeFlag = TEAM_FLAG[match.home_team] ?? '🏳';
   const awayFlag = TEAM_FLAG[match.away_team] ?? '🏳';
 
-  const homeProb = safeNum(match.poisson_prob_home);
-  const drawProb = safeNum(match.poisson_prob_draw);
-  const awayProb = safeNum(match.poisson_prob_away);
+  // Use Weinston probs (same model as the expected goals display)
+  const homeProb = safeNum(match.weinston_prob_home ?? match.poisson_prob_home);
+  const drawProb = safeNum(match.weinston_prob_draw ?? match.poisson_prob_draw);
+  const awayProb = safeNum(match.weinston_prob_away ?? match.poisson_prob_away);
   const total = homeProb + drawProb + awayProb || 1;
   const homeP = (homeProb / total) * 100;
   const drawP = (drawProb / total) * 100;
@@ -310,8 +312,10 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
 
   const pHomeGoals = safeNum(match.weinston_home_goals);
   const pAwayGoals = safeNum(match.weinston_away_goals);
-  const overProb = safeNum(match.poisson_over_25);
-  const hasPredictions = (match.weinston_home_goals != null) || (match.poisson_prob_home != null && match.poisson_prob_home !== undefined);
+  // Weinston over/btts, fallback to Poisson
+  const overProb = safeNum(match.weinston_over_25 ?? match.poisson_over_25);
+  const bttsProb = safeNum(match.weinston_btts ?? match.poisson_btts);
+  const hasPredictions = match.weinston_home_goals != null || match.weinston_prob_home != null;
 
   return (
     <div
@@ -338,7 +342,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             {hasPredictions ? (
               <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-600">
                 <div className="text-white font-black text-lg sm:text-xl font-mono">
-                  {Math.round(pHomeGoals)} — {Math.round(pAwayGoals)}
+                  {Math.floor(pHomeGoals)} — {Math.floor(pAwayGoals)}
                 </div>
                 <div className="text-slate-500 text-xs mt-0.5">marcador esperado</div>
               </div>
@@ -383,13 +387,13 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
               }`}>
               {overProb >= 0.5 ? `Over 2.5 · ${(overProb * 100).toFixed(0)}%` : `Under 2.5 · ${((1 - overProb) * 100).toFixed(0)}%`}
             </span>
-            {match.poisson_btts != null && (
+            {bttsProb > 0 && (
               <span className={`text-xs px-2 py-0.5 rounded-full border font-medium
-                ${safeNum(match.poisson_btts) >= 0.5
+                ${bttsProb >= 0.5
                   ? 'text-purple-400 border-purple-400/30 bg-purple-400/10'
                   : 'text-slate-400 border-slate-600 bg-slate-700/50'
                 }`}>
-                BTTS {(safeNum(match.poisson_btts) * 100).toFixed(0)}%
+                BTTS {(bttsProb * 100).toFixed(0)}%
               </span>
             )}
             <span className="text-xs text-slate-500 ml-auto self-center group-hover:text-slate-300 transition-colors">

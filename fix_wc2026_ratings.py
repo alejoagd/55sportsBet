@@ -88,6 +88,16 @@ MU_HOME  = 1.35
 MU_AWAY  = 1.35
 HOME_ADV = 1.00   # sin ventaja de local en sede neutral
 
+# Potencias ASIMÉTRICAS de escalado.
+# Usar atk^2.5 y def = 1/strength^0.5 rompe la restricción del producto
+# (con potencias iguales lam_h*lam_a=constante → imposible tener 2-1).
+# Con esto:
+#   top vs weak  → 2-0 o 2-1
+#   comparables  → 1-1 o 1-0
+#   dos débiles  → puede ser 0-0
+ATK_POWER = 2.5
+DEF_POWER = 0.5
+
 
 def main() -> None:
     print("=" * 60)
@@ -124,10 +134,11 @@ def main() -> None:
         for n in unmatched:
             print(f"   - {n}")
 
-    # 2. Calcular fortaleza normalizada
+    # 2. Calcular fortaleza con potencias asimétricas
     all_pts = list(FIFA_POINTS.values())
     avg_pts = sum(all_pts) / len(all_pts)
     print(f"\nPuntos FIFA promedio (48 equipos): {avg_pts:.0f}")
+    print(f"Potencias: atk={ATK_POWER}  def={DEF_POWER}")
 
     print(f"\n{'Equipo':<30} {'FIFA pts':>8}  {'strength':>8}  {'atk':>6}  {'def':>6}")
     print("-" * 65)
@@ -135,16 +146,16 @@ def main() -> None:
     ratings: dict[int, dict] = {}
     for name, info in sorted(matched.items(), key=lambda x: -x[1]["fifa_pts"]):
         pts = info["fifa_pts"]
-        strength = pts / avg_pts
-        atk = strength          # lineal: equipo top ~1.30, equipo débil ~0.80
-        defn = 1.0 / strength   # inverso: top defiende bien (< 1), débil defiende mal (> 1)
+        s = pts / avg_pts              # fortaleza lineal normalizada
+        atk  = s ** ATK_POWER          # ataque: potencia alta → mayor spread
+        defn = (1.0 / s) ** DEF_POWER  # defensa: inverso con potencia baja
         ratings[info["id"]] = {
             "atk_home": atk, "def_home": defn,
             "atk_away": atk, "def_away": defn,
         }
-        print(f"{name:<30} {pts:>8.0f}  {strength:>8.4f}  {atk:>6.4f}  {defn:>6.4f}")
+        print(f"{name:<30} {pts:>8.0f}  {s:>8.4f}  {atk:>6.4f}  {defn:>6.4f}")
 
-    # Teams sin mapeo → fallback neutro (1.0)
+    # Teams sin mapeo → fallback neutro (1.0 en escala potencial = avg^power = 1.0)
     for name in unmatched:
         tid = teams[name]["id"]
         ratings[tid] = {"atk_home": 1.0, "def_home": 1.0, "atk_away": 1.0, "def_away": 1.0}
