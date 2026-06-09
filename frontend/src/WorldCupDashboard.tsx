@@ -308,10 +308,10 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
     : awayProb > homeProb && awayProb > drawProb ? 'away'
     : 'draw';
 
-  const pHomeGoals = safeNum(match.poisson_home_goals);
-  const pAwayGoals = safeNum(match.poisson_away_goals);
+  const pHomeGoals = safeNum(match.weinston_home_goals);
+  const pAwayGoals = safeNum(match.weinston_away_goals);
   const overProb = safeNum(match.poisson_over_25);
-  const hasPredictions = match.poisson_prob_home != null && match.poisson_prob_home !== undefined;
+  const hasPredictions = (match.weinston_home_goals != null) || (match.poisson_prob_home != null && match.poisson_prob_home !== undefined);
 
   return (
     <div
