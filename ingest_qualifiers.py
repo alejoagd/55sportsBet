@@ -329,9 +329,9 @@ def fit_with_regularization(season_id: int) -> dict:
                  np.r_[np.full(4*n, 10),  5.0, 5.0, 4.0])
 
     print(f"   Entrenando Weinston: {n} equipos, {len(rows)} partidos, λ={REGULARIZATION}...")
-    res = minimize(loss, x0, method="trust-constr",
+    res = minimize(loss, x0, method="SLSQP",
                    constraints=[lc], bounds=bnd,
-                   options={"gtol": 1e-4, "xtol": 1e-4, "maxiter": 600})
+                   options={"ftol": 1e-6, "maxiter": 600})
 
     aL, dH, aA, dA, mh, ma, ha = unp(res.x)
     print(f"   Convergencia: {'OK' if res.success else 'parcial'}  loss={res.fun:.1f}")
