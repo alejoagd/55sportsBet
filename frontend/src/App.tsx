@@ -1,4 +1,5 @@
 // App.tsx - Con Sistema de Permisos Administrativos
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import PredictionsDashboard from "./predictionsDashboard";
 import MetricsEvolutionChart from "./MetricsEvolutionChart";
@@ -7,6 +8,7 @@ import ImprovedDashboard from './ImprovedDashboard';
 import MatchDetail from './MatchDetail';
 import BestBetsSection from './BestBetsSection';
 import { ResponsiveWrapper, ResponsiveNav, useIsMobile } from './ResponsiveWrapper';
+import SubscribeModal from './SubscribeModal';
 import './mobile-responsive.css';
 
 // 🔐 Imports del sistema administrativo
@@ -114,12 +116,14 @@ function Navigation() {
 
 // Componente principal de la aplicación
 function App() {
+  const [showSubscribe, setShowSubscribe] = useState(false);
+
   return (
     <ResponsiveWrapper>
       <Router>
         <div className="min-h-screen bg-slate-900">
           <Navigation />
-          
+
           <main className={`main-container`}>
             <Routes>
               <Route path="/" element={<ImprovedDashboard />} />
@@ -162,6 +166,22 @@ function App() {
               } />
             </Routes>
           </main>
+
+          {/* Botón flotante de suscripción */}
+          <button
+            onClick={() => setShowSubscribe(true)}
+            className="fixed bottom-6 right-6 z-40 flex items-center gap-2
+                       bg-yellow-400 hover:bg-yellow-300 text-slate-900
+                       font-bold text-sm px-4 py-3 rounded-full shadow-lg
+                       shadow-yellow-400/30 hover:shadow-yellow-400/50
+                       transition-all hover:scale-105 active:scale-95"
+            title="Suscríbete para recibir noticias del Mundial"
+          >
+            <span className="text-base">🔔</span>
+            <span className="hidden sm:inline">Suscríbete</span>
+          </button>
+
+          <SubscribeModal isOpen={showSubscribe} onClose={() => setShowSubscribe(false)} />
         </div>
       </Router>
     </ResponsiveWrapper>

@@ -2471,7 +2471,7 @@ async def get_h2h_analysis(match_id: int):
 # Incluye TODAS las estadísticas: goles, tiros, tiros a puerta, corners, faltas y tarjetas
 # ==============================================================================
 
-def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], match_info: Dict) -> Dict[str, Any]:
+def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info: Dict) -> Dict[str, Any]:
     """
     Calcula estadísticas agregadas del H2H con TODAS las métricas
     """
@@ -4876,6 +4876,52 @@ def get_daily_best_bets_summary():
                 for row in results
             ]
         }
+
+
+# ── Subscribers ────────────────────────────────────────────────────────────
+class SubscriberCreate(BaseModel):
+    nombre: str
+    apellido: str
+    correo: str
+    telefono: str
+    pais: str
+    ciudad: str
+    acepta_politica: bool
+
+
+@app.post("/api/subscribers", status_code=201)
+def create_subscriber(data: SubscriberCreate):
+    """Register a new subscriber. Rejects if email already exists."""
+    if not data.acepta_politica:
+        raise HTTPException(status_code=400, detail="Debes aceptar la política de manejo de datos.")
+
+    nombre   = data.nombre.strip()
+    apellido = data.apellido.strip()
+    correo   = data.correo.strip().lower()
+    telefono = data.telefono.strip()
+    pais     = data.pais.strip()
+    ciudad   = data.ciudad.strip()
+
+    if not nombre or not apellido or not correo or not telefono or not pais or not ciudad:
+        raise HTTPException(status_code=400, detail="Todos los campos son obligatorios.")
+
+    with engine.begin() as conn:
+        existing = conn.execute(
+            text("SELECT id FROM subscribers WHERE correo = :correo"),
+            {"correo": correo}
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="Este correo ya está registrado.")
+
+        conn.execute(text("""
+            INSERT INTO subscribers (nombre, apellido, correo, telefono, pais, ciudad, acepta_politica)
+            VALUES (:nombre, :apellido, :correo, :telefono, :pais, :ciudad, :acepta)
+        """), {
+            "nombre": nombre, "apellido": apellido, "correo": correo,
+            "telefono": telefono, "pais": pais, "ciudad": ciudad, "acepta": True,
+        })
+
+    return {"message": "¡Suscripción exitosa! Te mantendremos informado."}
 
 
 # ===== REGISTRAR EL ROUTER =====

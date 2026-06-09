@@ -1,6 +1,6 @@
-from datetime import date as DateType
+from datetime import date as DateType, datetime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Integer, String, ForeignKey, Date, Float
+from sqlalchemy import Integer, String, ForeignKey, Date, Float, Boolean, DateTime
 
 class Base(DeclarativeBase):
     pass
@@ -59,6 +59,23 @@ class MatchStats(Base):
     total_cardshome: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_cardsaway: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class Subscriber(Base):
+    __tablename__ = "subscribers"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(100))
+    apellido: Mapped[str] = mapped_column(String(100))
+    correo: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    telefono: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    pais: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ciudad: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    acepta_politica: Mapped[bool] = mapped_column(Boolean, default=False)
+    fecha_registro: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+
 
 class PoissonPrediction(Base):
     __tablename__ = "poisson_predictions"
