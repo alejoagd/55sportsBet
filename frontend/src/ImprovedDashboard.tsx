@@ -30,12 +30,15 @@ interface Match {
   // Predicciones Weinston
   weinston_home_goals: number;
   weinston_away_goals: number;
+  weinston_prob_home: number;
+  weinston_prob_draw: number;
+  weinston_prob_away: number;
   weinston_result: string;
   weinston_over_25: number;
   weinston_btts: number;
 
-  weinston_prob_over_25?: number;  // Valor correcto de BD
-  weinston_prob_btts?: number;     // Valor correcto de BD
+  weinston_prob_over_25?: number;
+  weinston_prob_btts?: number;
   
   // Aciertos
   poisson_hit_1x2?: boolean;
