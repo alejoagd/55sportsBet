@@ -1,0 +1,109 @@
+name: Update WC 2026 Results
+
+# ──────────────────────────────────────────────────────────────────────────────
+# FUENTE DE DATOS
+# ──────────────────────────────────────────────────────────────────────────────
+# Repositorio: https://github.com/martj42/international_results
+# Archivo    : results.csv  (~50k partidos, actualizado horas después de c/partido)
+# Filtro     : tournament = "FIFA World Cup" + date >= 2026-06-11
+# ──────────────────────────────────────────────────────────────────────────────
+# SCHEDULE
+# ──────────────────────────────────────────────────────────────────────────────
+# Corre dos veces al día durante el Mundial (11 jun – 19 jul 2026):
+#
+#   06:00 UTC  — cubre partidos del día anterior (más tardíos ~23:00 UTC)
+#               el CSV de martj42 ya debería estar actualizado
+#   22:00 UTC  — cubre partidos del mediodía/tarde (14:00–17:00 local)
+#               Ideal para actualizar el dashboard antes del prime time
+#
+# Horarios de partido (referencia):
+#   14:00 local CDT  = 19:00 UTC
+#   17:00 local CDT  = 22:00 UTC
+#   20:00 local PDT  = 03:00 UTC (+1 día)
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 6:00 AM UTC — captura partidos nocturnos del día anterior
+    - cron: '0 22 * * *'  # 10:00 PM UTC — captura partidos de tarde/noche del mismo día
+
+  workflow_dispatch:       # Ejecución manual desde GitHub Actions UI
+    inputs:
+      dry_run:
+        description: 'Dry run (no modifica BD, solo muestra qué actualizaría)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  update-results:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env.production
+        env:
+          DB_HOST:   ${{ secrets.DB_HOST }}
+          DB_PORT:   ${{ secrets.DB_PORT }}
+          DB_NAME:   ${{ secrets.DB_NAME }}
+          DB_USER:   ${{ secrets.DB_USER }}
+          DB_PASS:   ${{ secrets.DB_PASS }}
+          DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
+          API_URL:   ${{ secrets.API_URL }}
+        run: |
+          cat > .env.production << EOF
+          DB_HOST=$DB_HOST
+          DB_PORT=$DB_PORT
+          DB_NAME=$DB_NAME
+          DB_USER=$DB_USER
+          DB_PASSWORD=$DB_PASS
+          DB_SCHEMA=$DB_SCHEMA
+          API_URL=$API_URL
+          EOF
+
+          if [ -z "$DB_PASS" ]; then
+            echo "::error::DB_PASS secret no configurado en GitHub"
+            exit 1
+          fi
+          echo "✓ .env.production creado"
+
+      - name: Update WC 2026 match results
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python update_wc2026_results.py --dry-run
+          else
+            python update_wc2026_results.py
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wc2026-update-logs-${{ github.run_number }}
+          path: |
+            *.log
+            logs/**
+          retention-days: 14
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::WC 2026 results update failed. Check logs."
