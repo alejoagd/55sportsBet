@@ -347,6 +347,12 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
     predHomeGoalsRounded === match.home_goals &&
     predAwayGoalsRounded === match.away_goals;
 
+  // 1x2 prediction derived from predicted score (not probabilities)
+  const predictedResult1x2 = predHomeGoalsRounded > predAwayGoalsRounded ? 'H'
+    : predAwayGoalsRounded > predHomeGoalsRounded ? 'A' : 'D';
+  const score1x2Hit  = isCompleted && predictedResult1x2 === match.actual_result;
+  const score1x2Miss = isCompleted && predictedResult1x2 !== match.actual_result;
+
   return (
     <div
       onClick={() => navigate(`/match/${match.match_id}`, { state: { group, returnSearch: currentSearchParams } })}
@@ -457,11 +463,11 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             {/* 1x2 result badge — only for completed matches */}
             {isCompleted && (
               <span className={`text-xs px-2 py-0.5 rounded-full border font-bold
-                ${result1x2Hit
+                ${score1x2Hit
                   ? 'bg-green-600 border-green-500 text-white'
                   : 'bg-red-600/30 border-red-500/50 text-red-400'
                 }`}>
-                {result1x2Hit ? '✅' : '❌'} {predictedResult === 'H' ? 'Local' : predictedResult === 'A' ? 'Visit.' : 'Empate'}
+                {score1x2Hit ? '✅' : '❌'} {predictedResult1x2 === 'H' ? 'Local' : predictedResult1x2 === 'A' ? 'Visit.' : 'Empate'}
               </span>
             )}
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium
