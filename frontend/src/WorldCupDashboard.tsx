@@ -8,7 +8,12 @@ interface Match {
   date: string;
   home_team: string;
   away_team: string;
-  referee: string | null;
+  referee?: string | null;
+  // Actual result (null = not played yet)
+  home_goals: number | null;
+  away_goals: number | null;
+  actual_result: 'H' | 'D' | 'A' | null;
+  // Poisson predictions
   poisson_home_goals: number;
   poisson_away_goals: number;
   poisson_prob_home: number;
@@ -16,6 +21,7 @@ interface Match {
   poisson_prob_away: number;
   poisson_over_25: number;
   poisson_btts: number;
+  // Weinston predictions
   weinston_home_goals: number;
   weinston_away_goals: number;
   weinston_prob_home: number;
@@ -297,7 +303,9 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   const homeFlag = TEAM_FLAG[match.home_team] ?? '🏳';
   const awayFlag = TEAM_FLAG[match.away_team] ?? '🏳';
 
-  // Use Weinston probs (same model as the expected goals display)
+  const isCompleted = match.home_goals != null && match.away_goals != null;
+
+  // Weinston probs with Poisson fallback
   const homeProb = safeNum(match.weinston_prob_home ?? match.poisson_prob_home);
   const drawProb = safeNum(match.weinston_prob_draw ?? match.poisson_prob_draw);
   const awayProb = safeNum(match.weinston_prob_away ?? match.poisson_prob_away);
@@ -312,34 +320,70 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
 
   const pHomeGoals = safeNum(match.weinston_home_goals);
   const pAwayGoals = safeNum(match.weinston_away_goals);
-  // Weinston over/btts, fallback to Poisson
   const overProb = safeNum(match.weinston_over_25 ?? match.poisson_over_25);
   const bttsProb = safeNum(match.weinston_btts ?? match.poisson_btts);
   const hasPredictions = match.weinston_home_goals != null || match.weinston_prob_home != null;
 
+  // Prediction accuracy (only meaningful when completed)
+  const predictedResult = homeP > awayP && homeP > drawP ? 'H'
+    : awayP > homeP && awayP > drawP ? 'A' : 'D';
+  const result1x2Hit  = isCompleted && predictedResult === match.actual_result;
+  const result1x2Miss = isCompleted && predictedResult !== match.actual_result;
+
+  const predictedOver  = overProb >= 0.5;
+  const actualTotalGoals = isCompleted ? (match.home_goals! + match.away_goals!) : null;
+  const actualOver     = actualTotalGoals != null ? actualTotalGoals > 2 : null;
+  const overHit        = isCompleted && predictedOver === actualOver;
+  const overMiss       = isCompleted && predictedOver !== actualOver;
+
+  const predictedBtts  = bttsProb >= 0.5;
+  const actualBtts     = isCompleted ? (match.home_goals! > 0 && match.away_goals! > 0) : null;
+  const bttsHit        = isCompleted && predictedBtts === actualBtts;
+  const bttsMiss       = isCompleted && predictedBtts !== actualBtts;
+
   return (
     <div
       onClick={() => navigate(`/match/${match.match_id}`, { state: { group, returnSearch: currentSearchParams } })}
-      className="bg-slate-800 border border-slate-700 hover:border-yellow-400/40 hover:bg-slate-750 rounded-xl overflow-hidden transition-all cursor-pointer group"
+      className={`border rounded-xl overflow-hidden transition-all cursor-pointer group
+        ${isCompleted
+          ? 'bg-slate-800/70 border-slate-600 hover:border-slate-500'
+          : 'bg-slate-800 border-slate-700 hover:border-yellow-400/40 hover:bg-slate-750'
+        }`}
     >
+      {/* Header */}
       <div className="flex items-center justify-between px-3 sm:px-4 pt-3 pb-2 border-b border-slate-700/50">
         <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
           Grupo {group}
         </span>
-        <span className="text-xs text-slate-400">{formatDate(match.date)}</span>
+        <div className="flex items-center gap-2">
+          {isCompleted && (
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded uppercase tracking-wide">
+              Final
+            </span>
+          )}
+          <span className="text-xs text-slate-400">{formatDate(match.date)}</span>
+        </div>
       </div>
 
+      {/* Teams + Score */}
       <div className="px-3 sm:px-4 py-4">
         <div className="flex items-center justify-between gap-2">
-          <div className={`flex-1 text-right ${favorite === 'home' ? 'opacity-100' : 'opacity-70'}`}>
+          <div className={`flex-1 text-right ${!isCompleted && favorite === 'home' ? 'opacity-100' : isCompleted && match.actual_result === 'H' ? 'opacity-100' : 'opacity-70'}`}>
             <div className="text-2xl mb-1">{homeFlag}</div>
-            <div className={`text-xs sm:text-sm font-bold leading-tight ${favorite === 'home' ? 'text-white' : 'text-slate-300'}`}>
+            <div className="text-xs sm:text-sm font-bold leading-tight text-slate-200">
               {match.home_team}
             </div>
           </div>
 
           <div className="flex-shrink-0 text-center px-2">
-            {hasPredictions ? (
+            {isCompleted ? (
+              <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-500">
+                <div className="text-white font-black text-lg sm:text-xl font-mono">
+                  {match.home_goals} — {match.away_goals}
+                </div>
+                <div className="text-slate-400 text-xs mt-0.5">Resultado Final</div>
+              </div>
+            ) : hasPredictions ? (
               <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-600">
                 <div className="text-white font-black text-lg sm:text-xl font-mono">
                   {Math.floor(pHomeGoals)} — {Math.floor(pAwayGoals)}
@@ -351,9 +395,9 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             )}
           </div>
 
-          <div className={`flex-1 text-left ${favorite === 'away' ? 'opacity-100' : 'opacity-70'}`}>
+          <div className={`flex-1 text-left ${!isCompleted && favorite === 'away' ? 'opacity-100' : isCompleted && match.actual_result === 'A' ? 'opacity-100' : 'opacity-70'}`}>
             <div className="text-2xl mb-1">{awayFlag}</div>
-            <div className={`text-xs sm:text-sm font-bold leading-tight ${favorite === 'away' ? 'text-white' : 'text-slate-300'}`}>
+            <div className="text-xs sm:text-sm font-bold leading-tight text-slate-200">
               {match.away_team}
             </div>
           </div>
@@ -362,13 +406,28 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
 
       {hasPredictions && (
         <div className="px-3 sm:px-4 pb-4 space-y-3">
+          {/* Probability bars */}
           <div>
-            <div className="flex text-xs text-slate-400 justify-between mb-1">
-              <span className={favorite === 'home' ? 'text-green-400 font-bold' : ''}>{homeP.toFixed(0)}%</span>
-              <span className={favorite === 'draw' ? 'text-yellow-400 font-bold' : ''}>Empate {drawP.toFixed(0)}%</span>
-              <span className={favorite === 'away' ? 'text-green-400 font-bold' : ''}>{awayP.toFixed(0)}%</span>
+            <div className="flex text-xs justify-between mb-1">
+              <span className={`font-bold ${
+                result1x2Hit && match.actual_result === 'H' ? 'text-green-400' :
+                result1x2Miss && predictedResult === 'H' ? 'text-red-400' :
+                !isCompleted && favorite === 'home' ? 'text-green-400' : 'text-slate-400'
+              }`}>{homeP.toFixed(0)}%</span>
+              <span className={`font-${result1x2Hit && match.actual_result === 'D' ? 'bold' : 'normal'} ${
+                result1x2Hit && match.actual_result === 'D' ? 'text-green-400' :
+                result1x2Miss && predictedResult === 'D' ? 'text-red-400' :
+                !isCompleted && favorite === 'draw' ? 'text-yellow-400' : 'text-slate-400'
+              }`}>Empate {drawP.toFixed(0)}%</span>
+              <span className={`font-bold ${
+                result1x2Hit && match.actual_result === 'A' ? 'text-green-400' :
+                result1x2Miss && predictedResult === 'A' ? 'text-red-400' :
+                !isCompleted && favorite === 'away' ? 'text-green-400' : 'text-slate-400'
+              }`}>{awayP.toFixed(0)}%</span>
             </div>
-            <div className="flex h-2 rounded-full overflow-hidden gap-px bg-slate-900">
+            <div className={`flex h-2 rounded-full overflow-hidden gap-px bg-slate-900 ${
+              isCompleted ? 'opacity-60' : ''
+            }`}>
               <div className="bg-blue-500 transition-all rounded-l-full" style={{ width: `${homeP}%` }} />
               <div className="bg-slate-500 transition-all" style={{ width: `${drawP}%` }} />
               <div className="bg-orange-500 transition-all rounded-r-full" style={{ width: `${awayP}%` }} />
@@ -381,7 +440,9 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
 
           <div className="flex gap-2 flex-wrap">
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium
-              ${overProb >= 0.5
+              ${overHit ? 'bg-green-600 border-green-500 text-white' :
+                overMiss ? 'bg-red-600/30 border-red-500/50 text-red-400' :
+                overProb >= 0.5
                 ? 'text-green-400 border-green-400/30 bg-green-400/10'
                 : 'text-orange-400 border-orange-400/30 bg-orange-400/10'
               }`}>
@@ -389,7 +450,9 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             </span>
             {bttsProb > 0 && (
               <span className={`text-xs px-2 py-0.5 rounded-full border font-medium
-                ${bttsProb >= 0.5
+                ${bttsHit ? 'bg-green-600 border-green-500 text-white' :
+                  bttsMiss ? 'bg-red-600/30 border-red-500/50 text-red-400' :
+                  bttsProb >= 0.5
                   ? 'text-purple-400 border-purple-400/30 bg-purple-400/10'
                   : 'text-slate-400 border-slate-600 bg-slate-700/50'
                 }`}>
@@ -1275,11 +1338,10 @@ function NewsView() {
 
 // ── Main component ────────────────────────────────────────────────────
 interface Props {
-  matches: Match[];
   initialGroup?: string | null;
 }
 
-export default function WorldCupDashboard({ matches, initialGroup }: Props) {
+export default function WorldCupDashboard({ initialGroup }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(() => {
     if (initialGroup && GROUPS.includes(initialGroup)) return initialGroup;
@@ -1287,8 +1349,17 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
     return fromSearch && GROUPS.includes(fromSearch) ? fromSearch : null;
   });
   const [activeTab, setActiveTab] = useState<Tab>('matches');
+  const [allWcMatches, setAllWcMatches] = useState<Match[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
   const [loadingStandings, setLoadingStandings] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/wc2026/all-matches`)
+      .then(r => r.json())
+      .then(data => { setAllWcMatches(data); setLoadingMatches(false); })
+      .catch(() => setLoadingMatches(false));
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'standings' && groupMatches.length === 0) {
@@ -1312,7 +1383,7 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
   };
 
   const matchesByGroup: Record<string, Match[]> = {};
-  for (const m of matches) {
+  for (const m of allWcMatches) {
     const g = getMatchGroup(m);
     if (!matchesByGroup[g]) matchesByGroup[g] = [];
     matchesByGroup[g].push(m);
@@ -1323,7 +1394,7 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
   return (
     <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <WorldCupBanner matchCount={matches.length} />
+        <WorldCupBanner matchCount={allWcMatches.length || 72} />
         <TabNav active={activeTab} onChange={setActiveTab} />
 
         {activeTab !== 'bracket' && activeTab !== 'news' && (
@@ -1334,7 +1405,7 @@ export default function WorldCupDashboard({ matches, initialGroup }: Props) {
         )}
 
         {activeTab === 'matches' && (
-          matches.length === 0 ? (
+          loadingMatches ? (
             <div className="text-center py-16 text-slate-500">
               <div className="text-5xl mb-4">⏳</div>
               <p className="text-lg">Cargando predicciones del Mundial...</p>

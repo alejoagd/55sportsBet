@@ -576,7 +576,7 @@ export default function ImprovedDashboard() {
 
       {/* VISTA ESPECIAL MUNDIAL */}
       {isWorldCup && (
-        <WorldCupDashboard matches={upcomingMatches} initialGroup={searchParams.get('group')} />
+        <WorldCupDashboard initialGroup={searchParams.get('group')} />
       )}
 
       {/* CONTENIDO DEL DASHBOARD (solo para ligas normales) */}

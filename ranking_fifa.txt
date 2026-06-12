@@ -61,3 +61,8 @@ Ratings actualizados : 48 equipos
 Parámetros torneo    : mu_home=1.35  mu_away=1.35  home_adv=1.0
 
 ============================================================
+
+
+
+python fix_wc2026_ratings.py
+python -m src.predictions.cli upcoming --season-id 76 --from 2026-06-11 --to 2026-07-19
