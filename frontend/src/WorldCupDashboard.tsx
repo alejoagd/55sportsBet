@@ -350,8 +350,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   // 1x2 prediction derived from predicted score (not probabilities)
   const predictedResult1x2 = predHomeGoalsRounded > predAwayGoalsRounded ? 'H'
     : predAwayGoalsRounded > predHomeGoalsRounded ? 'A' : 'D';
-  const score1x2Hit  = isCompleted && predictedResult1x2 === match.actual_result;
-  const score1x2Miss = isCompleted && predictedResult1x2 !== match.actual_result;
+  const score1x2Hit = isCompleted && predictedResult1x2 === match.actual_result;
 
   return (
     <div
