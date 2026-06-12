@@ -93,6 +93,17 @@ jobs:
             python update_wc2026_results.py
           fi
 
+      - name: Update WC 2026 match stats
+        env:
+          ENV_FILE: .env.production
+          APIFOOTBALL_KEY: ${{ secrets.APIFOOTBALL_KEY }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python update_wc2026_stats.py --dry-run
+          else
+            python update_wc2026_stats.py
+          fi
+
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4

@@ -742,6 +742,24 @@ def get_wc2026_all_matches():
     return result
 
 
+@router.get("/api/matches/{match_id}/stats")
+def get_match_stats(match_id: int):
+    """Returns actual match statistics fetched from API-Football (match_stats table)."""
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT match_id,
+                   home_shots, home_shots_ot, home_fouls,
+                   home_yellow_cards, home_red_cards, home_corners, home_possession,
+                   away_shots, away_shots_ot, away_fouls,
+                   away_yellow_cards, away_red_cards, away_corners, away_possession
+              FROM match_stats
+             WHERE match_id = :mid
+        """), {"mid": match_id}).mappings().first()
+    if not row:
+        return None
+    return dict(row)
+
+
 @router.get("/api/wc2026/group-matches")
 def get_wc2026_group_matches():
     """Returns all WC 2026 group stage matches with results for standings calculation."""
