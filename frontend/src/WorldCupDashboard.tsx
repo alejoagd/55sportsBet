@@ -341,6 +341,12 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   const bttsHit        = isCompleted && predictedBtts === actualBtts;
   const bttsMiss       = isCompleted && predictedBtts !== actualBtts;
 
+  const predHomeGoalsRounded = Math.floor(pHomeGoals);
+  const predAwayGoalsRounded = Math.floor(pAwayGoals);
+  const isExactScoreHit = isCompleted &&
+    predHomeGoalsRounded === match.home_goals &&
+    predAwayGoalsRounded === match.away_goals;
+
   return (
     <div
       onClick={() => navigate(`/match/${match.match_id}`, { state: { group, returnSearch: currentSearchParams } })}
@@ -377,11 +383,20 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
 
           <div className="flex-shrink-0 text-center px-2">
             {isCompleted ? (
-              <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-500">
-                <div className="text-white font-black text-lg sm:text-xl font-mono">
+              <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-500 min-w-[96px]">
+                <div className="text-white font-black text-lg sm:text-xl font-mono leading-none">
                   {match.home_goals} — {match.away_goals}
                 </div>
-                <div className="text-slate-400 text-xs mt-0.5">Resultado Final</div>
+                <div className="text-slate-400 text-xs mt-1">Resultado Final</div>
+                {hasPredictions && (
+                  <div className="flex items-center justify-center gap-1 mt-1.5 pt-1.5 border-t border-slate-700/60">
+                    <span className="text-slate-500 text-[10px]">Pred.</span>
+                    <span className={`text-xs font-mono font-semibold ${isExactScoreHit ? 'text-green-400' : 'text-slate-400'}`}>
+                      {predHomeGoalsRounded}—{predAwayGoalsRounded}
+                    </span>
+                    <span className="text-[11px] leading-none">{isExactScoreHit ? '✅' : '❌'}</span>
+                  </div>
+                )}
               </div>
             ) : hasPredictions ? (
               <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-600">
@@ -439,6 +454,16 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
           </div>
 
           <div className="flex gap-2 flex-wrap">
+            {/* 1x2 result badge — only for completed matches */}
+            {isCompleted && (
+              <span className={`text-xs px-2 py-0.5 rounded-full border font-bold
+                ${result1x2Hit
+                  ? 'bg-green-600 border-green-500 text-white'
+                  : 'bg-red-600/30 border-red-500/50 text-red-400'
+                }`}>
+                {result1x2Hit ? '✅' : '❌'} {predictedResult === 'H' ? 'Local' : predictedResult === 'A' ? 'Visit.' : 'Empate'}
+              </span>
+            )}
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium
               ${overHit ? 'bg-green-600 border-green-500 text-white' :
                 overMiss ? 'bg-red-600/30 border-red-500/50 text-red-400' :
@@ -446,6 +471,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
                 ? 'text-green-400 border-green-400/30 bg-green-400/10'
                 : 'text-orange-400 border-orange-400/30 bg-orange-400/10'
               }`}>
+              {isCompleted ? (overHit ? '✅ ' : '❌ ') : ''}
               {overProb >= 0.5 ? `Over 2.5 · ${(overProb * 100).toFixed(0)}%` : `Under 2.5 · ${((1 - overProb) * 100).toFixed(0)}%`}
             </span>
             {bttsProb > 0 && (
@@ -456,7 +482,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
                   ? 'text-purple-400 border-purple-400/30 bg-purple-400/10'
                   : 'text-slate-400 border-slate-600 bg-slate-700/50'
                 }`}>
-                BTTS {(bttsProb * 100).toFixed(0)}%
+                {isCompleted ? (bttsHit ? '✅ ' : '❌ ') : ''}BTTS {(bttsProb * 100).toFixed(0)}%
               </span>
             )}
             <span className="text-xs text-slate-500 ml-auto self-center group-hover:text-slate-300 transition-colors">
