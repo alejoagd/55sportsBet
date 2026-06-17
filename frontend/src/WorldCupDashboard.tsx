@@ -341,15 +341,19 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   const bttsHit        = isCompleted && predictedBtts === actualBtts;
   const bttsMiss       = isCompleted && predictedBtts !== actualBtts;
 
-  const predHomeGoalsRounded = Math.floor(pHomeGoals);
-  const predAwayGoalsRounded = Math.floor(pAwayGoals);
+  const predHomeGoalsRounded = Math.round(pHomeGoals);
+  const predAwayGoalsRounded = Math.round(pAwayGoals);
   const isExactScoreHit = isCompleted &&
     predHomeGoalsRounded === match.home_goals &&
     predAwayGoalsRounded === match.away_goals;
 
-  // 1x2 prediction derived from predicted score (not probabilities)
-  const predictedResult1x2 = predHomeGoalsRounded > predAwayGoalsRounded ? 'H'
-    : predAwayGoalsRounded > predHomeGoalsRounded ? 'A' : 'D';
+  // 1x2 prediction: usar weinston_result del modelo (ya calculado correctamente).
+  // Fallback: comparar goles esperados RAW (antes de redondear) para no perder
+  // diferencias pequeñas como 1.7 vs 1.5 que floor() convierte en empate.
+  const predictedResult1x2: 'H' | 'D' | 'A' =
+    match.weinston_result === 'H' || match.weinston_result === 'A' || match.weinston_result === 'D'
+      ? (match.weinston_result as 'H' | 'D' | 'A')
+      : pHomeGoals > pAwayGoals ? 'H' : pAwayGoals > pHomeGoals ? 'A' : 'D';
   const score1x2Hit = isCompleted && predictedResult1x2 === match.actual_result;
 
   return (
