@@ -119,6 +119,12 @@ def ensure_tables(conn) -> None:
             fetched_at        TIMESTAMP DEFAULT NOW()
         )
     """))
+    # Migración: agrega columnas que pueden faltar en tablas creadas con versiones anteriores
+    for col in ("home_shots_ot", "away_shots_ot", "home_fouls", "away_fouls",
+                "home_corners", "away_corners", "home_possession", "away_possession",
+                "source", "fetched_at"):
+        dtype = "TIMESTAMP DEFAULT NOW()" if col == "fetched_at" else "TEXT" if col == "source" else "INTEGER"
+        conn.execute(text(f"ALTER TABLE match_stats ADD COLUMN IF NOT EXISTS {col} {dtype}"))
 
 
 # ── ESPN ─────────────────────────────────────────────────────────────────────

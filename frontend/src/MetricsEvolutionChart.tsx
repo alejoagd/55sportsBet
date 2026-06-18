@@ -1,7 +1,199 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import BestBetsAnalysis from './BestBetsAnalysis';
 import BettingLinesStats from './BettingLinesStats';
+
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+
+// ── WC 2026 Accuracy types ────────────────────────────────────────────────────
+interface WCModelAcc { acc_1x2: number | null; acc_over25: number | null; acc_btts: number | null; }
+interface WCDateRow  { date: string; total: number; poisson: WCModelAcc; weinston: WCModelAcc; }
+interface WCAccuracy {
+  total_matches: number;
+  overall: { poisson: WCModelAcc; weinston: WCModelAcc };
+  by_date: WCDateRow[];
+}
+
+// ── WC 2026 Accuracy View ─────────────────────────────────────────────────────
+type WCMetricKey = 'acc_1x2' | 'acc_over25' | 'acc_btts';
+
+function WC2026AccuracyView() {
+  const [wc, setWc] = useState<WCAccuracy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedMetric, setSelectedMetric] = useState<WCMetricKey>('acc_1x2');
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/wc2026/accuracy`)
+      .then(r => r.json())
+      .then(d => { setWc(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-slate-400 text-center py-16">Cargando métricas del Mundial...</div>;
+  if (!wc || wc.total_matches === 0) return <div className="text-slate-500 text-center py-16">Sin partidos completados aún</div>;
+
+  const metricKey = selectedMetric;
+  const metricLabel = selectedMetric === 'acc_1x2' ? 'Acierto 1X2'
+    : selectedMetric === 'acc_over25' ? 'Acierto O/U 2.5' : 'Acierto BTTS';
+
+  const chartData = wc.by_date.map(d => ({
+    date: d.date.slice(5),
+    total: d.total,
+    poisson:  d.poisson[metricKey],
+    weinston: d.weinston[metricKey],
+  }));
+
+  const allMetrics: { key: keyof WCModelAcc; label: string }[] = [
+    { key: 'acc_1x2',   label: '1X2' },
+    { key: 'acc_over25', label: 'O/U 2.5' },
+    { key: 'acc_btts',  label: 'BTTS' },
+  ];
+
+  const metricButtons: { key: WCMetricKey; label: string }[] = [
+    { key: 'acc_1x2', label: '1X2' },
+    { key: 'acc_over25', label: 'O/U 2.5' },
+    { key: 'acc_btts', label: 'BTTS' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-yellow-900/40 to-slate-900 border border-yellow-500/30 rounded-xl p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🏆</span>
+            <div>
+              <h2 className="text-xl font-black text-white">Mundial 2026 — Aciertos de Predicción</h2>
+              <p className="text-slate-400 text-sm">{wc.total_matches} partidos completados · Fase de Grupos</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {metricButtons.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setSelectedMetric(key)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  selectedMetric === key
+                    ? 'bg-yellow-500 text-slate-900'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Resumen de las 3 métricas para ambos modelos */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {allMetrics.map(({ key, label }) => {
+          const pv = wc.overall.poisson[key];
+          const wv = wc.overall.weinston[key];
+          const winner = pv != null && wv != null ? (pv > wv ? 'poisson' : wv > pv ? 'weinston' : 'tie') : null;
+          return (
+            <div key={key} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="bg-slate-900/60 px-4 py-2 border-b border-slate-700">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">{label}</span>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-3">
+                <div className={`text-center rounded-lg p-3 ${winner === 'poisson' ? 'bg-blue-500/20 ring-1 ring-blue-400' : 'bg-slate-700/40'}`}>
+                  <div className="text-xs text-blue-400 font-semibold mb-1">Poisson</div>
+                  <div className="text-2xl font-black text-blue-300">{pv != null ? `${pv.toFixed(1)}%` : 'N/A'}</div>
+                  {winner === 'poisson' && <div className="text-[10px] text-yellow-400 mt-1">⭐ mejor</div>}
+                </div>
+                <div className={`text-center rounded-lg p-3 ${winner === 'weinston' ? 'bg-orange-500/20 ring-1 ring-orange-400' : 'bg-slate-700/40'}`}>
+                  <div className="text-xs text-orange-400 font-semibold mb-1">Weinston</div>
+                  <div className="text-2xl font-black text-orange-300">{wv != null ? `${wv.toFixed(1)}%` : 'N/A'}</div>
+                  {winner === 'weinston' && <div className="text-[10px] text-yellow-400 mt-1">⭐ mejor</div>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Gráfico de evolución por fecha para la métrica seleccionada */}
+      <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+        <h3 className="text-white font-bold mb-4">{metricLabel} por fecha</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData} barCategoryGap="30%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="date" stroke="#9CA3AF" style={{ fontSize: '11px' }} />
+            <YAxis stroke="#9CA3AF" style={{ fontSize: '11px' }} domain={[0, 100]} tickFormatter={v => `${v}%`} />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+              formatter={(v: any) => v != null ? `${Number(v).toFixed(1)}%` : 'N/A'}
+            />
+            <Legend />
+            <Bar dataKey="poisson"  name="Poisson"  fill="#3b82f6" radius={[4,4,0,0]} />
+            <Bar dataKey="weinston" name="Weinston" fill="#f97316" radius={[4,4,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Tabla por fecha */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-slate-900/60 px-5 py-3 border-b border-slate-700">
+          <h3 className="text-white font-bold text-sm">Detalle por fecha</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700 bg-slate-900/40">
+                <th className="text-left text-slate-400 px-4 py-2.5">Fecha</th>
+                <th className="text-center text-slate-400 px-3 py-2.5">Partidos</th>
+                <th className="text-center text-blue-400 px-3 py-2.5">Poisson 1X2</th>
+                <th className="text-center text-orange-400 px-3 py-2.5">Weinston 1X2</th>
+                <th className="text-center text-blue-400 px-3 py-2.5">Poisson O/U</th>
+                <th className="text-center text-orange-400 px-3 py-2.5">Weinston O/U</th>
+                <th className="text-center text-blue-400 px-3 py-2.5">Poisson BTTS</th>
+                <th className="text-center text-orange-400 px-3 py-2.5">Weinston BTTS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wc.by_date.map((row) => (
+                <tr key={row.date} className="border-b border-slate-700/40 hover:bg-slate-700/30">
+                  <td className="text-white px-4 py-2.5 font-medium">{row.date}</td>
+                  <td className="text-slate-400 text-center px-3 py-2.5">{row.total}</td>
+                  {(['poisson','weinston'] as const).flatMap(model => [
+                    <td key={`${row.date}-${model}-1x2`} className={`text-center px-3 py-2.5 font-mono font-bold ${model === 'poisson' ? 'text-blue-300' : 'text-orange-300'}`}>
+                      {row[model].acc_1x2 != null ? `${row[model].acc_1x2}%` : '—'}
+                    </td>
+                  ]).concat(
+                    (['poisson','weinston'] as const).flatMap(model => [
+                      <td key={`${row.date}-${model}-ou`} className={`text-center px-3 py-2.5 font-mono font-bold ${model === 'poisson' ? 'text-blue-300' : 'text-orange-300'}`}>
+                        {row[model].acc_over25 != null ? `${row[model].acc_over25}%` : '—'}
+                      </td>
+                    ])
+                  ).concat(
+                    (['poisson','weinston'] as const).flatMap(model => [
+                      <td key={`${row.date}-${model}-btts`} className={`text-center px-3 py-2.5 font-mono font-bold ${model === 'poisson' ? 'text-blue-300' : 'text-orange-300'}`}>
+                        {row[model].acc_btts != null ? `${row[model].acc_btts}%` : '—'}
+                      </td>
+                    ])
+                  )}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-yellow-400/10 border-t-2 border-yellow-400/30">
+                <td className="text-yellow-400 font-bold px-4 py-2.5">TOTAL</td>
+                <td className="text-yellow-400 font-bold text-center px-3 py-2.5">{wc.total_matches}</td>
+                <td className="text-blue-300 font-black text-center px-3 py-2.5">{wc.overall.poisson.acc_1x2 != null ? `${wc.overall.poisson.acc_1x2}%` : '—'}</td>
+                <td className="text-orange-300 font-black text-center px-3 py-2.5">{wc.overall.weinston.acc_1x2 != null ? `${wc.overall.weinston.acc_1x2}%` : '—'}</td>
+                <td className="text-blue-300 font-black text-center px-3 py-2.5">{wc.overall.poisson.acc_over25 != null ? `${wc.overall.poisson.acc_over25}%` : '—'}</td>
+                <td className="text-orange-300 font-black text-center px-3 py-2.5">{wc.overall.weinston.acc_over25 != null ? `${wc.overall.weinston.acc_over25}%` : '—'}</td>
+                <td className="text-blue-300 font-black text-center px-3 py-2.5">{wc.overall.poisson.acc_btts != null ? `${wc.overall.poisson.acc_btts}%` : '—'}</td>
+                <td className="text-orange-300 font-black text-center px-3 py-2.5">{wc.overall.weinston.acc_btts != null ? `${wc.overall.weinston.acc_btts}%` : '—'}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Interfaces de TypeScript
 interface MetricData {
@@ -59,7 +251,7 @@ interface Trend {
 
 export default function MetricsEvolutionChart() {
   // 🎯 NUEVO: State para tabs
-  const [activeTab, setActiveTab] = useState<'metrics' | 'best-bets' | 'betting-lines'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'best-bets' | 'betting-lines' | 'wc2026'>('metrics');
   
   const [data, setData] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -73,7 +265,6 @@ export default function MetricsEvolutionChart() {
   });
 
   useEffect(() => {
-    // Solo fetch evolution si estamos en tab de metrics
     if (activeTab === 'metrics') {
       fetchEvolution();
     }
@@ -108,31 +299,14 @@ export default function MetricsEvolutionChart() {
   if (activeTab === 'best-bets') {
     return (
       <div className="min-h-screen bg-slate-900 p-6">
-        {/* Header con tabs */}
         <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex gap-4 border-b border-slate-700">
-            <button
-              onClick={() => setActiveTab('metrics')}
-              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
-            >
-              📈 Evolución de Métricas
-            </button>
-            <button
-              onClick={() => setActiveTab('best-bets')}
-              className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-green-500"
-            >
-              🎯 Análisis de Best Bets
-            </button>
-            <button
-              onClick={() => setActiveTab('betting-lines')}
-              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
-            >
-              📊 Estadísticas Betting Lines
-            </button>
+          <div className="flex gap-4 border-b border-slate-700 overflow-x-auto">
+            <button onClick={() => setActiveTab('metrics')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">📈 Evolución de Métricas</button>
+            <button onClick={() => setActiveTab('best-bets')} className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-green-500 whitespace-nowrap">🎯 Análisis de Best Bets</button>
+            <button onClick={() => setActiveTab('betting-lines')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">📊 Estadísticas Betting Lines</button>
+            <button onClick={() => setActiveTab('wc2026')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">🏆 Mundial 2026</button>
           </div>
         </div>
-
-        {/* Contenido de Best Bets */}
         <BestBetsAnalysis />
       </div>
     );
@@ -142,32 +316,34 @@ export default function MetricsEvolutionChart() {
   if (activeTab === 'betting-lines') {
     return (
       <div className="min-h-screen bg-slate-900 p-6">
-        {/* Header con tabs */}
         <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex gap-4 border-b border-slate-700">
-            <button
-              onClick={() => setActiveTab('metrics')}
-              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
-            >
-              📈 Evolución de Métricas
-            </button>
-            <button
-              onClick={() => setActiveTab('best-bets')}
-              className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white"
-            >
-              🎯 Análisis de Best Bets
-            </button>
-            <button
-              onClick={() => setActiveTab('betting-lines')}
-              className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-blue-500"
-            >
-              📊 Estadísticas Betting Lines
-            </button>
+          <div className="flex gap-4 border-b border-slate-700 overflow-x-auto">
+            <button onClick={() => setActiveTab('metrics')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">📈 Evolución de Métricas</button>
+            <button onClick={() => setActiveTab('best-bets')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">🎯 Análisis de Best Bets</button>
+            <button onClick={() => setActiveTab('betting-lines')} className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-blue-500 whitespace-nowrap">📊 Estadísticas Betting Lines</button>
+            <button onClick={() => setActiveTab('wc2026')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">🏆 Mundial 2026</button>
           </div>
         </div>
-
-        {/* Contenido de Betting Lines Stats */}
         <BettingLinesStats />
+      </div>
+    );
+  }
+
+  // 🎯 Si estamos en tab Mundial 2026
+  if (activeTab === 'wc2026') {
+    return (
+      <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
+        <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
+          <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
+            <button onClick={() => setActiveTab('metrics')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">📈 <span className="hidden sm:inline">Evolución de </span>Métricas</button>
+            <button onClick={() => setActiveTab('best-bets')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">🎯 <span className="hidden sm:inline">Análisis de </span>Best Bets</button>
+            <button onClick={() => setActiveTab('betting-lines')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">📊 Betting Lines</button>
+            <button onClick={() => setActiveTab('wc2026')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-white border-b-2 border-yellow-500 whitespace-nowrap text-sm sm:text-base">🏆 Mundial 2026</button>
+          </div>
+        </div>
+        <div className="w-full max-w-7xl mx-auto">
+          <WC2026AccuracyView />
+        </div>
       </div>
     );
   }
@@ -247,23 +423,17 @@ export default function MetricsEvolutionChart() {
       {/* 🎯 Header con tabs */}
       <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
         <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('metrics')}
-            className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-white border-b-2 border-blue-500 whitespace-nowrap text-sm sm:text-base"
-          >
+          <button onClick={() => setActiveTab('metrics')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-white border-b-2 border-blue-500 whitespace-nowrap text-sm sm:text-base">
             📈 <span className="hidden sm:inline">Evolución de </span>Métricas
           </button>
-          <button
-            onClick={() => setActiveTab('best-bets')}
-            className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base"
-          >
+          <button onClick={() => setActiveTab('best-bets')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">
             🎯 <span className="hidden sm:inline">Análisis de </span>Best Bets
           </button>
-          <button
-            onClick={() => setActiveTab('betting-lines')}
-            className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base"
-          >
-            📊 Estadísticas Betting Lines
+          <button onClick={() => setActiveTab('betting-lines')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">
+            📊 Betting Lines
+          </button>
+          <button onClick={() => setActiveTab('wc2026')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">
+            🏆 Mundial 2026
           </button>
         </div>
       </div>

@@ -742,6 +742,103 @@ def get_wc2026_all_matches():
     return result
 
 
+@router.get("/api/wc2026/accuracy")
+def get_wc2026_accuracy():
+    """Accuracy metrics for WC 2026 completed matches, broken down by date."""
+    query = text("""
+        SELECT
+            m.date::text AS date,
+            m.fulltime_result AS actual_result,
+            (m.home_goals + m.away_goals) > 2               AS actual_over,
+            (m.home_goals > 0 AND m.away_goals > 0)         AS actual_btts,
+
+            -- Poisson 1x2 (highest probability wins)
+            CASE
+                WHEN pp.prob_home_win >= pp.prob_draw AND pp.prob_home_win >= pp.prob_away_win THEN 'H'
+                WHEN pp.prob_away_win > pp.prob_home_win AND pp.prob_away_win >= pp.prob_draw  THEN 'A'
+                ELSE 'D'
+            END AS poisson_1x2,
+            pp.over_2    >= 0.5 AS poisson_over,
+            pp.both_score >= 0.5 AS poisson_btts,
+
+            -- Weinston 1x2 (ROUND expected goals — same logic as frontend Math.round)
+            CASE
+                WHEN ROUND(wp.local_goals::numeric) > ROUND(wp.away_goals::numeric) THEN 'H'
+                WHEN ROUND(wp.away_goals::numeric) > ROUND(wp.local_goals::numeric) THEN 'A'
+                ELSE 'D'
+            END AS weinston_1x2,
+            wp.prob_over_25 >= 0.5 AS weinston_over,
+            wp.prob_btts    >= 0.5 AS weinston_btts
+
+        FROM matches m
+        LEFT JOIN poisson_predictions  pp ON pp.match_id = m.id
+        LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
+        WHERE m.season_id  = 76
+          AND m.home_goals IS NOT NULL
+          AND m.away_goals IS NOT NULL
+        ORDER BY m.date
+    """)
+    with engine.begin() as conn:
+        rows = [dict(r) for r in conn.execute(query).mappings().all()]
+
+    if not rows:
+        return {"total_matches": 0, "overall": {}, "by_date": []}
+
+    # ── Overall accuracy ──────────────────────────────────────────────────
+    def acc(pred_key: str, actual_key: str) -> float | None:
+        valid = [r for r in rows if r.get(pred_key) is not None and r.get(actual_key) is not None]
+        if not valid:
+            return None
+        hits = sum(1 for r in valid if r[pred_key] == r[actual_key])
+        return round(hits / len(valid) * 100, 1)
+
+    overall = {
+        "total_matches": len(rows),
+        "poisson": {
+            "acc_1x2":   acc("poisson_1x2",   "actual_result"),
+            "acc_over25": acc("poisson_over",  "actual_over"),
+            "acc_btts":  acc("poisson_btts",   "actual_btts"),
+        },
+        "weinston": {
+            "acc_1x2":   acc("weinston_1x2",   "actual_result"),
+            "acc_over25": acc("weinston_over",  "actual_over"),
+            "acc_btts":  acc("weinston_btts",   "actual_btts"),
+        },
+    }
+
+    # ── By date ───────────────────────────────────────────────────────────
+    from collections import defaultdict
+    by_date_map: dict = defaultdict(list)
+    for r in rows:
+        by_date_map[r["date"]].append(r)
+
+    by_date = []
+    for date_str, day_rows in sorted(by_date_map.items()):
+        def day_acc(pred_key: str, actual_key: str) -> float | None:
+            valid = [r for r in day_rows if r.get(pred_key) is not None and r.get(actual_key) is not None]
+            if not valid:
+                return None
+            hits = sum(1 for r in valid if r[pred_key] == r[actual_key])
+            return round(hits / len(valid) * 100, 1)
+
+        by_date.append({
+            "date":  date_str,
+            "total": len(day_rows),
+            "poisson": {
+                "acc_1x2":    day_acc("poisson_1x2",  "actual_result"),
+                "acc_over25": day_acc("poisson_over",  "actual_over"),
+                "acc_btts":   day_acc("poisson_btts",  "actual_btts"),
+            },
+            "weinston": {
+                "acc_1x2":    day_acc("weinston_1x2",  "actual_result"),
+                "acc_over25": day_acc("weinston_over",  "actual_over"),
+                "acc_btts":   day_acc("weinston_btts",  "actual_btts"),
+            },
+        })
+
+    return {"total_matches": len(rows), "overall": overall, "by_date": by_date}
+
+
 @router.get("/api/matches/{match_id}/stats")
 def get_match_stats(match_id: int):
     """Returns actual match statistics fetched from API-Football (match_stats table)."""
