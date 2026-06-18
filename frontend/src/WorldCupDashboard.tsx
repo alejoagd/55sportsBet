@@ -341,18 +341,12 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   const bttsHit        = isCompleted && predictedBtts === actualBtts;
   const bttsMiss       = isCompleted && predictedBtts !== actualBtts;
 
-  const predHomeGoalsRounded = Math.round(pHomeGoals);
-  const predAwayGoalsRounded = Math.round(pAwayGoals);
+  // Score display usa floor (consistente entre partidos por jugar y completados)
+  const predHomeFloor = Math.floor(pHomeGoals);
+  const predAwayFloor = Math.floor(pAwayGoals);
   const isExactScoreHit = isCompleted &&
-    predHomeGoalsRounded === match.home_goals &&
-    predAwayGoalsRounded === match.away_goals;
-
-  // 1x2 siempre derivado del marcador redondeado mostrado → badge y score siempre consistentes
-  const predictedResult1x2: 'H' | 'D' | 'A' =
-    predHomeGoalsRounded > predAwayGoalsRounded ? 'H'
-    : predAwayGoalsRounded > predHomeGoalsRounded ? 'A'
-    : 'D';
-  const score1x2Hit = isCompleted && predictedResult1x2 === match.actual_result;
+    predHomeFloor === match.home_goals &&
+    predAwayFloor === match.away_goals;
 
   return (
     <div
@@ -399,7 +393,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
                   <div className="flex items-center justify-center gap-1 mt-1.5 pt-1.5 border-t border-slate-700/60">
                     <span className="text-slate-500 text-[10px]">Pred.</span>
                     <span className={`text-xs font-mono font-semibold ${isExactScoreHit ? 'text-green-400' : 'text-slate-400'}`}>
-                      {predHomeGoalsRounded}—{predAwayGoalsRounded}
+                      {predHomeFloor}—{predAwayFloor}
                     </span>
                     <span className="text-[11px] leading-none">{isExactScoreHit ? '✅' : '❌'}</span>
                   </div>
@@ -408,7 +402,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             ) : hasPredictions ? (
               <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-600">
                 <div className="text-white font-black text-lg sm:text-xl font-mono">
-                  {Math.floor(pHomeGoals)} — {Math.floor(pAwayGoals)}
+                  {predHomeFloor} — {predAwayFloor}
                 </div>
                 <div className="text-slate-500 text-xs mt-0.5">marcador esperado</div>
               </div>
@@ -461,14 +455,14 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {/* 1x2 result badge — only for completed matches */}
+            {/* 1x2 result badge — uses probability prediction (most faithful to the model) */}
             {isCompleted && (
               <span className={`text-xs px-2 py-0.5 rounded-full border font-bold
-                ${score1x2Hit
+                ${result1x2Hit
                   ? 'bg-green-600 border-green-500 text-white'
                   : 'bg-red-600/30 border-red-500/50 text-red-400'
                 }`}>
-                {score1x2Hit ? '✅' : '❌'} {predictedResult1x2 === 'H' ? 'Local' : predictedResult1x2 === 'A' ? 'Visit.' : 'Empate'}
+                {result1x2Hit ? '✅' : '❌'} {predictedResult === 'H' ? 'Local' : predictedResult === 'A' ? 'Visit.' : 'Empate'}
               </span>
             )}
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium
