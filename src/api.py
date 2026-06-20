@@ -839,6 +839,117 @@ def get_wc2026_accuracy():
     return {"total_matches": len(rows), "overall": overall, "by_date": by_date}
 
 
+# ── WC 2026 Player Stats ──────────────────────────────────────────────────────
+
+@router.get("/api/wc2026/top-scorers")
+def get_wc2026_top_scorers():
+    """Top scorers for WC 2026 from wc_scoring_events (martj42 source)."""
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                player_name,
+                team,
+                COUNT(*) FILTER (WHERE NOT is_own_goal)            AS goals,
+                COUNT(*) FILTER (WHERE is_penalty AND NOT is_own_goal) AS penalties,
+                COUNT(*) FILTER (WHERE is_own_goal)                AS own_goals,
+                ARRAY_AGG(minute ORDER BY minute)
+                    FILTER (WHERE NOT is_own_goal)                 AS minutes
+            FROM wc_scoring_events
+            GROUP BY player_name, team
+            HAVING COUNT(*) FILTER (WHERE NOT is_own_goal) > 0
+                OR COUNT(*) FILTER (WHERE is_own_goal) > 0
+            ORDER BY goals DESC, penalties DESC, player_name
+        """)).mappings().fetchall()
+
+    return [
+        {
+            "player":     r["player_name"],
+            "team":       r["team"],
+            "goals":      r["goals"],
+            "penalties":  r["penalties"],
+            "own_goals":  r["own_goals"],
+            "minutes":    r["minutes"] or [],
+        }
+        for r in rows
+    ]
+
+
+@router.get("/api/wc2026/top-assisters")
+def get_wc2026_top_assisters():
+    """Top assisters for WC 2026 (from ESPN data enrichment)."""
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                assist_player  AS player_name,
+                se.team,
+                COUNT(*)       AS assists,
+                ARRAY_AGG(se.minute ORDER BY se.minute) AS minutes
+            FROM wc_scoring_events se
+            WHERE assist_player IS NOT NULL
+              AND assist_player <> ''
+              AND NOT is_own_goal
+            GROUP BY assist_player, se.team
+            ORDER BY assists DESC, player_name
+        """)).mappings().fetchall()
+
+    return [
+        {
+            "player":  r["player_name"],
+            "team":    r["team"],
+            "assists": r["assists"],
+            "minutes": r["minutes"] or [],
+        }
+        for r in rows
+    ]
+
+
+@router.get("/api/wc2026/clean-sheets")
+def get_wc2026_clean_sheets():
+    """
+    Team clean sheets for WC 2026 derived from match results.
+    A team has a clean sheet when they concede 0 goals in a completed match.
+    """
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                team,
+                COUNT(*)                                    AS matches_played,
+                COUNT(*) FILTER (WHERE goals_conceded = 0)  AS clean_sheets,
+                SUM(goals_conceded)                         AS goals_conceded,
+                SUM(goals_scored)                           AS goals_scored
+            FROM (
+                SELECT th.name AS team,
+                       m.away_goals AS goals_conceded,
+                       m.home_goals AS goals_scored
+                  FROM matches m
+                  JOIN teams th ON th.id = m.home_team_id
+                 WHERE m.season_id = 76 AND m.home_goals IS NOT NULL
+
+                UNION ALL
+
+                SELECT ta.name AS team,
+                       m.home_goals AS goals_conceded,
+                       m.away_goals AS goals_scored
+                  FROM matches m
+                  JOIN teams ta ON ta.id = m.away_team_id
+                 WHERE m.season_id = 76 AND m.home_goals IS NOT NULL
+            ) sub
+            GROUP BY team
+            ORDER BY clean_sheets DESC, goals_conceded ASC, goals_scored DESC
+        """)).mappings().fetchall()
+
+    return [
+        {
+            "team":           r["team"],
+            "matches_played": r["matches_played"],
+            "clean_sheets":   r["clean_sheets"],
+            "goals_conceded": r["goals_conceded"],
+            "goals_scored":   r["goals_scored"],
+        }
+        for r in rows
+    ]
+
+
 @router.get("/api/matches/{match_id}/stats")
 def get_match_stats(match_id: int):
     """Returns actual match statistics fetched from API-Football (match_stats table)."""

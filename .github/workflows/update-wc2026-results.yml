@@ -103,6 +103,16 @@ jobs:
             python update_wc2026_stats.py
           fi
 
+      - name: Update WC 2026 scorers and assists
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python update_wc2026_scorers.py --dry-run
+          else
+            python update_wc2026_scorers.py
+          fi
+
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4

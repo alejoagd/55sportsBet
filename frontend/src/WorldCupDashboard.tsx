@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import WC2026StatsModule from './WC2026StatsModule';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -222,14 +223,15 @@ function WorldCupBanner({ matchCount }: { matchCount: number }) {
 }
 
 // ── Tab navigation ────────────────────────────────────────────────────
-type Tab = 'matches' | 'standings' | 'bracket' | 'news';
+type Tab = 'matches' | 'standings' | 'bracket' | 'news' | 'stats';
 
 function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'matches', label: 'Partidos', icon: '⚽' },
-    { id: 'standings', label: 'Posiciones', icon: '📊' },
-    { id: 'bracket', label: 'Bracket', icon: '🗺️' },
-    { id: 'news', label: 'Noticias', icon: '📰' },
+    { id: 'matches',   label: 'Partidos',      icon: '⚽' },
+    { id: 'standings', label: 'Posiciones',    icon: '📊' },
+    { id: 'bracket',   label: 'Bracket',       icon: '🗺️' },
+    { id: 'stats',     label: 'Estadísticas',  icon: '🏅' },
+    { id: 'news',      label: 'Noticias',      icon: '📰' },
   ];
   return (
     <div className="bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50 overflow-x-auto scrollbar-hide">
@@ -1424,7 +1426,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
         <WorldCupBanner matchCount={allWcMatches.length || 72} />
         <TabNav active={activeTab} onChange={setActiveTab} />
 
-        {activeTab !== 'bracket' && activeTab !== 'news' && (
+        {activeTab !== 'bracket' && activeTab !== 'news' && activeTab !== 'stats' && (
           <GroupSelector
             selected={selectedGroup}
             onSelect={handleSelectGroup}
@@ -1462,6 +1464,8 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
         )}
 
         {activeTab === 'bracket' && <BracketView />}
+
+        {activeTab === 'stats' && <WC2026StatsModule />}
 
         {activeTab === 'news' && <NewsView />}
       </div>
