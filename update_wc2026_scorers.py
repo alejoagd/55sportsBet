@@ -60,6 +60,8 @@ CSV_TO_DB: dict[str, str] = {
     "IR Iran":                          "Iran",
     "USA":                              "United States",
     "United States":                    "United States",
+    "Curaçao":                     "Curacao",
+    "CuraÇao":                     "Curacao",
 }
 _PASSTHROUGH = {
     "Argentina", "Brazil", "Colombia", "Uruguay", "Ecuador", "Paraguay",

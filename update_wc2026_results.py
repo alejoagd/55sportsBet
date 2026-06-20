@@ -57,6 +57,8 @@ CSV_TO_DB: dict[str, str] = {
     "IR Iran":                          "Iran",
     "USA":                              "United States",
     "United States":                    "United States",
+    "Curaçao":                     "Curacao",   # Curaçao con cedilla
+    "CuraÇao":                     "Curacao",   # variante mayúscula
 }
 
 # Equipos que aparecen con el mismo nombre en CSV y BD
@@ -139,6 +141,38 @@ def _fulltime_result(hg: int, ag: int) -> str:
     return "D"
 
 
+def _find_match(conn, season_id: int, home: str, away: str, date: str):
+    """
+    Busca el partido en BD. Primero por orden exacto (home, away);
+    si no lo encuentra prueba el orden inverso (away, home).
+    Devuelve (row, reversed) donde reversed=True si se encontró invertido.
+    """
+    QUERY = """
+        SELECT m.id, m.home_goals
+          FROM matches m
+          JOIN teams ht ON m.home_team_id = ht.id
+          JOIN teams at ON m.away_team_id = at.id
+         WHERE m.season_id = :sid
+           AND ht.name = :home
+           AND at.name = :away
+           AND m.date  = :date
+    """
+    row = conn.execute(text(QUERY), {
+        "sid": season_id, "home": home, "away": away, "date": date
+    }).fetchone()
+    if row:
+        return row, False
+
+    # Intentar orden inverso
+    row = conn.execute(text(QUERY), {
+        "sid": season_id, "home": away, "away": home, "date": date
+    }).fetchone()
+    if row:
+        return row, True
+
+    return None, False
+
+
 def update_db(results: list[dict], dry_run: bool = False) -> tuple[int, int, int]:
     """
     Retorna (actualizados, ya_tenían_resultado, no_encontrados).
@@ -149,21 +183,10 @@ def update_db(results: list[dict], dry_run: bool = False) -> tuple[int, int, int
 
     with engine.begin() as conn:
         for r in results:
-            row = conn.execute(text("""
-                SELECT m.id, m.home_goals
-                FROM matches m
-                JOIN teams ht ON m.home_team_id = ht.id
-                JOIN teams at ON m.away_team_id = at.id
-                WHERE m.season_id = :sid
-                  AND ht.name    = :home
-                  AND at.name    = :away
-                  AND m.date     = :date
-            """), {
-                "sid":  WC_2026_SEASON_ID,
-                "home": r["home_team"],
-                "away": r["away_team"],
-                "date": r["date"],
-            }).fetchone()
+            row, reversed_order = _find_match(
+                conn, WC_2026_SEASON_ID,
+                r["home_team"], r["away_team"], r["date"]
+            )
 
             if not row:
                 print(f"   ⚠️  No encontrado en BD: {r['home_team']} vs {r['away_team']} ({r['date']})")
@@ -174,8 +197,17 @@ def update_db(results: list[dict], dry_run: bool = False) -> tuple[int, int, int
                 skipped += 1
                 continue  # Ya tiene resultado
 
+            # Si los equipos están invertidos en BD respecto al CSV → invertir goles
+            if reversed_order:
+                hg = r["away_goals"]
+                ag = r["home_goals"]
+                print(f"   ↔️  Orden invertido en BD: usando {r['away_team']} {hg}-{ag} {r['home_team']}")
+            else:
+                hg = r["home_goals"]
+                ag = r["away_goals"]
+
             label = "[DRY]" if dry_run else "✅"
-            print(f"   {label} {r['home_team']} {r['home_goals']}-{r['away_goals']} {r['away_team']}  ({r['date']})")
+            print(f"   {label} id={row.id}  {hg}-{ag}  ({r['date']})")
 
             if not dry_run:
                 conn.execute(text("""
@@ -185,9 +217,9 @@ def update_db(results: list[dict], dry_run: bool = False) -> tuple[int, int, int
                         fulltime_result = :res
                     WHERE id = :mid
                 """), {
-                    "hg":  r["home_goals"],
-                    "ag":  r["away_goals"],
-                    "res": _fulltime_result(r["home_goals"], r["away_goals"]),
+                    "hg":  hg,
+                    "ag":  ag,
+                    "res": _fulltime_result(hg, ag),
                     "mid": row.id,
                 })
             updated += 1

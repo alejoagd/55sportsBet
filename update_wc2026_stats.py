@@ -63,6 +63,7 @@ EXT_TO_DB: dict[str, str] = {
     "IR Iran":                      "Iran",
     "Curacao":                      "Curacao",
     "Curaçao":                      "Curacao",
+    "CuraÇao":                      "Curacao",
     "New Zealand":                  "New Zealand",
 }
 
