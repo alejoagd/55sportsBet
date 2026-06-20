@@ -15,19 +15,19 @@ interface MatchStats {
   away_goals: number;
   referee: string;
   
-  // Estadísticas detalladas
-  home_shots: number;
-  away_shots: number;
-  home_shots_on_target: number;
-  away_shots_on_target: number;
-  home_fouls: number;
-  away_fouls: number;
-  home_corners: number;
-  away_corners: number;
-  home_yellow_cards: number;
-  away_yellow_cards: number;
-  home_red_cards: number;
-  away_red_cards: number;
+  // Estadísticas reales del partido (null = no disponible)
+  home_shots: number | null;
+  away_shots: number | null;
+  home_shots_on_target: number | null;
+  away_shots_on_target: number | null;
+  home_fouls: number | null;
+  away_fouls: number | null;
+  home_corners: number | null;
+  away_corners: number | null;
+  home_yellow_cards: number | null;
+  away_yellow_cards: number | null;
+  home_red_cards: number | null;
+  away_red_cards: number | null;
   
   // Predicciones de Weinston (estadísticas predichas)
   weinston_shots_home?: number;
@@ -48,12 +48,6 @@ interface MatchStats {
   weinston_prob_draw?: number;        // Probabilidad de empate
   weinston_prob_away_win?: number;    // Probabilidad de victoria visitante
   
-  // Totales del partido (de match_stats)
-  total_shots?: number;
-  total_shots_on_target?: number;
-  total_corners?: number;
-  total_fouls?: number;
-  total_cards?: number;
   has_real_stats?: boolean;
   
   // Predicciones
@@ -520,38 +514,6 @@ export default function MatchDetail() {
                 />
               </div>
 
-              {/* Totales del partido */}
-              {(match.total_shots || match.total_corners || match.total_fouls || match.total_cards) && (
-                <div className="col-span-2 mt-4 pt-4 border-t border-slate-700">
-                  <h3 className="text-slate-400 text-sm font-semibold mb-3">Totales del Partido</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {match.total_shots && (
-                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-                        <div className="text-slate-400 text-xs mb-1">Tiros Totales</div>
-                        <div className="text-2xl font-bold text-white">{match.total_shots}</div>
-                      </div>
-                    )}
-                    {match.total_corners && (
-                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-                        <div className="text-slate-400 text-xs mb-1">Corners Totales</div>
-                        <div className="text-2xl font-bold text-white">{match.total_corners}</div>
-                      </div>
-                    )}
-                    {match.total_fouls && (
-                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-                        <div className="text-slate-400 text-xs mb-1">Faltas Totales</div>
-                        <div className="text-2xl font-bold text-white">{match.total_fouls}</div>
-                      </div>
-                    )}
-                    {match.total_cards && (
-                      <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-                        <div className="text-slate-400 text-xs mb-1">Tarjetas Totales</div>
-                        <div className="text-2xl font-bold text-yellow-400">{match.total_cards}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -665,18 +627,23 @@ export default function MatchDetail() {
   );
 }
 
-// Componente auxiliar para filas de estadísticas
+// Componente auxiliar para filas de estadísticas reales
 interface StatRowProps {
   label: string;
-  homeValue: number;
-  awayValue: number;
+  homeValue: number | null;
+  awayValue: number | null;
   color?: 'blue' | 'yellow' | 'red';
 }
 
 function StatRow({ label, homeValue, awayValue, color = 'blue' }: StatRowProps) {
-  const total = homeValue + awayValue || 1;
-  const homePercentage = (homeValue / total) * 100;
-  const awayPercentage = (awayValue / total) * 100;
+  // No renderizar si no hay datos reales
+  if (homeValue === null && awayValue === null) return null;
+
+  const h = homeValue ?? 0;
+  const a = awayValue ?? 0;
+  const total = h + a || 1;
+  const homePercentage = (h / total) * 100;
+  const awayPercentage = (a / total) * 100;
 
   const getColorClass = () => {
     if (color === 'yellow') return 'bg-yellow-600';
@@ -696,8 +663,8 @@ function StatRow({ label, homeValue, awayValue, color = 'blue' }: StatRowProps) 
         {label}
       </div>
       <div className="flex justify-between text-white font-bold mb-2">
-        <span>{homeValue}</span>
-        <span>{awayValue}</span>
+        <span>{homeValue ?? '—'}</span>
+        <span>{awayValue ?? '—'}</span>
       </div>
       <div className="flex gap-1 h-2 rounded overflow-hidden">
         <div className={`${getColorClass()} transition-all`} style={{ width: `${homePercentage}%` }} />

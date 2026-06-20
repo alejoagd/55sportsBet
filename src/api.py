@@ -1335,26 +1335,19 @@ def get_match_details(match_id: int):
                 wp.prob_draw as weinston_prob_draw,
                 wp.prob_away_win as weinston_prob_away_win,
                 
-                -- ESTADÍSTICAS REALES DEL PARTIDO (de match_stats con fallback a weinston)
-                COALESCE(ms.home_shots, wp.shots_home, 0) as home_shots,
-                COALESCE(ms.away_shots, wp.shots_away, 0) as away_shots,
-                COALESCE(ms.home_shots_on_target, wp.shots_target_home, 0) as home_shots_on_target,
-                COALESCE(ms.away_shots_on_target, wp.shots_target_away, 0) as away_shots_on_target,
-                COALESCE(ms.home_fouls, wp.fouls_home, 0) as home_fouls,
-                COALESCE(ms.away_fouls, wp.fouls_away, 0) as away_fouls,
-                COALESCE(ms.home_corners, wp.corners_home, 0) as home_corners,
-                COALESCE(ms.away_corners, wp.corners_away, 0) as away_corners,
-                COALESCE(ms.home_yellow_cards, wp.cards_home, 0) as home_yellow_cards,
-                COALESCE(ms.away_yellow_cards, wp.cards_away, 0) as away_yellow_cards,
-                COALESCE(ms.home_red_cards, 0) as home_red_cards,
-                COALESCE(ms.away_red_cards, 0) as away_red_cards,
-                
-                -- Estadísticas adicionales solo disponibles en match_stats
-                ms.total_shots,
-                ms.total_shots_on_target,
-                ms.total_corners,
-                ms.total_fouls,
-                ms.total_cards,
+                -- ESTADÍSTICAS REALES DEL PARTIDO (solo de match_stats, sin fallback a predicciones)
+                ms.home_shots,
+                ms.away_shots,
+                ms.home_shots_on_target,
+                ms.away_shots_on_target,
+                ms.home_fouls,
+                ms.away_fouls,
+                ms.home_corners,
+                ms.away_corners,
+                ms.home_yellow_cards,
+                ms.away_yellow_cards,
+                ms.home_red_cards,
+                ms.away_red_cards,
                 
                 -- Indicador de si tiene estadísticas reales
                 CASE WHEN ms.match_id IS NOT NULL THEN true ELSE false END as has_real_stats,

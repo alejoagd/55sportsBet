@@ -102,14 +102,14 @@ def ensure_tables(conn) -> None:
             id                SERIAL PRIMARY KEY,
             match_id          INTEGER REFERENCES matches(id) UNIQUE,
             home_shots        INTEGER,
-            home_shots_ot     INTEGER,
+            home_shots_on_target     INTEGER,
             home_fouls        INTEGER,
             home_yellow_cards INTEGER,
             home_red_cards    INTEGER,
             home_corners      INTEGER,
             home_possession   INTEGER,
             away_shots        INTEGER,
-            away_shots_ot     INTEGER,
+            away_shots_on_target     INTEGER,
             away_fouls        INTEGER,
             away_yellow_cards INTEGER,
             away_red_cards    INTEGER,
@@ -120,7 +120,7 @@ def ensure_tables(conn) -> None:
         )
     """))
     # Migración: agrega columnas que pueden faltar en tablas creadas con versiones anteriores
-    for col in ("home_shots_ot", "away_shots_ot", "home_fouls", "away_fouls",
+    for col in ("home_shots_on_target", "away_shots_on_target", "home_fouls", "away_fouls",
                 "home_corners", "away_corners", "home_possession", "away_possession",
                 "source", "fetched_at"):
         dtype = "TIMESTAMP DEFAULT NOW()" if col == "fetched_at" else "TEXT" if col == "source" else "INTEGER"
@@ -163,14 +163,14 @@ def espn_stats(event_id: str) -> dict | None:
         "home_name":       home_t.get("team", {}).get("displayName", ""),
         "away_name":       away_t.get("team", {}).get("displayName", ""),
         "home_shots":      stat_val(hs, "totalShots"),
-        "home_shots_ot":   stat_val(hs, "shotsOnTarget"),
+        "home_shots_on_target":   stat_val(hs, "shotsOnTarget"),
         "home_fouls":      stat_val(hs, "fouls"),
         "home_yellow_cards": stat_val(hs, "yellowCards"),
         "home_red_cards":  stat_val(hs, "redCards"),
         "home_corners":    stat_val(hs, "cornerKicks"),
         "home_possession": stat_val(hs, "possessionPct"),
         "away_shots":      stat_val(as_, "totalShots"),
-        "away_shots_ot":   stat_val(as_, "shotsOnTarget"),
+        "away_shots_on_target":   stat_val(as_, "shotsOnTarget"),
         "away_fouls":      stat_val(as_, "fouls"),
         "away_yellow_cards": stat_val(as_, "yellowCards"),
         "away_red_cards":  stat_val(as_, "redCards"),
@@ -220,14 +220,14 @@ def fotmob_stats(match_id: int) -> dict | None:
         "home_name":       home_info.get("name", ""),
         "away_name":       away_info.get("name", ""),
         "home_shots":      find("total shots", "home"),
-        "home_shots_ot":   find("shots on target", "home"),
+        "home_shots_on_target":   find("shots on target", "home"),
         "home_fouls":      find("fouls", "home"),
         "home_yellow_cards": find("yellow card", "home"),
         "home_red_cards":  find("red card", "home"),
         "home_corners":    find("corner", "home"),
         "home_possession": find("possession", "home"),
         "away_shots":      find("total shots", "away"),
-        "away_shots_ot":   find("shots on target", "away"),
+        "away_shots_on_target":   find("shots on target", "away"),
         "away_fouls":      find("fouls", "away"),
         "away_yellow_cards": find("yellow card", "away"),
         "away_red_cards":  find("red card", "away"),
@@ -372,7 +372,7 @@ def fetch_and_store_stats(conn, dry_run: bool = False) -> tuple[int, int]:
         label = "[DRY]" if dry_run else "✅"
         print(f"   {label} [{data.get('source')}] {row.home_team} vs {row.away_team} ({row.date})")
         print(f"        Tiros: {data.get('home_shots')}-{data.get('away_shots')} | "
-              f"SOT: {data.get('home_shots_ot')}-{data.get('away_shots_ot')} | "
+              f"SOT: {data.get('home_shots_on_target')}-{data.get('away_shots_on_target')} | "
               f"Corners: {data.get('home_corners')}-{data.get('away_corners')} | "
               f"Posesión: {data.get('home_possession')}%-{data.get('away_possession')}%")
 
@@ -380,28 +380,28 @@ def fetch_and_store_stats(conn, dry_run: bool = False) -> tuple[int, int]:
             conn.execute(text("""
                 INSERT INTO match_stats (
                     match_id,
-                    home_shots, home_shots_ot, home_fouls,
+                    home_shots, home_shots_on_target, home_fouls,
                     home_yellow_cards, home_red_cards, home_corners, home_possession,
-                    away_shots, away_shots_ot, away_fouls,
+                    away_shots, away_shots_on_target, away_fouls,
                     away_yellow_cards, away_red_cards, away_corners, away_possession,
                     source
                 ) VALUES (
                     :match_id,
-                    :home_shots, :home_shots_ot, :home_fouls,
+                    :home_shots, :home_shots_on_target, :home_fouls,
                     :home_yellow_cards, :home_red_cards, :home_corners, :home_possession,
-                    :away_shots, :away_shots_ot, :away_fouls,
+                    :away_shots, :away_shots_on_target, :away_fouls,
                     :away_yellow_cards, :away_red_cards, :away_corners, :away_possession,
                     :source
                 ) ON CONFLICT (match_id) DO UPDATE SET
                     home_shots        = EXCLUDED.home_shots,
-                    home_shots_ot     = EXCLUDED.home_shots_ot,
+                    home_shots_on_target     = EXCLUDED.home_shots_on_target,
                     home_fouls        = EXCLUDED.home_fouls,
                     home_yellow_cards = EXCLUDED.home_yellow_cards,
                     home_red_cards    = EXCLUDED.home_red_cards,
                     home_corners      = EXCLUDED.home_corners,
                     home_possession   = EXCLUDED.home_possession,
                     away_shots        = EXCLUDED.away_shots,
-                    away_shots_ot     = EXCLUDED.away_shots_ot,
+                    away_shots_on_target     = EXCLUDED.away_shots_on_target,
                     away_fouls        = EXCLUDED.away_fouls,
                     away_yellow_cards = EXCLUDED.away_yellow_cards,
                     away_red_cards    = EXCLUDED.away_red_cards,
