@@ -223,10 +223,11 @@ function WorldCupBanner({ matchCount }: { matchCount: number }) {
 }
 
 // ── Tab navigation ────────────────────────────────────────────────────
-type Tab = 'matches' | 'standings' | 'bracket' | 'news' | 'stats';
+type Tab = 'matches' | 'standings' | 'bracket' | 'news' | 'stats' | 'today';
 
 function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string; icon: string }[] = [
+    { id: 'today',     label: 'Hoy',           icon: '📅' },
     { id: 'matches',   label: 'Partidos',      icon: '⚽' },
     { id: 'standings', label: 'Posiciones',    icon: '📊' },
     { id: 'bracket',   label: 'Bracket',       icon: '🗺️' },
@@ -1377,7 +1378,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
     const fromSearch = new URLSearchParams(window.location.search).get('group');
     return fromSearch && GROUPS.includes(fromSearch) ? fromSearch : null;
   });
-  const [activeTab, setActiveTab] = useState<Tab>('matches');
+  const [activeTab, setActiveTab] = useState<Tab>('today');
   const [allWcMatches, setAllWcMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
@@ -1426,7 +1427,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
         <WorldCupBanner matchCount={allWcMatches.length || 72} />
         <TabNav active={activeTab} onChange={setActiveTab} />
 
-        {activeTab !== 'bracket' && activeTab !== 'news' && activeTab !== 'stats' && (
+        {activeTab !== 'bracket' && activeTab !== 'news' && activeTab !== 'stats' && activeTab !== 'today' && (
           <GroupSelector
             selected={selectedGroup}
             onSelect={handleSelectGroup}
@@ -1462,6 +1463,51 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
             loading={loadingStandings}
           />
         )}
+
+        {activeTab === 'today' && (() => {
+          const now = new Date();
+          const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          const todayMatches = allWcMatches.filter(m => m.date.split('T')[0] === todayStr);
+          if (loadingMatches) return (
+            <div className="text-center py-16 text-slate-500">
+              <div className="text-5xl mb-4">⏳</div>
+              <p className="text-lg">Cargando partidos...</p>
+            </div>
+          );
+          if (todayMatches.length === 0) return (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-500">
+              <div className="text-5xl">📅</div>
+              <p className="text-base font-semibold text-slate-300">No hay partidos programados para hoy</p>
+              <p className="text-sm text-slate-500">Revisa la pestaña Partidos para ver el calendario completo.</p>
+            </div>
+          );
+          const byGroup: Record<string, Match[]> = {};
+          for (const m of todayMatches) {
+            const g = getMatchGroup(m);
+            if (!byGroup[g]) byGroup[g] = [];
+            byGroup[g].push(m);
+          }
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <h2 className="text-white font-bold text-lg">Partidos de Hoy</h2>
+                <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">
+                  {todayMatches.length} {todayMatches.length === 1 ? 'partido' : 'partidos'}
+                </span>
+              </div>
+              {GROUPS.filter(g => byGroup[g]).map(g => (
+                <section key={g}>
+                  <GroupHeader group={g} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                    {byGroup[g].map(m => (
+                      <WCMatchCard key={m.match_id} match={m} group={g} currentSearchParams={searchParams.toString()} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          );
+        })()}
 
         {activeTab === 'bracket' && <BracketView />}
 

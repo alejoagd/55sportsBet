@@ -1,0 +1,9 @@
+#Comando para actualizar resultados en local, se debe asegurar que se tenga la bd apuntando a local
+python update_wc2026_results.py
+
+#Preguntar que base de datos esta configurada
+echo $env:DATABASE_URL
+#Remover la bd configurada
+Remove-Item Env:DATABASE_URL
+#configurar la bd de produccion
+$env:DATABASE_URL="postgresql://sportsbet_1jvr_user:1dAACJjphg8LhTpFyVroL3GghdXikyto@dpg-d4bjdj63jp1c73bjd6og-a.ohio-postgres.render.com:5432/sportsbet_1jvr"
