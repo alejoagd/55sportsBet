@@ -261,9 +261,11 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
 function GroupSelector({
   selected,
   onSelect,
+  showR32 = false,
 }: {
   selected: string | null;
   onSelect: (g: string | null) => void;
+  showR32?: boolean;
 }) {
   return (
     <div className="mb-6">
@@ -282,6 +284,25 @@ function GroupSelector({
         >
           Todos
         </button>
+
+        {showR32 && (
+          <>
+            <div className="w-px bg-slate-700 self-stretch mx-1 flex-shrink-0" />
+            <button
+              onClick={() => onSelect('16avos')}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
+                ${selected === '16avos'
+                  ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+                }`}
+            >
+              <span>🎯</span>
+              <span>16avos</span>
+            </button>
+            <div className="w-px bg-slate-700 self-stretch mx-1 flex-shrink-0" />
+          </>
+        )}
+
         {GROUPS.map(g => (
           <button
             key={g}
@@ -1366,6 +1387,189 @@ function NewsView() {
   );
 }
 
+// ── Real Round of 32 view ─────────────────────────────────────────────
+
+interface ThirdRow {
+  group: string; team: string;
+  pj: number; g: number; e: number; p: number;
+  gf: number; gc: number; dg: number; pts: number;
+  confirmed: boolean;
+}
+
+function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: boolean }) {
+  if (loading) return (
+    <div className="text-center py-16 text-slate-500">
+      <div className="text-5xl mb-4 animate-pulse">⏳</div>
+      <p>Cargando partidos...</p>
+    </div>
+  );
+
+  const gm = allMatches as unknown as GroupMatch[];
+
+  const allStandings: Record<string, TeamStanding[]> = {};
+  for (const g of GROUPS) allStandings[g] = computeStandings(g, gm);
+
+  const completedGroups = new Set<string>(
+    GROUPS.filter(g => allStandings[g].every(t => t.pj >= 3))
+  );
+
+  // Rankings in real standings order (used by existing BracketHalf / resolveTeam)
+  const realRankings: Record<string, string[]> = {};
+  for (const g of GROUPS) realRankings[g] = allStandings[g].map(t => t.team);
+
+  const thirds: ThirdRow[] = GROUPS.map(g => {
+    const t = allStandings[g][2];
+    if (!t || t.pj === 0) return null;
+    return { group: g, team: t.team, pj: t.pj, g: t.g, e: t.e, p: t.p,
+             gf: t.gf, gc: t.gc, dg: t.dg, pts: t.pts, confirmed: completedGroups.has(g) };
+  }).filter(Boolean) as ThirdRow[];
+
+  const sortedThirds = [...thirds].sort((a, b) =>
+    b.pts !== a.pts ? b.pts - a.pts :
+    b.dg  !== a.dg  ? b.dg  - a.dg  :
+    b.gf  !== a.gf  ? b.gf  - a.gf  : 0
+  );
+
+  const allGroupsDone = completedGroups.size === 12;
+  const confirmedPosMatches = R32_MATCHES.filter(m =>
+    m.slotA.kind === 'pos' && completedGroups.has(m.slotA.group) &&
+    m.slotB.kind === 'pos' && completedGroups.has(m.slotB.group)
+  ).length;
+
+  // Shared props for existing bracket components — read-only (no-op picker)
+  const bracketProps = {
+    rankings: realRankings,
+    thirdPicks: {} as Record<number, string>,
+    winners: {} as Record<string, string>,
+    onPickWinner: () => {},
+  };
+
+  const leftMatches  = R32_MATCHES.filter(m => m.side === 'L');
+  const rightMatches = R32_MATCHES.filter(m => m.side === 'R');
+
+  return (
+    <div className="space-y-8">
+      {/* Summary bar */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { val: `${completedGroups.size}/12`, label: 'Grupos finalizados',   color: 'text-yellow-400' },
+          { val: `${confirmedPosMatches}/16`,  label: 'Cruces confirmados',   color: 'text-green-400'  },
+          { val: `${sortedThirds.length}/12`,  label: 'Terceros conocidos',   color: 'text-blue-400'   },
+        ].map(({ val, label, color }) => (
+          <div key={label} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
+            <p className={`text-xl sm:text-2xl font-black ${color}`}>{val}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Info note */}
+      {!allGroupsDone && (
+        <div className="flex items-center gap-2 bg-yellow-400/5 border border-yellow-400/20 rounded-xl px-4 py-3 text-xs text-yellow-300/80">
+          <span>⚠️</span>
+          <span>Los equipos de grupos que aún no han terminado sus 3 partidos aparecen en posición provisional basada en los resultados actuales.</span>
+        </div>
+      )}
+      {allGroupsDone && (
+        <div className="flex items-center gap-2 bg-green-400/5 border border-green-400/20 rounded-xl px-4 py-3 text-xs text-green-300/80">
+          <span>✅</span>
+          <span>Fase de grupos completada. Llave de octavos definida (excepto slots de terceros que se asignan por FIFA tras la fase de grupos).</span>
+        </div>
+      )}
+
+      {/* Bracket visual — reuses existing BracketHalf / ClickableMatchCard */}
+      <div>
+        <h2 className="text-white font-bold text-lg mb-3">Vista del Bracket — Octavos de Final</h2>
+        <div className="overflow-x-auto pb-3">
+          <div className="flex items-stretch gap-1 min-w-max">
+            <BracketHalf matches={leftMatches} side="L" {...bracketProps} />
+
+            {/* Final center */}
+            <div className="flex flex-col items-center justify-center px-3 gap-3">
+              <span className="text-4xl">🏆</span>
+              <div className="text-center">
+                <p className="text-yellow-400 font-black text-xs uppercase tracking-widest">FINAL</p>
+                <p className="text-slate-500 text-xs">19 Jul · NY</p>
+              </div>
+              <ClickableMatchCard matchId="Final" label="FINAL" {...bracketProps} />
+            </div>
+
+            <BracketHalf matches={rightMatches} side="R" {...bracketProps} />
+          </div>
+        </div>
+      </div>
+
+      {/* Third-place ranking */}
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <h2 className="text-white font-bold text-lg">Ranking de Terceros</h2>
+          <span className="text-xs text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">
+            Mejores 8 de 12 avanzan a octavos
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">
+          Criterio: Puntos → Diferencia de goles → Goles a favor
+        </p>
+
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="hidden sm:grid sm:grid-cols-[1.5rem_2rem_1fr_2rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem_3.5rem]
+                          gap-1 text-xs text-slate-400 font-semibold px-3 py-2.5
+                          border-b border-slate-700 bg-slate-900/60 uppercase tracking-wide">
+            <span>#</span><span></span><span>Equipo</span>
+            <span className="text-center">Grp</span>
+            <span className="text-center">PJ</span>
+            <span className="text-center text-yellow-400">Pts</span>
+            <span className="text-center">GF</span>
+            <span className="text-center">GC</span>
+            <span className="text-center">DG</span>
+            <span className="text-center">Estado</span>
+          </div>
+
+          {sortedThirds.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 text-sm">Sin datos aún</div>
+          ) : sortedThirds.map((t, i) => {
+            const qualifies = i < 8;
+            return (
+              <div key={t.group}
+                className={`flex sm:grid sm:grid-cols-[1.5rem_2rem_1fr_2rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem_3.5rem]
+                            gap-1 px-3 py-2.5 items-center border-b border-slate-700/40 last:border-0
+                            border-l-2 ${qualifies ? 'border-l-green-500 bg-green-500/5' : 'border-l-slate-700'}`}
+              >
+                <span className={`text-xs font-bold w-5 flex-shrink-0 ${qualifies ? 'text-green-400' : 'text-slate-600'}`}>{i + 1}</span>
+                <span className="text-base leading-none flex-shrink-0">{TEAM_FLAG[t.team] ?? '🏳'}</span>
+                <span className={`text-sm font-semibold truncate flex-1 min-w-0 ${qualifies ? 'text-white' : 'text-slate-400'}`}>{t.team}</span>
+                <span className="text-center text-xs hidden sm:block">
+                  <span className="bg-yellow-400/20 text-yellow-400 font-bold px-1 rounded">{t.group}</span>
+                </span>
+                <span className="text-center text-sm text-slate-300 hidden sm:block">{t.pj}</span>
+                <span className={`text-center text-sm font-black hidden sm:block ${qualifies ? 'text-yellow-400' : 'text-slate-400'}`}>{t.pts}</span>
+                <span className="text-center text-sm text-slate-300 hidden sm:block">{t.gf}</span>
+                <span className="text-center text-sm text-slate-300 hidden sm:block">{t.gc}</span>
+                <span className={`text-center text-sm font-medium hidden sm:block
+                  ${t.dg > 0 ? 'text-green-400' : t.dg < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                  {t.dg > 0 ? '+' : ''}{t.dg}
+                </span>
+                <div className="text-center flex-shrink-0 ml-auto sm:ml-0">
+                  {qualifies
+                    ? <span className="text-[10px] font-bold text-green-400 bg-green-400/10 border border-green-400/20 px-1.5 py-0.5 rounded-full whitespace-nowrap">CLASIFICA</span>
+                    : <span className="text-[10px] text-slate-600 bg-slate-700/40 px-1.5 py-0.5 rounded-full">FUERA</span>
+                  }
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>Top 8 — clasifica a octavos</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-600 inline-block"></span>No clasifica</span>
+          {!allGroupsDone && <span className="text-yellow-500/70">Posiciones provisionales</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 interface Props {
   initialGroup?: string | null;
@@ -1404,6 +1608,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
 
   const handleSelectGroup = (g: string | null) => {
     setSelectedGroup(g);
+    if (g === '16avos') return; // no persisted in URL
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (g) next.set('group', g);
@@ -1419,7 +1624,10 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
     matchesByGroup[g].push(m);
   }
 
-  const groupsToShow = selectedGroup ? [selectedGroup] : GROUPS.filter(g => matchesByGroup[g]?.length);
+  const isR32View = activeTab === 'matches' && selectedGroup === '16avos';
+  const groupsToShow = selectedGroup && selectedGroup !== '16avos'
+    ? [selectedGroup]
+    : GROUPS.filter(g => matchesByGroup[g]?.length);
 
   return (
     <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
@@ -1431,11 +1639,14 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
           <GroupSelector
             selected={selectedGroup}
             onSelect={handleSelectGroup}
+            showR32={activeTab === 'matches'}
           />
         )}
 
         {activeTab === 'matches' && (
-          loadingMatches ? (
+          isR32View ? (
+            <RealR32View allMatches={allWcMatches} loading={loadingMatches} />
+          ) : loadingMatches ? (
             <div className="text-center py-16 text-slate-500">
               <div className="text-5xl mb-4">⏳</div>
               <p className="text-lg">Cargando predicciones del Mundial...</p>
