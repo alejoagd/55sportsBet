@@ -1512,6 +1512,7 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
         </p>
 
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          {/* Desktop header */}
           <div className="hidden sm:grid sm:grid-cols-[1.5rem_2rem_1fr_2rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem_3.5rem]
                           gap-1 text-xs text-slate-400 font-semibold px-3 py-2.5
                           border-b border-slate-700 bg-slate-900/60 uppercase tracking-wide">
@@ -1524,36 +1525,62 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
             <span className="text-center">DG</span>
             <span className="text-center">Estado</span>
           </div>
+          {/* Mobile header */}
+          <div className="grid grid-cols-[1.5rem_2rem_1fr_2.5rem_2.5rem_2.5rem_3.5rem] sm:hidden
+                          gap-1 text-xs text-slate-400 font-semibold px-3 py-2.5
+                          border-b border-slate-700 bg-slate-900/60 uppercase tracking-wide">
+            <span>#</span><span></span><span>Equipo</span>
+            <span className="text-center text-yellow-400">Pts</span>
+            <span className="text-center">GF</span>
+            <span className="text-center">DG</span>
+            <span className="text-center">Estado</span>
+          </div>
 
           {sortedThirds.length === 0 ? (
             <div className="text-center py-8 text-slate-500 text-sm">Sin datos aún</div>
           ) : sortedThirds.map((t, i) => {
             const qualifies = i < 8;
+            const border = qualifies ? 'border-l-green-500 bg-green-500/5' : 'border-l-slate-700';
             return (
-              <div key={t.group}
-                className={`flex sm:grid sm:grid-cols-[1.5rem_2rem_1fr_2rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem_3.5rem]
-                            gap-1 px-3 py-2.5 items-center border-b border-slate-700/40 last:border-0
-                            border-l-2 ${qualifies ? 'border-l-green-500 bg-green-500/5' : 'border-l-slate-700'}`}
-              >
-                <span className={`text-xs font-bold w-5 flex-shrink-0 ${qualifies ? 'text-green-400' : 'text-slate-600'}`}>{i + 1}</span>
-                <span className="text-base leading-none flex-shrink-0">{TEAM_FLAG[t.team] ?? '🏳'}</span>
-                <span className={`text-sm font-semibold truncate flex-1 min-w-0 ${qualifies ? 'text-white' : 'text-slate-400'}`}>{t.team}</span>
-                <span className="text-center text-xs hidden sm:block">
-                  <span className="bg-yellow-400/20 text-yellow-400 font-bold px-1 rounded">{t.group}</span>
-                </span>
-                <span className="text-center text-sm text-slate-300 hidden sm:block">{t.pj}</span>
-                <span className={`text-center text-sm font-black hidden sm:block ${qualifies ? 'text-yellow-400' : 'text-slate-400'}`}>{t.pts}</span>
-                <span className="text-center text-sm text-slate-300 hidden sm:block">{t.gf}</span>
-                <span className="text-center text-sm text-slate-300 hidden sm:block">{t.gc}</span>
-                <span className={`text-center text-sm font-medium hidden sm:block
-                  ${t.dg > 0 ? 'text-green-400' : t.dg < 0 ? 'text-red-400' : 'text-slate-400'}`}>
-                  {t.dg > 0 ? '+' : ''}{t.dg}
-                </span>
-                <div className="text-center flex-shrink-0 ml-auto sm:ml-0">
-                  {qualifies
-                    ? <span className="text-[10px] font-bold text-green-400 bg-green-400/10 border border-green-400/20 px-1.5 py-0.5 rounded-full whitespace-nowrap">CLASIFICA</span>
-                    : <span className="text-[10px] text-slate-600 bg-slate-700/40 px-1.5 py-0.5 rounded-full">FUERA</span>
-                  }
+              <div key={t.group} className={`border-b border-slate-700/40 last:border-0 border-l-2 ${border}`}>
+                {/* Desktop row */}
+                <div className="hidden sm:grid sm:grid-cols-[1.5rem_2rem_1fr_2rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem_3.5rem]
+                                gap-1 px-3 py-2.5 items-center">
+                  <span className={`text-xs font-bold ${qualifies ? 'text-green-400' : 'text-slate-600'}`}>{i + 1}</span>
+                  <span className="text-base leading-none">{TEAM_FLAG[t.team] ?? '🏳'}</span>
+                  <span className={`text-sm font-semibold truncate ${qualifies ? 'text-white' : 'text-slate-400'}`}>{t.team}</span>
+                  <span className="text-center"><span className="bg-yellow-400/20 text-yellow-400 font-bold text-xs px-1 rounded">{t.group}</span></span>
+                  <span className="text-center text-sm text-slate-300">{t.pj}</span>
+                  <span className={`text-center text-sm font-black ${qualifies ? 'text-yellow-400' : 'text-slate-400'}`}>{t.pts}</span>
+                  <span className="text-center text-sm text-slate-300">{t.gf}</span>
+                  <span className="text-center text-sm text-slate-300">{t.gc}</span>
+                  <span className={`text-center text-sm font-medium ${t.dg > 0 ? 'text-green-400' : t.dg < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                    {t.dg > 0 ? '+' : ''}{t.dg}
+                  </span>
+                  <div className="text-center">
+                    {qualifies
+                      ? <span className="text-[10px] font-bold text-green-400 bg-green-400/10 border border-green-400/20 px-1.5 py-0.5 rounded-full">CLASIFICA</span>
+                      : <span className="text-[10px] text-slate-600 bg-slate-700/40 px-1.5 py-0.5 rounded-full">FUERA</span>
+                    }
+                  </div>
+                </div>
+                {/* Mobile row */}
+                <div className="grid grid-cols-[1.5rem_2rem_1fr_2.5rem_2.5rem_2.5rem_3.5rem] sm:hidden
+                                gap-1 px-3 py-2.5 items-center">
+                  <span className={`text-xs font-bold ${qualifies ? 'text-green-400' : 'text-slate-600'}`}>{i + 1}</span>
+                  <span className="text-base leading-none">{TEAM_FLAG[t.team] ?? '🏳'}</span>
+                  <span className={`text-xs font-semibold truncate ${qualifies ? 'text-white' : 'text-slate-400'}`}>{t.team}</span>
+                  <span className={`text-center text-sm font-black ${qualifies ? 'text-yellow-400' : 'text-slate-400'}`}>{t.pts}</span>
+                  <span className="text-center text-sm text-slate-300">{t.gf}</span>
+                  <span className={`text-center text-sm font-medium ${t.dg > 0 ? 'text-green-400' : t.dg < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                    {t.dg > 0 ? '+' : ''}{t.dg}
+                  </span>
+                  <div className="text-center">
+                    {qualifies
+                      ? <span className="text-[10px] font-bold text-green-400 bg-green-400/10 border border-green-400/20 px-1 py-0.5 rounded-full whitespace-nowrap">✓</span>
+                      : <span className="text-[10px] text-slate-600 bg-slate-700/40 px-1 py-0.5 rounded-full">✗</span>
+                    }
+                  </div>
                 </div>
               </div>
             );
