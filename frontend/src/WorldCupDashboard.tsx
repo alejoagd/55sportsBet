@@ -675,25 +675,26 @@ interface R32Match {
 }
 
 // Official 2026 WC Round of 32 bracket matchups
+// fromGroups: eligible groups for each third-place slot (adjusted to match actual 2026 WC assignments)
 const R32_MATCHES: R32Match[] = [
   // ── Left half ──────────────────────────────────────────────────────
-  { num: 1,  side: 'L', slotA: { kind: 'pos', group: 'E', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','B','C','D','F'] } },
-  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', fromGroups: ['G','H','J','K','L'] } },
+  { num: 1,  side: 'L', slotA: { kind: 'pos', group: 'E', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','C','D','F'] } },
+  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', fromGroups: ['G','H','K'] } },
   { num: 3,  side: 'L', slotA: { kind: 'pos', group: 'A', pos: 1 }, slotB: { kind: 'pos', group: 'B', pos: 1 } },
   { num: 4,  side: 'L', slotA: { kind: 'pos', group: 'F', pos: 0 }, slotB: { kind: 'pos', group: 'C', pos: 1 } },
   { num: 5,  side: 'L', slotA: { kind: 'pos', group: 'K', pos: 1 }, slotB: { kind: 'pos', group: 'L', pos: 1 } },
   { num: 6,  side: 'L', slotA: { kind: 'pos', group: 'H', pos: 0 }, slotB: { kind: 'pos', group: 'J', pos: 1 } },
-  { num: 7,  side: 'L', slotA: { kind: 'pos', group: 'D', pos: 0 }, slotB: { kind: 'third', fromGroups: ['B','E','F','I','J'] } },
-  { num: 8,  side: 'L', slotA: { kind: 'pos', group: 'G', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','E','H','I','J'] } },
+  { num: 7,  side: 'L', slotA: { kind: 'pos', group: 'D', pos: 0 }, slotB: { kind: 'third', fromGroups: ['B','E','F','I'] } },
+  { num: 8,  side: 'L', slotA: { kind: 'pos', group: 'G', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','E','H','I'] } },
   // ── Right half ─────────────────────────────────────────────────────
   { num: 9,  side: 'R', slotA: { kind: 'pos', group: 'C', pos: 0 }, slotB: { kind: 'pos', group: 'F', pos: 1 } },
   { num: 10, side: 'R', slotA: { kind: 'pos', group: 'E', pos: 1 }, slotB: { kind: 'pos', group: 'I', pos: 1 } },
-  { num: 11, side: 'R', slotA: { kind: 'pos', group: 'A', pos: 0 }, slotB: { kind: 'third', fromGroups: ['G','E','F','H'] } },
-  { num: 12, side: 'R', slotA: { kind: 'pos', group: 'L', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','H','I','K','J'] } },
+  { num: 11, side: 'R', slotA: { kind: 'pos', group: 'A', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','F','G','H'] } },
+  { num: 12, side: 'R', slotA: { kind: 'pos', group: 'L', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','H','I','K'] } },
   { num: 13, side: 'R', slotA: { kind: 'pos', group: 'J', pos: 0 }, slotB: { kind: 'pos', group: 'H', pos: 1 } },
   { num: 14, side: 'R', slotA: { kind: 'pos', group: 'D', pos: 1 }, slotB: { kind: 'pos', group: 'G', pos: 1 } },
-  { num: 15, side: 'R', slotA: { kind: 'pos', group: 'B', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','F','G','L'] } },
-  { num: 16, side: 'R', slotA: { kind: 'pos', group: 'K', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','H','I','J','K'] } },
+  { num: 15, side: 'R', slotA: { kind: 'pos', group: 'B', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','F','G','J'] } },
+  { num: 16, side: 'R', slotA: { kind: 'pos', group: 'K', pos: 0 }, slotB: { kind: 'third', fromGroups: ['E','H','I','J','K','L'] } },
 ];
 
 // Bracket connectivity: which two matches feed each subsequent match
@@ -1443,13 +1444,12 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     m.slotB.kind === 'pos' && completedGroups.has(m.slotB.group)
   ).length;
 
-  // Derive actual third-place picks from DB knockout matches.
-  // For each R32 match that has a pos-slot vs third-slot, match the pos-team
-  // against the DB record to identify the actual third-place team.
-  const actualThirdPicks: Record<number, string> = {};
+  // Step 1: Derive third-place picks from actual DB knockout matches
+  // (identifies the real third-place team by matching the pos-slot team)
+  const dbThirdPicks: Record<number, string> = {};
   for (const m of knockoutFromDB) {
     for (const r32m of R32_MATCHES) {
-      if (actualThirdPicks[r32m.num] !== undefined) continue;
+      if (dbThirdPicks[r32m.num] !== undefined) continue;
       const pairs: [BracketSlot, BracketSlot][] = [
         [r32m.slotA, r32m.slotB],
         [r32m.slotB, r32m.slotA],
@@ -1459,23 +1459,36 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
         const posTeam = realRankings[slotPos.group]?.[slotPos.pos];
         if (!posTeam) continue;
         if (m.home_team !== posTeam && m.away_team !== posTeam) continue;
-        // posTeam matched → the other player is the third-place team
         const thirdTeam = m.home_team === posTeam ? m.away_team : m.home_team;
         for (const g of GROUPS) {
-          if (realRankings[g]?.[2] === thirdTeam) {
-            actualThirdPicks[r32m.num] = g;
-            break;
-          }
+          if (realRankings[g]?.[2] === thirdTeam) { dbThirdPicks[r32m.num] = g; break; }
         }
         break;
       }
     }
   }
 
-  // Shared bracket props — uses actual DB thirds (no greedy guessing)
+  // Step 2: Greedy fallback for slots not resolved from DB
+  // Processes slots in num order, picks best available qualifying third from fromGroups
+  const qualifyingThirds = sortedThirds.filter(t => t.confirmed).slice(0, 8);
+  const usedGroups = new Set(Object.values(dbThirdPicks));
+  const finalThirdPicks: Record<number, string> = { ...dbThirdPicks };
+
+  for (const r32m of [...R32_MATCHES].sort((a, b) => a.num - b.num)) {
+    if (finalThirdPicks[r32m.num] !== undefined) continue;
+    const slot = (r32m.slotA.kind === 'third' ? r32m.slotA : r32m.slotB) as Extract<BracketSlot, { kind: 'third' }>;
+    if (!slot || slot.kind !== 'third') continue;
+    // Try best qualifying third eligible for this slot
+    let pick = qualifyingThirds.find(t => slot.fromGroups.includes(t.group) && !usedGroups.has(t.group));
+    // Ultimate fallback: any unused qualifying third (ensures all slots are filled)
+    if (!pick) pick = qualifyingThirds.find(t => !usedGroups.has(t.group));
+    if (pick) { finalThirdPicks[r32m.num] = pick.group; usedGroups.add(pick.group); }
+  }
+
+  // Shared bracket props — DB picks take priority, greedy fills the rest
   const bracketProps = {
     rankings: realRankings,
-    thirdPicks: actualThirdPicks,
+    thirdPicks: finalThirdPicks,
     winners: {} as Record<string, string>,
     onPickWinner: () => {},
   };
