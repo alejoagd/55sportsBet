@@ -384,7 +384,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
       {/* Header */}
       <div className="flex items-center justify-between px-3 sm:px-4 pt-3 pb-2 border-b border-slate-700/50">
         <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
-          Grupo {group}
+          {group === 'R32' ? 'Octavos de Final' : `Grupo ${group}`}
         </span>
         <div className="flex items-center gap-2">
           {isCompleted && (
@@ -1436,10 +1436,23 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     m.slotB.kind === 'pos' && completedGroups.has(m.slotB.group)
   ).length;
 
+  // Compute thirdPicks from real standings (greedy: best available third per slot)
+  const qualifyingThirds = sortedThirds.filter(t => t.confirmed).slice(0, 8);
+  const thirdSlotMatches = R32_MATCHES
+    .filter(m => m.slotA.kind === 'third' || m.slotB.kind === 'third')
+    .sort((a, b) => a.num - b.num);
+  const computedThirdPicks: Record<number, string> = {};
+  const assignedGroups = new Set<string>();
+  for (const match of thirdSlotMatches) {
+    const slot = (match.slotA.kind === 'third' ? match.slotA : match.slotB) as Extract<BracketSlot, { kind: 'third' }>;
+    const best = qualifyingThirds.find(t => slot.fromGroups.includes(t.group) && !assignedGroups.has(t.group));
+    if (best) { computedThirdPicks[match.num] = best.group; assignedGroups.add(best.group); }
+  }
+
   // Shared props for existing bracket components — read-only (no-op picker)
   const bracketProps = {
     rankings: realRankings,
-    thirdPicks: {} as Record<number, string>,
+    thirdPicks: computedThirdPicks,
     winners: {} as Record<string, string>,
     onPickWinner: () => {},
   };
@@ -1720,10 +1733,11 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
             </div>
           );
           const byGroup: Record<string, Match[]> = {};
+          const knockoutMatches: Match[] = [];
           for (const m of todayMatches) {
             const g = getMatchGroup(m);
-            if (!byGroup[g]) byGroup[g] = [];
-            byGroup[g].push(m);
+            if (g === '?') { knockoutMatches.push(m); }
+            else { if (!byGroup[g]) byGroup[g] = []; byGroup[g].push(m); }
           }
           return (
             <div className="space-y-6">
@@ -1733,6 +1747,20 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
                   {todayMatches.length} {todayMatches.length === 1 ? 'partido' : 'partidos'}
                 </span>
               </div>
+              {knockoutMatches.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-2 px-1 mb-3">
+                    <div className="w-1 h-5 bg-yellow-400 rounded-full" />
+                    <h3 className="text-white font-bold text-base">Octavos de Final</h3>
+                    <span className="text-xs text-yellow-400/70 bg-yellow-400/10 px-2 py-0.5 rounded-full">🏆 R32</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                    {knockoutMatches.map(m => (
+                      <WCMatchCard key={m.match_id} match={m} group="R32" currentSearchParams={searchParams.toString()} />
+                    ))}
+                  </div>
+                </section>
+              )}
               {GROUPS.filter(g => byGroup[g]).map(g => (
                 <section key={g}>
                   <GroupHeader group={g} />

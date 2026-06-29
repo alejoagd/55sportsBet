@@ -103,6 +103,16 @@ jobs:
             python update_wc2026_stats.py
           fi
 
+      - name: Update WC 2026 R32 matches (knockout)
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python update_wc2026_r32_matches.py --dry-run
+          else
+            python update_wc2026_r32_matches.py
+          fi
+
       - name: Update WC 2026 scorers and assists
         env:
           ENV_FILE: .env.production
