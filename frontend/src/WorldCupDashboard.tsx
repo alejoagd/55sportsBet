@@ -663,15 +663,17 @@ function StandingsView({
 
 // ── Interactive Bracket ───────────────────────────────────────────────
 
-// Confirmed actual third-place assignments in the official WC 2026 R32 bracket.
-// Keys = R32 match number, values = group letter of the third-place team assigned.
-// Source: official FIFA draw / published WC 2026 bracket (user-confirmed matchups).
+// Confirmed third-place assignments from the official WC 2026 R32 bracket.
+// All 8 third-place slots are now known from the published bracket.
 const CONFIRMED_R32_THIRDS: Record<number, string> = {
-  7:  'B',  // USA (D#1) vs Bosnia and Herzegovina (Group B 3rd)
-  8:  'I',  // Belgium (G#1) vs Senegal (Group I 3rd)
-  11: 'E',  // Mexico (A#1) vs Ecuador (Group E 3rd)
-  15: 'J',  // Switzerland (B#1) vs Algeria (Group J 3rd)
-  16: 'L',  // Colombia (K#1) vs Ghana (Group L 3rd)
+  1:  'D',  // Germany  (E#1) vs Paraguay          (D 3rd)
+  2:  'F',  // France   (I#1) vs Sweden             (F 3rd)
+  7:  'B',  // USA      (D#1) vs Bosnia-Herzegovina (B 3rd)
+  8:  'I',  // Belgium  (G#1) vs Senegal            (I 3rd)
+  11: 'E',  // Mexico   (A#1) vs Ecuador            (E 3rd)
+  12: 'K',  // England  (L#1) vs Congo DR           (K 3rd)
+  15: 'J',  // Switzerland (B#1) vs Algeria         (J 3rd)
+  16: 'L',  // Colombia (K#1) vs Ghana              (L 3rd)
 };
 
 type BracketSlot =
@@ -690,7 +692,7 @@ interface R32Match {
 const R32_MATCHES: R32Match[] = [
   // ── Left half ──────────────────────────────────────────────────────
   { num: 1,  side: 'L', slotA: { kind: 'pos', group: 'E', pos: 0 }, slotB: { kind: 'third', fromGroups: ['A','C','D','F'] } },
-  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', fromGroups: ['G','H','K'] } },
+  { num: 2,  side: 'L', slotA: { kind: 'pos', group: 'I', pos: 0 }, slotB: { kind: 'third', fromGroups: ['F','G','H','K'] } },
   { num: 3,  side: 'L', slotA: { kind: 'pos', group: 'A', pos: 1 }, slotB: { kind: 'pos', group: 'B', pos: 1 } },
   { num: 4,  side: 'L', slotA: { kind: 'pos', group: 'F', pos: 0 }, slotB: { kind: 'pos', group: 'C', pos: 1 } },
   { num: 5,  side: 'L', slotA: { kind: 'pos', group: 'K', pos: 1 }, slotB: { kind: 'pos', group: 'L', pos: 1 } },
