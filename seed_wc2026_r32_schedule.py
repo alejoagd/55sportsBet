@@ -104,6 +104,7 @@ def espn_events_for_date(date_str: str) -> list[dict]:
 def fetch_r32_fixtures() -> list[dict]:
     """Descarga todos los fixtures R32 WC2026 desde ESPN (June 28 – July 5)."""
     fixtures: list[dict] = []
+    seen_espn_ids: set[str] = set()   # deduplica por ID de ESPN (mismo partido, dos fechas)
     d = date.fromisoformat(WC_R32_START)
     end = date.fromisoformat(WC_R32_END)
 
@@ -150,7 +151,13 @@ def fetch_r32_fixtures() -> list[dict]:
                 except (ValueError, TypeError):
                     pass
 
-            espn_id = ev.get("id")
+            espn_id = str(ev.get("id", ""))
+
+            # Deduplica por ESPN event ID: el mismo partido aparece en dos fechas (local vs UTC)
+            if espn_id and espn_id in seen_espn_ids:
+                continue
+            if espn_id:
+                seen_espn_ids.add(espn_id)
 
             # Convert ESPN UTC datetime to North American local date.
             # WC 2026 games in the US never start before noon local time, so any
