@@ -80,6 +80,7 @@ const TEAM_FLAG: Record<string, string> = {
 };
 
 const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+const WC_KNOCKOUT_START = '2026-06-28'; // Group stage ends June 26; knockout starts June 28
 
 const GROUP_TEAMS: Record<string, string[]> = {
   'A': ['Mexico','South Africa','South Korea','Czechia'],
@@ -1404,7 +1405,13 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     </div>
   );
 
-  const gm = allMatches as unknown as GroupMatch[];
+  // Separate group stage (before June 28) from knockout (June 28+)
+  const groupStageMatches = allMatches.filter(m => m.date.split('T')[0] < WC_KNOCKOUT_START);
+  const knockoutFromDB = allMatches
+    .filter(m => m.date.split('T')[0] >= WC_KNOCKOUT_START)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.match_id - b.match_id);
+
+  const gm = groupStageMatches as unknown as GroupMatch[];
 
   const allStandings: Record<string, TeamStanding[]> = {};
   for (const g of GROUPS) allStandings[g] = computeStandings(g, gm);
@@ -1436,23 +1443,39 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     m.slotB.kind === 'pos' && completedGroups.has(m.slotB.group)
   ).length;
 
-  // Compute thirdPicks from real standings (greedy: best available third per slot)
-  const qualifyingThirds = sortedThirds.filter(t => t.confirmed).slice(0, 8);
-  const thirdSlotMatches = R32_MATCHES
-    .filter(m => m.slotA.kind === 'third' || m.slotB.kind === 'third')
-    .sort((a, b) => a.num - b.num);
-  const computedThirdPicks: Record<number, string> = {};
-  const assignedGroups = new Set<string>();
-  for (const match of thirdSlotMatches) {
-    const slot = (match.slotA.kind === 'third' ? match.slotA : match.slotB) as Extract<BracketSlot, { kind: 'third' }>;
-    const best = qualifyingThirds.find(t => slot.fromGroups.includes(t.group) && !assignedGroups.has(t.group));
-    if (best) { computedThirdPicks[match.num] = best.group; assignedGroups.add(best.group); }
+  // Derive actual third-place picks from DB knockout matches.
+  // For each R32 match that has a pos-slot vs third-slot, match the pos-team
+  // against the DB record to identify the actual third-place team.
+  const actualThirdPicks: Record<number, string> = {};
+  for (const m of knockoutFromDB) {
+    for (const r32m of R32_MATCHES) {
+      if (actualThirdPicks[r32m.num] !== undefined) continue;
+      const pairs: [BracketSlot, BracketSlot][] = [
+        [r32m.slotA, r32m.slotB],
+        [r32m.slotB, r32m.slotA],
+      ];
+      for (const [slotPos, slotOther] of pairs) {
+        if (slotPos.kind !== 'pos' || slotOther.kind !== 'third') continue;
+        const posTeam = realRankings[slotPos.group]?.[slotPos.pos];
+        if (!posTeam) continue;
+        if (m.home_team !== posTeam && m.away_team !== posTeam) continue;
+        // posTeam matched → the other player is the third-place team
+        const thirdTeam = m.home_team === posTeam ? m.away_team : m.home_team;
+        for (const g of GROUPS) {
+          if (realRankings[g]?.[2] === thirdTeam) {
+            actualThirdPicks[r32m.num] = g;
+            break;
+          }
+        }
+        break;
+      }
+    }
   }
 
-  // Shared props for existing bracket components — read-only (no-op picker)
+  // Shared bracket props — uses actual DB thirds (no greedy guessing)
   const bracketProps = {
     rankings: realRankings,
-    thirdPicks: computedThirdPicks,
+    thirdPicks: actualThirdPicks,
     winners: {} as Record<string, string>,
     onPickWinner: () => {},
   };
@@ -1483,16 +1506,42 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
           <span>Los equipos de grupos que aún no han terminado sus 3 partidos aparecen en posición provisional basada en los resultados actuales.</span>
         </div>
       )}
-      {allGroupsDone && (
+      {allGroupsDone && knockoutFromDB.length === 0 && (
+        <div className="flex items-center gap-2 bg-yellow-400/5 border border-yellow-400/20 rounded-xl px-4 py-3 text-xs text-yellow-300/80">
+          <span>⚠️</span>
+          <span>Fase de grupos completada. Los slots de terceros clasificados se actualizarán automáticamente cuando los partidos de octavos estén disponibles.</span>
+        </div>
+      )}
+      {knockoutFromDB.length > 0 && (
         <div className="flex items-center gap-2 bg-green-400/5 border border-green-400/20 rounded-xl px-4 py-3 text-xs text-green-300/80">
           <span>✅</span>
-          <span>Fase de grupos completada. Llave de octavos definida (excepto slots de terceros que se asignan por FIFA tras la fase de grupos).</span>
+          <span>Llave de octavos actualizada con datos reales — {knockoutFromDB.length} partido{knockoutFromDB.length !== 1 ? 's' : ''} registrado{knockoutFromDB.length !== 1 ? 's' : ''}.</span>
+        </div>
+      )}
+
+      {/* Actual knockout match results (from DB) */}
+      {knockoutFromDB.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-3">
+            <h2 className="text-white font-bold text-lg">Partidos de Octavos</h2>
+            <span className="text-xs text-yellow-400/80 bg-yellow-400/10 border border-yellow-400/20 px-2.5 py-1 rounded-full">
+              🏆 Datos reales
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {knockoutFromDB.map(m => (
+              <WCMatchCard key={m.match_id} match={m} group="R32" currentSearchParams="" />
+            ))}
+          </div>
         </div>
       )}
 
       {/* Bracket visual — reuses existing BracketHalf / ClickableMatchCard */}
       <div>
         <h2 className="text-white font-bold text-lg mb-3">Vista del Bracket — Octavos de Final</h2>
+        {knockoutFromDB.length === 0 && (
+          <p className="text-xs text-slate-500 mb-3">Los slots de terceros se completarán cuando los partidos estén disponibles en la base de datos.</p>
+        )}
         <div className="overflow-x-auto pb-3">
           <div className="flex items-stretch gap-1 min-w-max">
             <BracketHalf matches={leftMatches} side="L" {...bracketProps} />
@@ -1735,9 +1784,13 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
           const byGroup: Record<string, Match[]> = {};
           const knockoutMatches: Match[] = [];
           for (const m of todayMatches) {
-            const g = getMatchGroup(m);
-            if (g === '?') { knockoutMatches.push(m); }
-            else { if (!byGroup[g]) byGroup[g] = []; byGroup[g].push(m); }
+            if (m.date.split('T')[0] >= WC_KNOCKOUT_START) {
+              knockoutMatches.push(m);
+            } else {
+              const g = getMatchGroup(m);
+              if (!byGroup[g]) byGroup[g] = [];
+              byGroup[g].push(m);
+            }
           }
           return (
             <div className="space-y-6">
