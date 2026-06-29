@@ -113,6 +113,24 @@ jobs:
             python update_wc2026_r32_matches.py
           fi
 
+      - name: Seed WC 2026 R32 schedule (inserts scheduled matches if missing)
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python seed_wc2026_r32_schedule.py --dry-run
+          else
+            python seed_wc2026_r32_schedule.py
+          fi
+
+      - name: Generate predictions for all WC 2026 matches (including R32)
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" != "true" ]; then
+            python -m src.predictions.cli upcoming --season-id 76
+          fi
+
       - name: Update WC 2026 scorers and assists
         env:
           ENV_FILE: .env.production

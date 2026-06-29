@@ -385,7 +385,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
       {/* Header */}
       <div className="flex items-center justify-between px-3 sm:px-4 pt-3 pb-2 border-b border-slate-700/50">
         <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
-          {group === 'R32' ? 'Octavos de Final' : `Grupo ${group}`}
+          {group === 'R32' ? 'Dieciseisavos de Final' : `Grupo ${group}`}
         </span>
         <div className="flex items-center gap-2">
           {isCompleted && (
@@ -1549,7 +1549,7 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
       {knockoutFromDB.length > 0 && (
         <div>
           <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-white font-bold text-lg">Partidos de Octavos</h2>
+            <h2 className="text-white font-bold text-lg">Dieciseisavos de Final</h2>
             <span className="text-xs text-yellow-400/80 bg-yellow-400/10 border border-yellow-400/20 px-2.5 py-1 rounded-full">
               🏆 Datos reales
             </span>
@@ -1564,7 +1564,7 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
 
       {/* Bracket visual — reuses existing BracketHalf / ClickableMatchCard */}
       <div>
-        <h2 className="text-white font-bold text-lg mb-3">Vista del Bracket — Octavos de Final</h2>
+        <h2 className="text-white font-bold text-lg mb-3">Vista del Bracket — Dieciseisavos de Final</h2>
         {knockoutFromDB.length === 0 && (
           <p className="text-xs text-slate-500 mb-3">Los slots de terceros se completarán cuando los partidos estén disponibles en la base de datos.</p>
         )}
@@ -1830,7 +1830,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
                 <section>
                   <div className="flex items-center gap-2 px-1 mb-3">
                     <div className="w-1 h-5 bg-yellow-400 rounded-full" />
-                    <h3 className="text-white font-bold text-base">Octavos de Final</h3>
+                    <h3 className="text-white font-bold text-base">Dieciseisavos de Final</h3>
                     <span className="text-xs text-yellow-400/70 bg-yellow-400/10 px-2 py-0.5 rounded-full">🏆 R32</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">

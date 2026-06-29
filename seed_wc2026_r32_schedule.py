@@ -152,9 +152,21 @@ def fetch_r32_fixtures() -> list[dict]:
 
             espn_id = ev.get("id")
 
-            # Use actual event date from ESPN (UTC), not the query date
+            # Convert ESPN UTC datetime to North American local date.
+            # WC 2026 games in the US never start before noon local time, so any
+            # UTC time between 00:00–07:00 belongs to the PREVIOUS calendar day.
             raw_date = comp.get("date", "") or ev.get("date", "")
-            event_date = raw_date.split("T")[0] if raw_date else date_str
+            if raw_date and "T" in raw_date:
+                utc_day   = raw_date.split("T")[0]
+                utc_hour  = int(raw_date.split("T")[1][:2])
+                if utc_hour < 7:
+                    # Roll back one day (late-evening US game = early-morning UTC)
+                    from datetime import date as _date, timedelta as _td
+                    event_date = (_date.fromisoformat(utc_day) - _td(days=1)).isoformat()
+                else:
+                    event_date = utc_day
+            else:
+                event_date = raw_date.split("T")[0] if raw_date else date_str
 
             fixtures.append({
                 "date":       event_date,
