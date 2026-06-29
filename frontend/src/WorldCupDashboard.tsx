@@ -663,6 +663,17 @@ function StandingsView({
 
 // ── Interactive Bracket ───────────────────────────────────────────────
 
+// Confirmed actual third-place assignments in the official WC 2026 R32 bracket.
+// Keys = R32 match number, values = group letter of the third-place team assigned.
+// Source: official FIFA draw / published WC 2026 bracket (user-confirmed matchups).
+const CONFIRMED_R32_THIRDS: Record<number, string> = {
+  7:  'B',  // USA (D#1) vs Bosnia and Herzegovina (Group B 3rd)
+  8:  'I',  // Belgium (G#1) vs Senegal (Group I 3rd)
+  11: 'E',  // Mexico (A#1) vs Ecuador (Group E 3rd)
+  15: 'J',  // Switzerland (B#1) vs Algeria (Group J 3rd)
+  16: 'L',  // Colombia (K#1) vs Ghana (Group L 3rd)
+};
+
 type BracketSlot =
   | { kind: 'pos'; group: string; pos: 0 | 1 }
   | { kind: 'third'; fromGroups: string[] };
@@ -1468,20 +1479,20 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     }
   }
 
-  // Step 2: Greedy fallback for slots not resolved from DB
-  // Processes slots in num order, picks best available qualifying third from fromGroups
+  // Step 2: Merge confirmed assignments (hardcoded from official bracket) and DB data.
+  // DB data takes precedence to allow real-time corrections once matches are recorded.
+  // Greedy fills only the 3 remaining unknown slots (M1, M2, M12).
   const qualifyingThirds = sortedThirds.filter(t => t.confirmed).slice(0, 8);
-  const usedGroups = new Set(Object.values(dbThirdPicks));
-  const finalThirdPicks: Record<number, string> = { ...dbThirdPicks };
+  const finalThirdPicks: Record<number, string> = { ...CONFIRMED_R32_THIRDS, ...dbThirdPicks };
+  const usedGroups = new Set(Object.values(finalThirdPicks));
 
   for (const r32m of [...R32_MATCHES].sort((a, b) => a.num - b.num)) {
     if (finalThirdPicks[r32m.num] !== undefined) continue;
     const slot = (r32m.slotA.kind === 'third' ? r32m.slotA : r32m.slotB) as Extract<BracketSlot, { kind: 'third' }>;
     if (!slot || slot.kind !== 'third') continue;
-    // Try best qualifying third eligible for this slot
-    let pick = qualifyingThirds.find(t => slot.fromGroups.includes(t.group) && !usedGroups.has(t.group));
-    // Ultimate fallback: any unused qualifying third (ensures all slots are filled)
-    if (!pick) pick = qualifyingThirds.find(t => !usedGroups.has(t.group));
+    // Only pick from eligible groups (fromGroups) that haven't been assigned yet.
+    // No ultimate fallback — wrong groups should not be assigned just to fill a slot.
+    const pick = qualifyingThirds.find(t => slot.fromGroups.includes(t.group) && !usedGroups.has(t.group));
     if (pick) { finalThirdPicks[r32m.num] = pick.group; usedGroups.add(pick.group); }
   }
 
