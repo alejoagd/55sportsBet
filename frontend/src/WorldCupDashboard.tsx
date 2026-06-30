@@ -1498,11 +1498,30 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     if (pick) { finalThirdPicks[r32m.num] = pick.group; usedGroups.add(pick.group); }
   }
 
+  // Compute real winners from completed R32 knockout matches in DB
+  const realWinners: Record<string, string> = {};
+  for (const m of knockoutFromDB) {
+    if (!m.actual_result || m.actual_result === 'D') continue;
+    for (const r32m of R32_MATCHES) {
+      const mid = `R32-${r32m.num}`;
+      if (realWinners[mid]) continue;
+      const teamA = resolveTeam(mid, 'a', realRankings, finalThirdPicks, {});
+      const teamB = resolveTeam(mid, 'b', realRankings, finalThirdPicks, {});
+      if (!teamA || !teamB) continue;
+      const homeMatchesA = m.home_team === teamA && m.away_team === teamB;
+      const homeMatchesB = m.home_team === teamB && m.away_team === teamA;
+      if (!homeMatchesA && !homeMatchesB) continue;
+      if (m.actual_result === 'H') realWinners[mid] = m.home_team;
+      else if (m.actual_result === 'A') realWinners[mid] = m.away_team;
+      break;
+    }
+  }
+
   // Shared bracket props — DB picks take priority, greedy fills the rest
   const bracketProps = {
     rankings: realRankings,
     thirdPicks: finalThirdPicks,
-    winners: {} as Record<string, string>,
+    winners: realWinners,
     onPickWinner: () => {},
   };
 
