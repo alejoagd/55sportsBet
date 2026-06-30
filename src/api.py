@@ -16,6 +16,16 @@ from pydantic import BaseModel
 
 app = FastAPI(title="Predictions API")
 
+
+@app.on_event("startup")
+def run_migrations():
+    """Ensure all incremental DB columns exist before serving any request."""
+    _engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True)
+    with _engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS penalty_winner TEXT"
+        ))
+
 # CORS dev-friendly
 app.add_middleware(
     CORSMiddleware,
