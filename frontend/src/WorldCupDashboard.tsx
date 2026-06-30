@@ -14,6 +14,7 @@ interface Match {
   home_goals: number | null;
   away_goals: number | null;
   actual_result: 'H' | 'D' | 'A' | null;
+  penalty_winner: string | null;
   // Poisson predictions
   poisson_home_goals: number;
   poisson_away_goals: number;
@@ -1498,10 +1499,11 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
     if (pick) { finalThirdPicks[r32m.num] = pick.group; usedGroups.add(pick.group); }
   }
 
-  // Compute real winners from completed R32 knockout matches in DB
+  // Compute real winners from completed R32 knockout matches in DB.
+  // For draws decided by penalties, uses penalty_winner from DB (shootouts.csv).
   const realWinners: Record<string, string> = {};
   for (const m of knockoutFromDB) {
-    if (!m.actual_result || m.actual_result === 'D') continue;
+    if (!m.actual_result) continue;
     for (const r32m of R32_MATCHES) {
       const mid = `R32-${r32m.num}`;
       if (realWinners[mid]) continue;
@@ -1513,6 +1515,7 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
       if (!homeMatchesA && !homeMatchesB) continue;
       if (m.actual_result === 'H') realWinners[mid] = m.home_team;
       else if (m.actual_result === 'A') realWinners[mid] = m.away_team;
+      else if (m.actual_result === 'D' && m.penalty_winner) realWinners[mid] = m.penalty_winner;
       break;
     }
   }

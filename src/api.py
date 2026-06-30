@@ -700,6 +700,7 @@ def get_wc2026_all_matches():
             m.home_goals,
             m.away_goals,
             m.fulltime_result AS actual_result,
+            m.penalty_winner,
 
             pp.expected_home_goals AS poisson_home_goals,
             pp.expected_away_goals AS poisson_away_goals,

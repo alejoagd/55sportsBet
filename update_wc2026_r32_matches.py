@@ -26,6 +26,10 @@ RESULTS_CSV_URL = (
     "https://raw.githubusercontent.com/martj42/international_results"
     "/master/results.csv"
 )
+SHOOTOUTS_CSV_URL = (
+    "https://raw.githubusercontent.com/martj42/international_results"
+    "/master/shootouts.csv"
+)
 
 # ── Normalización de nombres ──────────────────────────────────────────────────
 CSV_TO_DB: dict[str, str] = {
@@ -72,6 +76,64 @@ def _fulltime_result(hg: int, ag: int) -> str:
     if hg > ag: return "H"
     if ag > hg: return "A"
     return "D"
+
+
+def fetch_shootout_winners() -> dict[tuple, str]:
+    """Returns {(date, home_db, away_db): winner_db} for WC2026 knockout shootouts."""
+    try:
+        resp = requests.get(SHOOTOUTS_CSV_URL, timeout=30)
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"   ⚠️  Error descargando shootouts.csv: {e}")
+        return {}
+
+    reader = csv.DictReader(io.StringIO(resp.text))
+    result: dict[tuple, str] = {}
+    for row in reader:
+        date       = row.get("date", "")
+        if date < WC_R32_START:
+            continue
+        home_raw   = row.get("home_team", "").strip()
+        away_raw   = row.get("away_team", "").strip()
+        winner_raw = row.get("winner", "").strip()
+        home_db   = normalize(home_raw)
+        away_db   = normalize(away_raw)
+        winner_db = normalize(winner_raw)
+        if not home_db or not away_db or not winner_db:
+            print(f"   ⚠️  Shootout no mapeado: '{home_raw}' vs '{away_raw}' → '{winner_raw}'")
+            continue
+        # Store both orderings so we match regardless of how teams are stored in DB
+        result[(date, home_db, away_db)] = winner_db
+        result[(date, away_db, home_db)] = winner_db
+    print(f"   Shootouts WC 2026 en CSV: {len(result) // 2 if result else 0}")
+    return result
+
+
+def update_penalty_winners(conn, shootout_winners: dict[tuple, str], dry_run: bool) -> int:
+    """Updates penalty_winner column in matches for shootout-decided games."""
+    if not shootout_winners:
+        return 0
+    rows = conn.execute(text("""
+        SELECT m.id, m.date::text, th.name AS home_team, ta.name AS away_team
+          FROM matches m
+          JOIN teams th ON th.id = m.home_team_id
+          JOIN teams ta ON ta.id = m.away_team_id
+         WHERE m.season_id = :sid AND m.date >= :start
+    """), {"sid": WC_2026_SEASON_ID, "start": WC_R32_START}).fetchall()
+
+    updated = 0
+    for r in rows:
+        winner = shootout_winners.get((r.date, r.home_team, r.away_team))
+        if not winner:
+            continue
+        label = "[DRY]" if dry_run else "🎯"
+        print(f"   {label} penalty winner: {winner} ({r.home_team} vs {r.away_team} {r.date})")
+        if not dry_run:
+            conn.execute(text(
+                "UPDATE matches SET penalty_winner=:w WHERE id=:mid"
+            ), {"w": winner, "mid": r.id})
+        updated += 1
+    return updated
 
 
 # ── Descargar partidos knockout jugados ───────────────────────────────────────
@@ -222,8 +284,14 @@ def main(dry_run: bool = False) -> None:
     mode = "DRY RUN" if dry_run else "ACTUALIZANDO BD"
     print("=" * 60)
     print(f"  WC 2026 Octavos de Final — {mode}")
-    print(f"  Fuente: martj42/international_results (results.csv)")
+    print(f"  Fuente: martj42/international_results (results.csv + shootouts.csv)")
     print("=" * 60)
+
+    # Ensure penalty_winner column exists
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS penalty_winner TEXT"
+        ))
 
     matches = fetch_knockout_matches()
 
@@ -235,10 +303,20 @@ def main(dry_run: bool = False) -> None:
     with engine.begin() as conn:
         inserted, updated, skipped = process(conn, matches, dry_run)
 
+    print(f"\n📥 Descargando shootouts.csv...")
+    shootout_winners = fetch_shootout_winners()
+    if shootout_winners:
+        print(f"\n🔄 Actualizando penalty winners...\n")
+        with engine.begin() as conn:
+            pen_updated = update_penalty_winners(conn, shootout_winners, dry_run)
+    else:
+        pen_updated = 0
+
     print(f"\n{'=' * 60}")
-    print(f"  Insertados  : {inserted}")
-    print(f"  Actualizados: {updated}")
-    print(f"  Ya existían : {skipped}")
+    print(f"  Insertados      : {inserted}")
+    print(f"  Actualizados    : {updated}")
+    print(f"  Ya existían     : {skipped}")
+    print(f"  Penalty winners : {pen_updated}")
     if dry_run:
         print("  (Dry run — nada fue modificado)")
     print("=" * 60)
