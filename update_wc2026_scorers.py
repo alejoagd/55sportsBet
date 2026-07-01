@@ -1,11 +1,12 @@
 """
 update_wc2026_scorers.py
 Descarga anotadores del Mundial 2026 desde martj42/international_results
-y enriquece con asistidores desde ESPN (misma fuente que match stats).
+y enriquece con asistidores desde FotMob (fuente primaria) o ESPN (fallback).
 
 FUENTES:
   1. martj42 goalscorers.csv  — anotador, minuto, autogol, penal
-  2. ESPN summary?event={id}  — asistidor (via scoringPlays.participants)
+  2. FotMob matchDetails       — asistidores (fuente primaria, más completa)
+  3. ESPN summary?event={id}  — asistidor ESPN (fallback via scoringPlays)
 
 Uso:
   python update_wc2026_scorers.py
@@ -29,8 +30,10 @@ GOALSCORERS_CSV_URL = (
     "https://raw.githubusercontent.com/martj42/international_results"
     "/master/goalscorers.csv"
 )
-ESPN_BASE   = "https://site.api.espn.com/apis/site/v2/sports/soccer"
-ESPN_LEAGUE = "fifa.world"
+ESPN_BASE    = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+ESPN_LEAGUE  = "fifa.world"
+FOTMOB_BASE  = "https://www.fotmob.com/api"
+FOTMOB_WC_ID = 77
 
 HEADERS = {
     "User-Agent": (
@@ -259,10 +262,100 @@ def fetch_espn_boxscore_assists(espn_event_id: int) -> dict[str, dict]:
     return result
 
 
+def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) -> dict[str, dict]:
+    """
+    Obtiene asistidores de gol para un partido específico desde FotMob.
+    FotMob tiene mejor cobertura de asistencias que ESPN para el Mundial.
+    Retorna {player_name: {"team": team, "assists": count}}
+    """
+    compact = date_str.replace("-", "")
+    try:
+        data = requests.get(
+            f"{FOTMOB_BASE}/matches", params={"date": compact},
+            headers=HEADERS, timeout=20
+        ).json()
+    except Exception:
+        return {}
+
+    fotmob_id = None
+    home_id = away_id = None
+    home_name_fm = away_name_fm = ""
+
+    for league in data.get("leagues", []):
+        lid  = league.get("id")
+        name = league.get("name", "").lower()
+        if "world cup" not in name and lid != FOTMOB_WC_ID:
+            continue
+        for match in league.get("matches", []):
+            h_raw = match.get("home", {}).get("name", "")
+            a_raw = match.get("away", {}).get("name", "")
+            h_db  = normalize(h_raw) or h_raw
+            a_db  = normalize(a_raw) or a_raw
+            if h_db == home_team and a_db == away_team:
+                fotmob_id    = match.get("id")
+                home_id      = match.get("home", {}).get("id")
+                away_id      = match.get("away", {}).get("id")
+                home_name_fm = h_db
+                away_name_fm = a_db
+                break
+        if fotmob_id:
+            break
+
+    if not fotmob_id:
+        return {}
+
+    try:
+        detail = requests.get(
+            f"{FOTMOB_BASE}/matchDetails", params={"matchId": fotmob_id},
+            headers=HEADERS, timeout=20
+        ).json()
+    except Exception:
+        return {}
+
+    # Mapa teamId → nombre de equipo normalizado
+    general = detail.get("general", {})
+    team_map: dict[int, str] = {}
+    for side, db_name in [("homeTeam", home_name_fm), ("awayTeam", away_name_fm)]:
+        tid = general.get(side, {}).get("id")
+        if tid:
+            team_map[tid] = db_name
+
+    events = detail.get("content", {}).get("events", {}).get("Events", [])
+    result: dict[str, dict] = {}
+
+    for ev in events:
+        ev_type = str(ev.get("type", "")).lower()
+        if "goal" not in ev_type:
+            continue
+        if ev.get("isOwnGoal"):
+            continue
+
+        # Asistidor: FotMob puede usar "assist" como dict o string
+        assist_obj = ev.get("assist")
+        assist_name: str | None = None
+        if isinstance(assist_obj, dict):
+            assist_name = assist_obj.get("playerName") or assist_obj.get("name")
+        elif isinstance(assist_obj, str) and assist_obj:
+            assist_name = assist_obj
+
+        if not assist_name:
+            continue
+
+        scoring_team_id = ev.get("teamId")
+        team = team_map.get(scoring_team_id, home_team)
+
+        if assist_name not in result:
+            result[assist_name] = {"team": team, "assists": 0}
+        result[assist_name]["assists"] += 1
+
+    return result
+
+
 def build_tournament_assists(conn) -> list[dict]:
     """
-    Recorre todos los partidos completados con ESPN ID y agrega asistencias
-    desde el boxscore de cada partido.
+    Recorre TODOS los partidos WC 2026 completados y agrega asistencias.
+    Fuente primaria: FotMob (cobertura completa).
+    Fallback por partido: ESPN boxscore (si hay sofascore_id).
     Retorna [{player, team, assists}, ...] ordenado desc.
     """
     rows = conn.execute(text("""
@@ -273,20 +366,30 @@ def build_tournament_assists(conn) -> list[dict]:
           JOIN teams ta ON ta.id = m.away_team_id
          WHERE m.season_id = :sid
            AND m.home_goals IS NOT NULL
-           AND m.sofascore_id IS NOT NULL
          ORDER BY m.date
     """), {"sid": WC_2026_SEASON_ID}).fetchall()
 
     totals: dict[str, dict] = {}  # {player_name: {"team": str, "assists": int}}
 
-    print(f"   Procesando boxscore de {len(rows)} partidos con ESPN ID...")
+    print(f"   Procesando {len(rows)} partidos completados (FotMob primario, ESPN fallback)...")
     for r in rows:
-        match_assists = fetch_espn_boxscore_assists(int(r.espn_id))
+        # Intentar FotMob primero (mejor cobertura de asistencias)
+        match_assists = fetch_fotmob_match_assists(r.date, r.home_team, r.away_team)
+        source = "FotMob"
+
+        # Fallback a ESPN boxscore si FotMob no tiene datos
+        if not match_assists and r.espn_id:
+            match_assists = fetch_espn_boxscore_assists(int(r.espn_id))
+            source = "ESPN"
+
+        if match_assists:
+            print(f"      [{source}] {r.home_team} vs {r.away_team} ({r.date}): {len(match_assists)} asistidor(es)")
+
         for player, info in match_assists.items():
             if player not in totals:
                 totals[player] = {"team": info["team"], "assists": 0}
             totals[player]["assists"] += info["assists"]
-        time.sleep(0.3)
+        time.sleep(0.4)
 
     result = [
         {"player": p, "team": d["team"], "assists": d["assists"]}
