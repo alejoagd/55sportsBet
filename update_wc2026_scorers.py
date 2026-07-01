@@ -223,72 +223,79 @@ def fetch_espn_assists(espn_event_id: int) -> dict[int, list[str]]:
     return assists
 
 
-ESPN_LEADERS_URL = (
-    "https://sports.core.api.espn.com/v2/sports/soccer"
-    "/leagues/fifa.world/seasons/2026/types/3/leaders"
-)
-
-
-def fetch_espn_tournament_assists() -> list[dict]:
+def fetch_espn_boxscore_assists(espn_event_id: int) -> dict[str, dict]:
     """
-    Descarga líderes de asistencias del torneo desde ESPN Core API.
-    Retorna [{player, team, assists}, ...] ordenado por asistencias desc.
-    Los datos de ESPN vienen con $ref; los seguimos para obtener nombres.
+    Parsea el boxscore.players de ESPN para un partido específico.
+    Retorna {player_name: {"team": team, "assists": n}} para jugadores con asistencias.
+    Esta sección tiene stats tabulares por jugador, más completa que scoringPlays.
     """
+    url = f"{ESPN_BASE}/{ESPN_LEAGUE}/summary"
     try:
-        resp = requests.get(
-            ESPN_LEADERS_URL,
-            headers=HEADERS,
-            params={"limit": 200},
-            timeout=20,
-        )
+        resp = requests.get(url, headers=HEADERS, params={"event": espn_event_id}, timeout=20)
         resp.raise_for_status()
         data = resp.json()
-    except Exception as e:
-        print(f"   ⚠️  ESPN leaders error: {e}")
-        return []
+    except Exception:
+        return {}
 
-    for cat in data.get("categories", []):
-        if "assist" not in cat.get("name", "").lower():
-            continue
-
-        result: list[dict] = []
-        for entry in cat.get("leaders", []):
-            value = int(entry.get("value", 0))
-            if value < 1:
+    result: dict[str, dict] = {}
+    for team_block in data.get("boxscore", {}).get("players", []):
+        team_name = team_block.get("team", {}).get("displayName", "")
+        for stat_block in team_block.get("statistics", []):
+            keys = stat_block.get("keys", [])
+            if "assists" not in keys:
                 continue
-
-            athlete_ref = entry.get("athlete", {})
-            team_ref    = entry.get("team", {})
-
-            # Obtener nombre del jugador (directo o via $ref)
-            player_name = athlete_ref.get("displayName", "")
-            if not player_name and "$ref" in athlete_ref:
+            assists_idx = keys.index("assists")
+            for athlete_entry in stat_block.get("athletes", []):
+                player_name = athlete_entry.get("athlete", {}).get("displayName", "")
+                stats = athlete_entry.get("stats", [])
+                if not player_name or assists_idx >= len(stats):
+                    continue
                 try:
-                    ar = requests.get(athlete_ref["$ref"], headers=HEADERS, timeout=10)
-                    player_name = ar.json().get("displayName", "")
-                    time.sleep(0.1)
-                except Exception:
-                    pass
+                    n = int(stats[assists_idx])
+                except (ValueError, TypeError):
+                    n = 0
+                if n > 0:
+                    result[player_name] = {"team": team_name, "assists": n}
+    return result
 
-            # Obtener nombre del equipo (directo o via $ref)
-            team_name = team_ref.get("displayName", "")
-            if not team_name and "$ref" in team_ref:
-                try:
-                    tr = requests.get(team_ref["$ref"], headers=HEADERS, timeout=10)
-                    team_name = tr.json().get("displayName", "")
-                    time.sleep(0.1)
-                except Exception:
-                    pass
 
-            if player_name:
-                result.append({"player": player_name, "team": team_name, "assists": value})
+def build_tournament_assists(conn) -> list[dict]:
+    """
+    Recorre todos los partidos completados con ESPN ID y agrega asistencias
+    desde el boxscore de cada partido.
+    Retorna [{player, team, assists}, ...] ordenado desc.
+    """
+    rows = conn.execute(text("""
+        SELECT m.sofascore_id AS espn_id,
+               th.name AS home_team, ta.name AS away_team, m.date::text
+          FROM matches m
+          JOIN teams th ON th.id = m.home_team_id
+          JOIN teams ta ON ta.id = m.away_team_id
+         WHERE m.season_id = :sid
+           AND m.home_goals IS NOT NULL
+           AND m.sofascore_id IS NOT NULL
+         ORDER BY m.date
+    """), {"sid": WC_2026_SEASON_ID}).fetchall()
 
-        print(f"   ESPN tournament assists: {len(result)} jugadores")
-        return result
+    totals: dict[str, dict] = {}  # {player_name: {"team": str, "assists": int}}
 
-    print("   ESPN leaders: categoria 'assists' no encontrada en la respuesta")
-    return []
+    print(f"   Procesando boxscore de {len(rows)} partidos con ESPN ID...")
+    for r in rows:
+        match_assists = fetch_espn_boxscore_assists(int(r.espn_id))
+        for player, info in match_assists.items():
+            if player not in totals:
+                totals[player] = {"team": info["team"], "assists": 0}
+            totals[player]["assists"] += info["assists"]
+        time.sleep(0.3)
+
+    result = [
+        {"player": p, "team": d["team"], "assists": d["assists"]}
+        for p, d in totals.items()
+        if d["assists"] > 0
+    ]
+    result.sort(key=lambda x: (-x["assists"], x["player"]))
+    print(f"   Total asistidores encontrados: {len(result)}")
+    return result
 
 
 # ── Almacenar en BD ───────────────────────────────────────────────────────────
@@ -405,16 +412,6 @@ def store_scorers(conn, events: list[dict], dry_run: bool = False) -> int:
     return inserted, updated
 
 
-def store_tournament_assists(conn, assists_map: dict[str, str], dry_run: bool) -> int:
-    """Guarda los totales acumulados de asistencias en wc_player_stats."""
-    if not assists_map:
-        return 0
-
-    # Contar asistencias por jugador desde los líderes
-    # assists_map = {player_name: team} pero necesitamos el count
-    # Viene de fetch_espn_tournament_assists que ya incluye el value
-    return 0  # placeholder — replaced below
-
 
 def store_tournament_stats(conn, leaders: list[dict], dry_run: bool) -> int:
     """
@@ -459,15 +456,15 @@ def main(dry_run: bool = False) -> None:
         print(f"\n💾 Almacenando en BD...")
         inserted, updated = store_scorers(conn, events, dry_run)
 
-    # Intentar ESPN tournament leaders para asistencias acumuladas
-    print(f"\n🎯 Descargando líderes de asistencias del torneo desde ESPN...")
-    leaders = fetch_espn_tournament_assists()
+    # Agregar asistencias desde boxscore ESPN (partido a partido)
+    print(f"\n🎯 Agregando asistencias desde boxscore ESPN (partido a partido)...")
+    with engine.begin() as conn:
+        leaders = build_tournament_assists(conn)
     if leaders:
         with engine.begin() as conn:
             upserted = store_tournament_stats(conn, leaders, dry_run)
-        print(f"   Jugadores actualizados en wc_player_stats: {upserted}")
     else:
-        print("   Sin datos del endpoint de líderes (se usará scoringPlays como fallback)")
+        print("   Sin datos de boxscore disponibles")
         upserted = 0
 
     print(f"\n{'=' * 60}")
