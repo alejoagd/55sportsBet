@@ -99,10 +99,21 @@ def ensure_tables(conn) -> None:
             UNIQUE(match_id, team, player_name, minute)
         )
     """))
-    # Columna assist_player por si la tabla existía antes sin ella
     conn.execute(text(
         "ALTER TABLE wc_scoring_events ADD COLUMN IF NOT EXISTS assist_player TEXT"
     ))
+    # Tabla para totales acumulados de jugadores (de ESPN leaders)
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS wc_player_stats (
+            id          SERIAL PRIMARY KEY,
+            player_name TEXT NOT NULL UNIQUE,
+            team        TEXT,
+            goals       INTEGER DEFAULT 0,
+            assists     INTEGER DEFAULT 0,
+            source      TEXT DEFAULT 'espn_leaders',
+            updated_at  TIMESTAMP DEFAULT NOW()
+        )
+    """))
 
 
 # ── martj42: anotadores ───────────────────────────────────────────────────────
@@ -210,6 +221,74 @@ def fetch_espn_assists(espn_event_id: int) -> dict[int, list[str]]:
         _parse_plays(data.get("keyEvents", []))
 
     return assists
+
+
+ESPN_LEADERS_URL = (
+    "https://sports.core.api.espn.com/v2/sports/soccer"
+    "/leagues/fifa.world/seasons/2026/types/3/leaders"
+)
+
+
+def fetch_espn_tournament_assists() -> list[dict]:
+    """
+    Descarga líderes de asistencias del torneo desde ESPN Core API.
+    Retorna [{player, team, assists}, ...] ordenado por asistencias desc.
+    Los datos de ESPN vienen con $ref; los seguimos para obtener nombres.
+    """
+    try:
+        resp = requests.get(
+            ESPN_LEADERS_URL,
+            headers=HEADERS,
+            params={"limit": 200},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        print(f"   ⚠️  ESPN leaders error: {e}")
+        return []
+
+    for cat in data.get("categories", []):
+        if "assist" not in cat.get("name", "").lower():
+            continue
+
+        result: list[dict] = []
+        for entry in cat.get("leaders", []):
+            value = int(entry.get("value", 0))
+            if value < 1:
+                continue
+
+            athlete_ref = entry.get("athlete", {})
+            team_ref    = entry.get("team", {})
+
+            # Obtener nombre del jugador (directo o via $ref)
+            player_name = athlete_ref.get("displayName", "")
+            if not player_name and "$ref" in athlete_ref:
+                try:
+                    ar = requests.get(athlete_ref["$ref"], headers=HEADERS, timeout=10)
+                    player_name = ar.json().get("displayName", "")
+                    time.sleep(0.1)
+                except Exception:
+                    pass
+
+            # Obtener nombre del equipo (directo o via $ref)
+            team_name = team_ref.get("displayName", "")
+            if not team_name and "$ref" in team_ref:
+                try:
+                    tr = requests.get(team_ref["$ref"], headers=HEADERS, timeout=10)
+                    team_name = tr.json().get("displayName", "")
+                    time.sleep(0.1)
+                except Exception:
+                    pass
+
+            if player_name:
+                result.append({"player": player_name, "team": team_name, "assists": value})
+
+        print(f"   ESPN tournament assists: {len(result)} jugadores")
+        return result
+
+    print("   ESPN leaders: categoria 'assists' no encontrada en la respuesta")
+    return []
 
 
 # ── Almacenar en BD ───────────────────────────────────────────────────────────
@@ -326,6 +405,41 @@ def store_scorers(conn, events: list[dict], dry_run: bool = False) -> int:
     return inserted, updated
 
 
+def store_tournament_assists(conn, assists_map: dict[str, str], dry_run: bool) -> int:
+    """Guarda los totales acumulados de asistencias en wc_player_stats."""
+    if not assists_map:
+        return 0
+
+    # Contar asistencias por jugador desde los líderes
+    # assists_map = {player_name: team} pero necesitamos el count
+    # Viene de fetch_espn_tournament_assists que ya incluye el value
+    return 0  # placeholder — replaced below
+
+
+def store_tournament_stats(conn, leaders: list[dict], dry_run: bool) -> int:
+    """
+    Guarda la lista de líderes en wc_player_stats.
+    leaders = [{"player": name, "team": team, "assists": n}, ...]
+    """
+    if not leaders:
+        return 0
+    upserted = 0
+    for entry in leaders:
+        label = "[DRY]" if dry_run else "ok"
+        print(f"   [{label}] {entry['player']} ({entry['team']}) — {entry['assists']} asist.")
+        if not dry_run:
+            conn.execute(text("""
+                INSERT INTO wc_player_stats (player_name, team, assists, source, updated_at)
+                VALUES (:p, :t, :a, 'espn_leaders', NOW())
+                ON CONFLICT (player_name) DO UPDATE SET
+                    assists    = EXCLUDED.assists,
+                    team       = EXCLUDED.team,
+                    updated_at = NOW()
+            """), {"p": entry["player"], "t": entry["team"], "a": entry["assists"]})
+        upserted += 1
+    return upserted
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main(dry_run: bool = False) -> None:
@@ -345,9 +459,21 @@ def main(dry_run: bool = False) -> None:
         print(f"\n💾 Almacenando en BD...")
         inserted, updated = store_scorers(conn, events, dry_run)
 
+    # Intentar ESPN tournament leaders para asistencias acumuladas
+    print(f"\n🎯 Descargando líderes de asistencias del torneo desde ESPN...")
+    leaders = fetch_espn_tournament_assists()
+    if leaders:
+        with engine.begin() as conn:
+            upserted = store_tournament_stats(conn, leaders, dry_run)
+        print(f"   Jugadores actualizados en wc_player_stats: {upserted}")
+    else:
+        print("   Sin datos del endpoint de líderes (se usará scoringPlays como fallback)")
+        upserted = 0
+
     print(f"\n{'=' * 60}")
-    print(f"  Eventos nuevos insertados : {inserted}")
+    print(f"  Goles nuevos insertados   : {inserted}")
     print(f"  Asistencias actualizadas  : {updated}")
+    print(f"  Líderes (acumulado ESPN)  : {upserted}")
     if dry_run:
         print("  (Dry run — nada fue modificado)")
     print("=" * 60)

@@ -1,5 +1,6 @@
 # api.py
 from __future__ import annotations
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, APIRouter, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List, Dict, Any
@@ -14,17 +15,19 @@ import xml.etree.ElementTree as ET
 import requests as http_requests
 from pydantic import BaseModel
 
-app = FastAPI(title="Predictions API")
 
-
-@app.on_event("startup")
-def run_migrations():
-    """Ensure all incremental DB columns exist before serving any request."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run incremental DB migrations before serving any request."""
     _engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True)
     with _engine.begin() as conn:
         conn.execute(text(
             "ALTER TABLE matches ADD COLUMN IF NOT EXISTS penalty_winner TEXT"
         ))
+    yield
+
+
+app = FastAPI(title="Predictions API", lifespan=lifespan)
 
 # CORS dev-friendly
 app.add_middleware(
@@ -887,29 +890,51 @@ def get_wc2026_top_scorers():
 
 @router.get("/api/wc2026/top-assisters")
 def get_wc2026_top_assisters():
-    """Top assisters for WC 2026 (from ESPN data enrichment)."""
+    """
+    Top assisters for WC 2026.
+    Prioriza wc_player_stats (ESPN tournament leaders, datos acumulados precisos).
+    Fallback a wc_scoring_events (per-match, cobertura parcial de ESPN).
+    """
     with engine.begin() as conn:
-        rows = conn.execute(text("""
-            SELECT
-                assist_player  AS player_name,
-                se.team,
-                COUNT(*)       AS assists,
-                ARRAY_AGG(se.minute ORDER BY se.minute) AS minutes
-            FROM wc_scoring_events se
-            WHERE assist_player IS NOT NULL
-              AND assist_player <> ''
-              AND NOT is_own_goal
-            GROUP BY assist_player, se.team
-            ORDER BY assists DESC, player_name
-        """)).mappings().fetchall()
+        # Intentar primero la tabla de líderes del torneo (más precisa)
+        try:
+            leaders = conn.execute(text("""
+                SELECT player_name, team, assists
+                FROM wc_player_stats
+                WHERE assists > 0
+                ORDER BY assists DESC, player_name
+            """)).mappings().fetchall()
+        except Exception:
+            leaders = []
+
+        if leaders:
+            return [
+                {"player": r["player_name"], "team": r["team"],
+                 "assists": r["assists"], "minutes": []}
+                for r in leaders
+            ]
+
+        # Fallback: agregar desde eventos individuales
+        try:
+            rows = conn.execute(text("""
+                SELECT
+                    assist_player AS player_name,
+                    MODE() WITHIN GROUP (ORDER BY se.team) AS team,
+                    COUNT(*)      AS assists,
+                    ARRAY_AGG(se.minute ORDER BY se.minute) AS minutes
+                FROM wc_scoring_events se
+                WHERE assist_player IS NOT NULL
+                  AND assist_player <> ''
+                  AND NOT is_own_goal
+                GROUP BY assist_player
+                ORDER BY assists DESC, player_name
+            """)).mappings().fetchall()
+        except Exception:
+            rows = []
 
     return [
-        {
-            "player":  r["player_name"],
-            "team":    r["team"],
-            "assists": r["assists"],
-            "minutes": r["minutes"] or [],
-        }
+        {"player": r["player_name"], "team": r["team"],
+         "assists": r["assists"], "minutes": r["minutes"] or []}
         for r in rows
     ]
 
