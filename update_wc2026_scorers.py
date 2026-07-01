@@ -262,7 +262,34 @@ def fetch_espn_boxscore_assists(espn_event_id: int) -> dict[str, dict]:
     return result
 
 
-def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) -> dict[str, dict]:
+def _fotmob_assist_name(ev: dict) -> str | None:
+    """Extrae nombre del asistidor de un evento FotMob (prueba múltiples campos)."""
+    # Intento 1: campo "assist" como dict o string
+    assist_obj = ev.get("assist")
+    if isinstance(assist_obj, dict):
+        name = assist_obj.get("playerName") or assist_obj.get("name")
+        if name:
+            return name
+    elif isinstance(assist_obj, str) and assist_obj:
+        return assist_obj
+
+    # Intento 2: campos directos alternativos
+    for key in ("assistStr", "assistPlayerName", "assistedByPlayerName",
+                "assist_player", "assistName"):
+        val = ev.get(key)
+        if val and isinstance(val, str):
+            return val
+
+    # Intento 3: campo "assistedBy" como dict
+    ab = ev.get("assistedBy")
+    if isinstance(ab, dict):
+        return ab.get("playerName") or ab.get("name")
+
+    return None
+
+
+def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str,
+                               debug: bool = False) -> dict[str, dict]:
     """
     Obtiene asistidores de gol para un partido específico desde FotMob.
     FotMob tiene mejor cobertura de asistencias que ESPN para el Mundial.
@@ -274,11 +301,12 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) ->
             f"{FOTMOB_BASE}/matches", params={"date": compact},
             headers=HEADERS, timeout=20
         ).json()
-    except Exception:
+    except Exception as e:
+        if debug:
+            print(f"      [FotMob] Error en /matches: {e}")
         return {}
 
     fotmob_id = None
-    home_id = away_id = None
     home_name_fm = away_name_fm = ""
 
     for league in data.get("leagues", []):
@@ -293,8 +321,6 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) ->
             a_db  = normalize(a_raw) or a_raw
             if h_db == home_team and a_db == away_team:
                 fotmob_id    = match.get("id")
-                home_id      = match.get("home", {}).get("id")
-                away_id      = match.get("away", {}).get("id")
                 home_name_fm = h_db
                 away_name_fm = a_db
                 break
@@ -302,6 +328,8 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) ->
             break
 
     if not fotmob_id:
+        if debug:
+            print(f"      [FotMob] Partido no encontrado: {home_team} vs {away_team} ({date_str})")
         return {}
 
     try:
@@ -309,7 +337,9 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) ->
             f"{FOTMOB_BASE}/matchDetails", params={"matchId": fotmob_id},
             headers=HEADERS, timeout=20
         ).json()
-    except Exception:
+    except Exception as e:
+        if debug:
+            print(f"      [FotMob] Error en /matchDetails id={fotmob_id}: {e}")
         return {}
 
     # Mapa teamId → nombre de equipo normalizado
@@ -320,29 +350,38 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str) ->
         if tid:
             team_map[tid] = db_name
 
-    events = detail.get("content", {}).get("events", {}).get("Events", [])
+    # Intentar múltiples paths donde FotMob puede poner los eventos
+    content = detail.get("content", {})
+    events: list[dict] = (
+        content.get("events", {}).get("Events", [])
+        or content.get("incidents", [])
+        or detail.get("header", {}).get("events", {}).get("events", [])
+    )
+
+    if debug and not events:
+        print(f"      [FotMob DEBUG] id={fotmob_id} — sin eventos. content keys: {list(content.keys())}")
+
     result: dict[str, dict] = {}
 
     for ev in events:
-        ev_type = str(ev.get("type", "")).lower()
-        if "goal" not in ev_type:
+        ev_type = ev.get("type", "")
+        # FotMob puede usar string ("Goal"), código numérico (41) o dict
+        if isinstance(ev_type, int):
+            is_goal = ev_type in (41, 42, 43)
+        else:
+            is_goal = "goal" in str(ev_type).lower()
+
+        if not is_goal:
             continue
-        if ev.get("isOwnGoal"):
+        if ev.get("isOwnGoal") or ev.get("ownGoal"):
             continue
 
-        # Asistidor: FotMob puede usar "assist" como dict o string
-        assist_obj = ev.get("assist")
-        assist_name: str | None = None
-        if isinstance(assist_obj, dict):
-            assist_name = assist_obj.get("playerName") or assist_obj.get("name")
-        elif isinstance(assist_obj, str) and assist_obj:
-            assist_name = assist_obj
-
+        assist_name = _fotmob_assist_name(ev)
         if not assist_name:
             continue
 
         scoring_team_id = ev.get("teamId")
-        team = team_map.get(scoring_team_id, home_team)
+        team = team_map.get(scoring_team_id, home_name_fm)
 
         if assist_name not in result:
             result[assist_name] = {"team": team, "assists": 0}
@@ -371,10 +410,11 @@ def build_tournament_assists(conn) -> list[dict]:
 
     totals: dict[str, dict] = {}  # {player_name: {"team": str, "assists": int}}
 
+    # debug=True en las primeras 3 partidos para diagnosticar estructura FotMob
     print(f"   Procesando {len(rows)} partidos completados (FotMob primario, ESPN fallback)...")
-    for r in rows:
+    for idx, r in enumerate(rows):
         # Intentar FotMob primero (mejor cobertura de asistencias)
-        match_assists = fetch_fotmob_match_assists(r.date, r.home_team, r.away_team)
+        match_assists = fetch_fotmob_match_assists(r.date, r.home_team, r.away_team, debug=(idx < 3))
         source = "FotMob"
 
         # Fallback a ESPN boxscore si FotMob no tiene datos
