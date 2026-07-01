@@ -226,11 +226,10 @@ def fetch_espn_assists(espn_event_id: int) -> dict[int, list[str]]:
     return assists
 
 
-def fetch_espn_boxscore_assists(espn_event_id: int) -> dict[str, dict]:
+def fetch_espn_boxscore_assists(espn_event_id: int, debug: bool = False) -> dict[str, dict]:
     """
     Parsea el boxscore.players de ESPN para un partido específico.
     Retorna {player_name: {"team": team, "assists": n}} para jugadores con asistencias.
-    Esta sección tiene stats tabulares por jugador, más completa que scoringPlays.
     """
     url = f"{ESPN_BASE}/{ESPN_LEAGUE}/summary"
     try:
@@ -241,13 +240,19 @@ def fetch_espn_boxscore_assists(espn_event_id: int) -> dict[str, dict]:
         return {}
 
     result: dict[str, dict] = {}
+    all_seen_keys: list[str] = []
+
     for team_block in data.get("boxscore", {}).get("players", []):
         team_name = team_block.get("team", {}).get("displayName", "")
         for stat_block in team_block.get("statistics", []):
             keys = stat_block.get("keys", [])
-            if "assists" not in keys:
+            all_seen_keys.extend(keys)
+            # Búsqueda case-insensitive de cualquier key que contenga "assist"
+            assists_idx = next(
+                (i for i, k in enumerate(keys) if "assist" in k.lower()), None
+            )
+            if assists_idx is None:
                 continue
-            assists_idx = keys.index("assists")
             for athlete_entry in stat_block.get("athletes", []):
                 player_name = athlete_entry.get("athlete", {}).get("displayName", "")
                 stats = athlete_entry.get("stats", [])
@@ -259,6 +264,11 @@ def fetch_espn_boxscore_assists(espn_event_id: int) -> dict[str, dict]:
                     n = 0
                 if n > 0:
                     result[player_name] = {"team": team_name, "assists": n}
+
+    if debug:
+        unique_keys = sorted(set(all_seen_keys))
+        print(f"      [ESPN boxscore] event={espn_event_id} keys={unique_keys} assists_found={len(result)}")
+
     return result
 
 
@@ -392,9 +402,8 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str,
 
 def build_tournament_assists(conn) -> list[dict]:
     """
-    Recorre TODOS los partidos WC 2026 completados y agrega asistencias.
-    Fuente primaria: FotMob (cobertura completa).
-    Fallback por partido: ESPN boxscore (si hay sofascore_id).
+    Agrega asistencias de todos los partidos WC 2026 completados con ESPN ID.
+    Fuente: ESPN boxscore (partido a partido).
     Retorna [{player, team, assists}, ...] ordenado desc.
     """
     rows = conn.execute(text("""
@@ -405,31 +414,23 @@ def build_tournament_assists(conn) -> list[dict]:
           JOIN teams ta ON ta.id = m.away_team_id
          WHERE m.season_id = :sid
            AND m.home_goals IS NOT NULL
+           AND m.sofascore_id IS NOT NULL
          ORDER BY m.date
     """), {"sid": WC_2026_SEASON_ID}).fetchall()
 
-    totals: dict[str, dict] = {}  # {player_name: {"team": str, "assists": int}}
+    totals: dict[str, dict] = {}
 
-    # debug=True en las primeras 3 partidos para diagnosticar estructura FotMob
-    print(f"   Procesando {len(rows)} partidos completados (FotMob primario, ESPN fallback)...")
+    # debug=True en los primeros 3 para ver llaves del boxscore ESPN
+    print(f"   Procesando {len(rows)} partidos con ESPN ID...")
     for idx, r in enumerate(rows):
-        # Intentar FotMob primero (mejor cobertura de asistencias)
-        match_assists = fetch_fotmob_match_assists(r.date, r.home_team, r.away_team, debug=(idx < 3))
-        source = "FotMob"
-
-        # Fallback a ESPN boxscore si FotMob no tiene datos
-        if not match_assists and r.espn_id:
-            match_assists = fetch_espn_boxscore_assists(int(r.espn_id))
-            source = "ESPN"
-
+        match_assists = fetch_espn_boxscore_assists(int(r.espn_id), debug=(idx < 3))
         if match_assists:
-            print(f"      [{source}] {r.home_team} vs {r.away_team} ({r.date}): {len(match_assists)} asistidor(es)")
-
+            print(f"      [ESPN] {r.home_team} vs {r.away_team} ({r.date}): {len(match_assists)} asistidor(es)")
         for player, info in match_assists.items():
             if player not in totals:
                 totals[player] = {"team": info["team"], "assists": 0}
             totals[player]["assists"] += info["assists"]
-        time.sleep(0.4)
+        time.sleep(0.3)
 
     result = [
         {"player": p, "team": d["team"], "assists": d["assists"]}
@@ -437,7 +438,7 @@ def build_tournament_assists(conn) -> list[dict]:
         if d["assists"] > 0
     ]
     result.sort(key=lambda x: (-x["assists"], x["player"]))
-    print(f"   Total asistidores encontrados: {len(result)}")
+    print(f"   Total asistidores ESPN boxscore: {len(result)}")
     return result
 
 
