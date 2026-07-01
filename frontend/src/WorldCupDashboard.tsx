@@ -1105,7 +1105,7 @@ interface ThirdRow {
   confirmed: boolean;
 }
 
-function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: boolean }) {
+function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches: Match[]; loading: boolean; bracketOnly?: boolean }) {
   if (loading) return (
     <div className="text-center py-16 text-slate-500">
       <div className="text-5xl mb-4 animate-pulse">⏳</div>
@@ -1260,8 +1260,8 @@ function RealR32View({ allMatches, loading }: { allMatches: Match[]; loading: bo
         </div>
       )}
 
-      {/* Actual knockout match results (from DB) */}
-      {knockoutFromDB.length > 0 && (
+      {/* Actual knockout match results (from DB) — hidden in bracketOnly mode */}
+      {!bracketOnly && knockoutFromDB.length > 0 && (
         <div>
           <div className="flex items-center gap-3 mb-3">
             <h2 className="text-white font-bold text-lg">Dieciseisavos de Final</h2>
@@ -1569,7 +1569,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
           );
         })()}
 
-        {activeTab === 'bracket' && <RealR32View allMatches={allWcMatches} loading={loadingMatches} />}
+        {activeTab === 'bracket' && <RealR32View allMatches={allWcMatches} loading={loadingMatches} bracketOnly />}
 
         {activeTab === 'stats' && <WC2026StatsModule />}
 
