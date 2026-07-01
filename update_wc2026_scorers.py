@@ -163,10 +163,11 @@ def fetch_scorers_csv() -> list[dict]:
 
 # ── ESPN: asistidores ─────────────────────────────────────────────────────────
 
-def fetch_espn_assists(espn_event_id: int) -> dict[int, str]:
+def fetch_espn_assists(espn_event_id: int) -> dict[int, list[str]]:
     """
-    Devuelve {minute: assister_name} desde ESPN match summary.
-    Intenta 'scoringPlays' primero, luego 'keyEvents'.
+    Devuelve {minute: [assister_name, ...]} desde ESPN match summary.
+    Usa 'scoringPlays' primero, luego 'keyEvents' como fallback.
+    Busca el asistidor por tipo ('Assist') antes de caer en participants[1].
     """
     url = f"{ESPN_BASE}/{ESPN_LEAGUE}/summary"
     try:
@@ -176,23 +177,31 @@ def fetch_espn_assists(espn_event_id: int) -> dict[int, str]:
     except Exception:
         return {}
 
-    assists: dict[int, str] = {}
+    assists: dict[int, list[str]] = {}
 
-    def _parse_plays(plays: list, minute_field: str = "clock") -> None:
+    def _parse_plays(plays: list) -> None:
         for play in plays:
             participants = play.get("participants", [])
-            if len(participants) < 2:
-                continue
-            assister = participants[1].get("athlete", {}).get("displayName", "")
+            # Buscar asistidor por tipo explícito primero
+            assister = None
+            for p in participants:
+                ptype = p.get("type", {}).get("text", "").lower()
+                if "assist" in ptype:
+                    assister = p.get("athlete", {}).get("displayName", "")
+                    break
+            # Fallback: segundo participante si hay más de uno
+            if not assister and len(participants) >= 2:
+                assister = participants[1].get("athlete", {}).get("displayName", "")
             if not assister:
                 continue
-            clock_val = play.get(minute_field, {}).get("value")
+
+            clock_val = play.get("clock", {}).get("value")
             if clock_val is not None:
                 try:
-                    # ESPN clock puede ser segundos o minutos; normalizar
                     val = float(clock_val)
+                    # ESPN puede dar segundos o minutos; normalizar a minutos
                     minute = int(val / 60) if val > 120 else int(val)
-                    assists[minute] = assister
+                    assists.setdefault(minute, []).append(assister)
                 except (ValueError, TypeError):
                     pass
 
@@ -221,12 +230,12 @@ def store_scorers(conn, events: list[dict], dry_run: bool = False) -> int:
         key = (row.date, row.home_team, row.away_team)
         match_lookup[key] = (row.match_id, row.sofascore_id)
 
-    # Eventos ya almacenados para no duplicar
-    existing: set[tuple] = set()
+    # Eventos ya almacenados: {(match_id, player_name, minute): tiene_asistencia}
+    existing: dict[tuple, bool] = {}
     for row in conn.execute(text(
-        "SELECT match_id, player_name, minute FROM wc_scoring_events"
+        "SELECT match_id, player_name, minute, assist_player FROM wc_scoring_events"
     )).fetchall():
-        existing.add((row.match_id, row.player_name, row.minute))
+        existing[(row.match_id, row.player_name, row.minute)] = row.assist_player is not None
 
     # Agrupar eventos CSV por partido
     by_match: dict[tuple, list[dict]] = defaultdict(list)
@@ -247,27 +256,45 @@ def store_scorers(conn, events: list[dict], dry_run: bool = False) -> int:
     if unmapped:
         print(f"   ⚠️  {unmapped} evento(s) sin partido en BD — puede ser fecha sin resultados aún")
 
-    inserted = 0
+    inserted = updated = 0
     for match_key, match_events in by_match.items():
         match_id, espn_id = match_lookup[match_key]
 
         # Intentar conseguir asistidores desde ESPN
-        assists_by_min: dict[int, str] = {}
+        assists_by_min: dict[int, list[str]] = {}
         if espn_id:
             assists_by_min = fetch_espn_assists(int(espn_id))
             time.sleep(0.25)
 
+        # Track which minute-slots of this match have been consumed (para múltiples goles mismo minuto)
+        minute_cursor: dict[int, int] = {}
+
         for ev in match_events:
             key3 = (match_id, ev["player_name"], ev["minute"])
-            if key3 in existing:
+            already_has_assist = existing.get(key3)  # True/False/None
+
+            # Obtener asistencia para este minuto (soporte para múltiples goles mismo minuto)
+            assist: str | None = None
+            if ev["minute"] is not None and ev["minute"] in assists_by_min:
+                candidates = assists_by_min[ev["minute"]]
+                idx = minute_cursor.get(ev["minute"], 0)
+                if idx < len(candidates):
+                    assist = candidates[idx]
+                    minute_cursor[ev["minute"]] = idx + 1
+
+            # Skip solo si el evento ya existe Y ya tiene asistencia Y no tenemos nueva
+            if already_has_assist is True and assist is None:
                 continue
+            # Skip si ya existe, ya tiene asistencia, y la nueva es la misma (sin cambio)
+            if already_has_assist is True and assist is not None and key3 in existing:
+                pass  # Igual corremos el UPSERT para no perder datos
 
-            assist = assists_by_min.get(ev["minute"]) if ev["minute"] is not None else None
-
+            is_new = key3 not in existing
             goal_type = " (OG)" if ev["is_own_goal"] else " (P)" if ev["is_penalty"] else ""
-            assist_str = f" → 🎯 {assist}" if assist else ""
-            label = "[DRY]" if dry_run else "⚽"
-            print(f"   {label} {ev['team']} — {ev['player_name']}{goal_type} {ev['minute']}'{assist_str}")
+            assist_str = f" -> {assist}" if assist else ""
+            action = "nuevo" if is_new else "actualiza"
+            label = "[DRY]" if dry_run else "ok"
+            print(f"   [{label}] {action} {ev['team']} — {ev['player_name']}{goal_type} {ev['minute']}'{assist_str}")
 
             if not dry_run:
                 conn.execute(text("""
@@ -282,18 +309,21 @@ def store_scorers(conn, events: list[dict], dry_run: bool = False) -> int:
                         is_own_goal   = EXCLUDED.is_own_goal,
                         is_penalty    = EXCLUDED.is_penalty
                 """), {
-                    "match_id":     match_id,
-                    "team":         ev["team"],
-                    "player_name":  ev["player_name"],
-                    "minute":       ev["minute"],
-                    "is_own_goal":  ev["is_own_goal"],
-                    "is_penalty":   ev["is_penalty"],
+                    "match_id":      match_id,
+                    "team":          ev["team"],
+                    "player_name":   ev["player_name"],
+                    "minute":        ev["minute"],
+                    "is_own_goal":   ev["is_own_goal"],
+                    "is_penalty":    ev["is_penalty"],
                     "assist_player": assist,
                 })
-                existing.add(key3)
-                inserted += 1
+                existing[key3] = assist is not None
+                if is_new:
+                    inserted += 1
+                else:
+                    updated += 1
 
-    return inserted
+    return inserted, updated
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -313,10 +343,11 @@ def main(dry_run: bool = False) -> None:
         events = fetch_scorers_csv()
 
         print(f"\n💾 Almacenando en BD...")
-        inserted = store_scorers(conn, events, dry_run)
+        inserted, updated = store_scorers(conn, events, dry_run)
 
     print(f"\n{'=' * 60}")
     print(f"  Eventos nuevos insertados : {inserted}")
+    print(f"  Asistencias actualizadas  : {updated}")
     if dry_run:
         print("  (Dry run — nada fue modificado)")
     print("=" * 60)
