@@ -438,19 +438,23 @@ def fetch_sofascore_match_assists(date_str: str, home_team: str, away_team: str,
     Obtiene asistidores de gol para un partido desde SofaScore.
     Retorna {player_name: {"team": team, "assists": count}}
     """
-    try:
-        data = requests.get(
-            f"{SOFASCORE_BASE}/sport/football/scheduled-events/{date_str}",
-            headers=SOFASCORE_HEADERS, timeout=20
-        ).json()
-    except Exception as e:
-        if debug:
-            print(f"      [SofaScore] Error en scheduled-events: {e}")
-        return {}
-
-    ss_id = None
-    home_name = away_name = ""
-    all_events = data.get("events", [])
+    # SofaScore usa endpoints distintos para partidos pasados vs futuros
+    all_events: list[dict] = []
+    for endpoint in (
+        f"{SOFASCORE_BASE}/sport/football/scheduled-events/{date_str}",
+        f"{SOFASCORE_BASE}/sport/football/events/date/{date_str}",
+    ):
+        try:
+            resp = requests.get(endpoint, headers=SOFASCORE_HEADERS, timeout=20)
+            if resp.status_code != 200:
+                continue
+            blob = resp.json()
+            all_events = blob.get("events", [])
+            if all_events:
+                break
+        except Exception as e:
+            if debug:
+                print(f"      [SofaScore] Error {endpoint}: {e}")
 
     if debug:
         print(f"      [SofaScore] {date_str}: {len(all_events)} eventos totales")
