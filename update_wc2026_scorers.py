@@ -534,9 +534,9 @@ def build_tournament_assists(conn) -> list[dict]:
             r.date, r.home_team, r.away_team, debug=(idx < 3)
         )
         if match_assists:
+            assists_str = ", ".join(f"{p}({d['assists']})" for p, d in match_assists.items())
             print(f"      [SS] {r.home_team} vs {r.away_team} ({r.date}): "
-                  f"{len(match_assists)} asistidor(es): "
-                  f"{', '.join(f'{p}({d[\"assists\"]})' for p,d in match_assists.items())}")
+                  f"{len(match_assists)} asistidor(es): {assists_str}")
         for player, info in match_assists.items():
             if player not in totals:
                 totals[player] = {"team": info["team"], "assists": 0}
