@@ -452,11 +452,6 @@ def fetch_sofascore_match_assists(date_str: str, home_team: str, away_team: str,
     home_name = away_name = ""
 
     for ev in data.get("events", []):
-        # Filtrar por torneo (World Cup)
-        t_id   = ev.get("tournament", {}).get("uniqueTournament", {}).get("id")
-        t_name = ev.get("tournament", {}).get("name", "").lower()
-        if t_id != SOFASCORE_WC_ID and "world cup" not in t_name:
-            continue
         h_raw = ev.get("homeTeam", {}).get("name", "")
         a_raw = ev.get("awayTeam", {}).get("name", "")
         h_db  = normalize(h_raw) or h_raw
@@ -465,6 +460,9 @@ def fetch_sofascore_match_assists(date_str: str, home_team: str, away_team: str,
             ss_id     = ev.get("id")
             home_name = h_db
             away_name = a_db
+            if debug:
+                t_name = ev.get("tournament", {}).get("name", "")
+                print(f"      [SofaScore] Encontrado: id={ss_id} torneo='{t_name}'")
             break
 
     if not ss_id:
