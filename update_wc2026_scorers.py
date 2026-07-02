@@ -30,10 +30,10 @@ GOALSCORERS_CSV_URL = (
     "https://raw.githubusercontent.com/martj42/international_results"
     "/master/goalscorers.csv"
 )
-ESPN_BASE    = "https://site.api.espn.com/apis/site/v2/sports/soccer"
-ESPN_LEAGUE  = "fifa.world"
-FOTMOB_BASE  = "https://www.fotmob.com/api"
-FOTMOB_WC_ID = 77
+ESPN_BASE        = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+ESPN_LEAGUE      = "fifa.world"
+SOFASCORE_BASE   = "https://api.sofascore.com/api/v1"
+SOFASCORE_WC_ID  = 16  # SofaScore tournament ID for FIFA World Cup
 
 HEADERS = {
     "User-Agent": (
@@ -42,6 +42,12 @@ HEADERS = {
         "Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept": "application/json",
+}
+
+SOFASCORE_HEADERS = {
+    **HEADERS,
+    "Referer": "https://www.sofascore.com/",
+    "Origin":  "https://www.sofascore.com",
 }
 
 # ── Normalización de nombres (igual que los otros scripts) ────────────────────
@@ -426,37 +432,116 @@ def fetch_fotmob_match_assists(date_str: str, home_team: str, away_team: str,
     return result
 
 
+def fetch_sofascore_match_assists(date_str: str, home_team: str, away_team: str,
+                                  debug: bool = False) -> dict[str, dict]:
+    """
+    Obtiene asistidores de gol para un partido desde SofaScore.
+    Retorna {player_name: {"team": team, "assists": count}}
+    """
+    try:
+        data = requests.get(
+            f"{SOFASCORE_BASE}/sport/football/scheduled-events/{date_str}",
+            headers=SOFASCORE_HEADERS, timeout=20
+        ).json()
+    except Exception as e:
+        if debug:
+            print(f"      [SofaScore] Error en scheduled-events: {e}")
+        return {}
+
+    ss_id = None
+    home_name = away_name = ""
+
+    for ev in data.get("events", []):
+        # Filtrar por torneo (World Cup)
+        t_id   = ev.get("tournament", {}).get("uniqueTournament", {}).get("id")
+        t_name = ev.get("tournament", {}).get("name", "").lower()
+        if t_id != SOFASCORE_WC_ID and "world cup" not in t_name:
+            continue
+        h_raw = ev.get("homeTeam", {}).get("name", "")
+        a_raw = ev.get("awayTeam", {}).get("name", "")
+        h_db  = normalize(h_raw) or h_raw
+        a_db  = normalize(a_raw) or a_raw
+        if h_db == home_team and a_db == away_team:
+            ss_id     = ev.get("id")
+            home_name = h_db
+            away_name = a_db
+            break
+
+    if not ss_id:
+        if debug:
+            print(f"      [SofaScore] Partido no encontrado: {home_team} vs {away_team} ({date_str})")
+        return {}
+
+    try:
+        inc_data = requests.get(
+            f"{SOFASCORE_BASE}/event/{ss_id}/incidents",
+            headers=SOFASCORE_HEADERS, timeout=20
+        ).json()
+    except Exception as e:
+        if debug:
+            print(f"      [SofaScore] Error en /incidents id={ss_id}: {e}")
+        return {}
+
+    result: dict[str, dict] = {}
+
+    for inc in inc_data.get("incidents", []):
+        if inc.get("incidentType") != "goal":
+            continue
+        if inc.get("incidentClass") in ("ownGoal", "ownGoalAssist"):
+            continue
+
+        assist1 = inc.get("assist1")
+        if not assist1 or not isinstance(assist1, dict):
+            continue
+        assister_name = assist1.get("name", "")
+        if not assister_name:
+            continue
+
+        is_home = inc.get("isHome", True)
+        team = home_name if is_home else away_name
+
+        if assister_name not in result:
+            result[assister_name] = {"team": team, "assists": 0}
+        result[assister_name]["assists"] += 1
+
+    if debug:
+        print(f"      [SofaScore] id={ss_id} {home_team} vs {away_team}: {len(result)} asistidor(es)")
+
+    return result
+
+
 def build_tournament_assists(conn) -> list[dict]:
     """
-    Agrega asistencias de todos los partidos WC 2026 completados con ESPN ID.
-    Fuente: ESPN boxscore (partido a partido).
+    Agrega asistencias de TODOS los partidos WC 2026 completados desde SofaScore.
+    SofaScore registra asistencias de gol de forma completa.
     Retorna [{player, team, assists}, ...] ordenado desc.
     """
     rows = conn.execute(text("""
-        SELECT m.sofascore_id AS espn_id,
-               th.name AS home_team, ta.name AS away_team, m.date::text
+        SELECT th.name AS home_team, ta.name AS away_team, m.date::text
           FROM matches m
           JOIN teams th ON th.id = m.home_team_id
           JOIN teams ta ON ta.id = m.away_team_id
          WHERE m.season_id = :sid
            AND m.home_goals IS NOT NULL
-           AND m.sofascore_id IS NOT NULL
          ORDER BY m.date
     """), {"sid": WC_2026_SEASON_ID}).fetchall()
 
     totals: dict[str, dict] = {}
 
-    # debug=True en los primeros 3 para ver llaves del boxscore ESPN
-    print(f"   Procesando {len(rows)} partidos con ESPN ID...")
+    print(f"   Procesando {len(rows)} partidos completados (SofaScore)...")
     for idx, r in enumerate(rows):
-        match_assists = fetch_espn_boxscore_assists(int(r.espn_id), debug=(idx < 3))
+        match_assists = fetch_sofascore_match_assists(
+            r.date, r.home_team, r.away_team, debug=(idx < 3)
+        )
         if match_assists:
-            print(f"      [ESPN] {r.home_team} vs {r.away_team} ({r.date}): {len(match_assists)} asistidor(es)")
+            print(f"      [SS] {r.home_team} vs {r.away_team} ({r.date}): "
+                  f"{len(match_assists)} asistidor(es): "
+                  f"{', '.join(f'{p}({d[\"assists\"]})' for p,d in match_assists.items())}")
         for player, info in match_assists.items():
             if player not in totals:
                 totals[player] = {"team": info["team"], "assists": 0}
             totals[player]["assists"] += info["assists"]
-        time.sleep(0.3)
+        time.sleep(0.35)
 
     result = [
         {"player": p, "team": d["team"], "assists": d["assists"]}
@@ -464,7 +549,7 @@ def build_tournament_assists(conn) -> list[dict]:
         if d["assists"] > 0
     ]
     result.sort(key=lambda x: (-x["assists"], x["player"]))
-    print(f"   Total asistidores ESPN boxscore: {len(result)}")
+    print(f"   Total asistidores SofaScore: {len(result)}")
     return result
 
 
@@ -625,6 +710,18 @@ def main(dry_run: bool = False) -> None:
 
         print(f"\n💾 Almacenando en BD...")
         inserted, updated = store_scorers(conn, events, dry_run)
+
+    # Asistencias acumuladas desde SofaScore → wc_player_stats
+    print(f"\n🎯 Agregando asistencias desde SofaScore...")
+    with engine.begin() as conn:
+        leaders = build_tournament_assists(conn)
+    if leaders:
+        with engine.begin() as conn:
+            upserted = store_tournament_stats(conn, leaders, dry_run)
+        print(f"   Líderes guardados en wc_player_stats: {upserted}")
+    else:
+        print("   Sin datos de SofaScore disponibles")
+        upserted = 0
 
     print(f"\n{'=' * 60}")
     print(f"  Goles nuevos insertados   : {inserted}")
