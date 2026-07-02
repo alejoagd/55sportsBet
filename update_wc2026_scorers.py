@@ -450,8 +450,17 @@ def fetch_sofascore_match_assists(date_str: str, home_team: str, away_team: str,
 
     ss_id = None
     home_name = away_name = ""
+    all_events = data.get("events", [])
 
-    for ev in data.get("events", []):
+    if debug:
+        print(f"      [SofaScore] {date_str}: {len(all_events)} eventos totales")
+        for ev_d in all_events[:5]:
+            h = ev_d.get("homeTeam", {}).get("name", "?")
+            a = ev_d.get("awayTeam", {}).get("name", "?")
+            t = ev_d.get("tournament", {}).get("name", "?")
+            print(f"      [SofaScore]   '{h}' vs '{a}' [{t}]")
+
+    for ev in all_events:
         h_raw = ev.get("homeTeam", {}).get("name", "")
         a_raw = ev.get("awayTeam", {}).get("name", "")
         h_db  = normalize(h_raw) or h_raw
