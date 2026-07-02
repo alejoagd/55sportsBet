@@ -180,8 +180,7 @@ def fetch_scorers_csv() -> list[dict]:
 def fetch_espn_assists(espn_event_id: int) -> dict[int, list[str]]:
     """
     Devuelve {minute: [assister_name, ...]} desde ESPN match summary.
-    Usa 'scoringPlays' primero, luego 'keyEvents' como fallback.
-    Busca el asistidor por tipo ('Assist') antes de caer en participants[1].
+    Fuentes (en orden, se acumulan): scoringPlays, header.competitions.details, keyEvents.
     """
     url = f"{ESPN_BASE}/{ESPN_LEAGUE}/summary"
     try:
@@ -193,35 +192,62 @@ def fetch_espn_assists(espn_event_id: int) -> dict[int, list[str]]:
 
     assists: dict[int, list[str]] = {}
 
+    def _clock_to_min(play: dict) -> int | None:
+        clock_val = play.get("clock", {}).get("value")
+        if clock_val is not None:
+            try:
+                val = float(clock_val)
+                return int(val / 60) if val > 120 else int(val)
+            except (ValueError, TypeError):
+                pass
+        return None
+
     def _parse_plays(plays: list) -> None:
+        """Parsea scoringPlays / keyEvents con campo 'participants'."""
         for play in plays:
             participants = play.get("participants", [])
-            # Buscar asistidor por tipo explícito primero
             assister = None
             for p in participants:
                 ptype = p.get("type", {}).get("text", "").lower()
                 if "assist" in ptype:
                     assister = p.get("athlete", {}).get("displayName", "")
                     break
-            # Fallback: segundo participante si hay más de uno
             if not assister and len(participants) >= 2:
                 assister = participants[1].get("athlete", {}).get("displayName", "")
             if not assister:
                 continue
+            minute = _clock_to_min(play)
+            if minute is not None:
+                assists.setdefault(minute, []).append(assister)
 
-            clock_val = play.get("clock", {}).get("value")
-            if clock_val is not None:
-                try:
-                    val = float(clock_val)
-                    # ESPN puede dar segundos o minutos; normalizar a minutos
-                    minute = int(val / 60) if val > 120 else int(val)
-                    assists.setdefault(minute, []).append(assister)
-                except (ValueError, TypeError):
-                    pass
+    def _parse_details(details: list) -> None:
+        """Parsea header.competitions[0].details con campo 'athletesInvolved'."""
+        for detail in details:
+            athletes = detail.get("athletesInvolved", [])
+            assister = None
+            for a in athletes:
+                a_type = a.get("type", "").lower()
+                if "assist" in a_type:
+                    assister = a.get("displayName", "")
+                    break
+            if not assister and len(athletes) >= 2:
+                assister = athletes[1].get("displayName", "")
+            if not assister:
+                continue
+            minute = _clock_to_min(detail)
+            if minute is not None and assister not in assists.get(minute, []):
+                assists.setdefault(minute, []).append(assister)
 
+    # 1) scoringPlays — fuente principal
     _parse_plays(data.get("scoringPlays", []))
-    if not assists:
-        _parse_plays(data.get("keyEvents", []))
+
+    # 2) header.competitions[0].details — suele tener más cobertura de assists
+    comps = data.get("header", {}).get("competitions", [])
+    if comps:
+        _parse_details(comps[0].get("details", []))
+
+    # 3) keyEvents — fallback adicional
+    _parse_plays(data.get("keyEvents", []))
 
     return assists
 
@@ -600,21 +626,9 @@ def main(dry_run: bool = False) -> None:
         print(f"\n💾 Almacenando en BD...")
         inserted, updated = store_scorers(conn, events, dry_run)
 
-    # Agregar asistencias desde boxscore ESPN (partido a partido)
-    print(f"\n🎯 Agregando asistencias desde boxscore ESPN (partido a partido)...")
-    with engine.begin() as conn:
-        leaders = build_tournament_assists(conn)
-    if leaders:
-        with engine.begin() as conn:
-            upserted = store_tournament_stats(conn, leaders, dry_run)
-    else:
-        print("   Sin datos de boxscore disponibles")
-        upserted = 0
-
     print(f"\n{'=' * 60}")
     print(f"  Goles nuevos insertados   : {inserted}")
     print(f"  Asistencias actualizadas  : {updated}")
-    print(f"  Líderes (acumulado ESPN)  : {upserted}")
     if dry_run:
         print("  (Dry run — nada fue modificado)")
     print("=" * 60)
