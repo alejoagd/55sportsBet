@@ -439,6 +439,8 @@ def fetch_sofascore_match_assists(date_str: str, home_team: str, away_team: str,
     Retorna {player_name: {"team": team, "assists": count}}
     """
     # SofaScore usa endpoints distintos para partidos pasados vs futuros
+    ss_id = None
+    home_name = away_name = ""
     all_events: list[dict] = []
     for endpoint in (
         f"{SOFASCORE_BASE}/sport/football/scheduled-events/{date_str}",
