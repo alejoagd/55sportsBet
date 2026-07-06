@@ -1,9 +1,10 @@
 """
 seed_wc2026_r32_schedule.py
-Descarga el calendario de Octavos de Final (R32) del Mundial 2026 desde ESPN
-e inserta los partidos en la tabla matches (con o sin marcador según estado).
+Descarga el calendario de la fase eliminatoria del Mundial 2026 desde ESPN
+(R32, R16, Cuartos, Semis, Tercero, Final) e inserta los partidos en la
+tabla matches con o sin marcador según el estado del partido.
 
-Ejecutar una vez cuando el schedule de R32 esté disponible:
+Ejecutar diariamente via GitHub Actions para sincronizar nuevos fixtures:
   python seed_wc2026_r32_schedule.py
   python seed_wc2026_r32_schedule.py --dry-run
 
@@ -20,7 +21,7 @@ from src.db import engine
 
 WC_2026_SEASON_ID = 76
 WC_R32_START = "2026-06-28"
-WC_R32_END   = "2026-07-05"   # Last R32 day (8 días × 2 partidos = 16 total)
+WC_R32_END   = "2026-07-19"   # Final del Mundial (cubre R32, R16, QF, SF, 3ro, Final)
 
 ESPN_BASE   = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 ESPN_LEAGUE = "fifa.world"
@@ -102,7 +103,7 @@ def espn_events_for_date(date_str: str) -> list[dict]:
 
 
 def fetch_r32_fixtures() -> list[dict]:
-    """Descarga todos los fixtures R32 WC2026 desde ESPN (June 28 – July 5)."""
+    """Descarga todos los fixtures knockout WC2026 desde ESPN (June 28 – July 19)."""
     fixtures: list[dict] = []
     seen_espn_ids: set[str] = set()   # deduplica por ID de ESPN (mismo partido, dos fechas)
     d = date.fromisoformat(WC_R32_START)
@@ -293,7 +294,7 @@ def process(conn, fixtures: list[dict], dry_run: bool) -> tuple[int, int, int]:
 def main(dry_run: bool = False) -> None:
     mode = "DRY RUN" if dry_run else "INSERTANDO EN BD"
     print("=" * 60)
-    print(f"  WC 2026 R32 Schedule Seeder — {mode}")
+    print(f"  WC 2026 Knockout Schedule Seeder — {mode}")
     print(f"  Rango: {WC_R32_START} → {WC_R32_END}")
     print("=" * 60)
 
