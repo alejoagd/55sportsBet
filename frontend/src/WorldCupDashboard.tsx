@@ -82,6 +82,8 @@ const TEAM_FLAG: Record<string, string> = {
 
 const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 const WC_KNOCKOUT_START = '2026-06-28'; // Group stage ends June 26; knockout starts June 28
+const WC_R16_START      = '2026-07-04'; // R16 (Octavos) matches start this date
+const WC_R16_END        = '2026-07-09'; // R16 ends before this date (QF from here)
 
 const GROUP_TEAMS: Record<string, string[]> = {
   'A': ['Mexico','South Africa','South Korea','Czechia'],
@@ -259,6 +261,18 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
   );
 }
 
+// Colombia vs Ghana is the last R32 match (July 4, same day R16 begins)
+function getMatchRound(m: { home_team: string; away_team: string; date: string }): 'R32' | 'R16' | 'QF' {
+  const date = m.date.split('T')[0];
+  if (date < WC_KNOCKOUT_START) return 'R32';
+  const isColombiaGhana =
+    (m.home_team === 'Colombia' && m.away_team === 'Ghana') ||
+    (m.home_team === 'Ghana'    && m.away_team === 'Colombia');
+  if (date < WC_R16_START || isColombiaGhana) return 'R32';
+  if (date < WC_R16_END) return 'R16';
+  return 'QF';
+}
+
 // ── Group selector ────────────────────────────────────────────────────
 function GroupSelector({
   selected,
@@ -300,6 +314,17 @@ function GroupSelector({
             >
               <span>🎯</span>
               <span>16avos</span>
+            </button>
+            <button
+              onClick={() => onSelect('8avos')}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
+                ${selected === '8avos'
+                  ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+                }`}
+            >
+              <span>⚡</span>
+              <span>8avos</span>
             </button>
             <div className="w-px bg-slate-700 self-stretch mx-1 flex-shrink-0" />
           </>
@@ -386,7 +411,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
       {/* Header */}
       <div className="flex items-center justify-between px-3 sm:px-4 pt-3 pb-2 border-b border-slate-700/50">
         <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
-          {group === 'R32' ? 'Dieciseisavos de Final' : `Grupo ${group}`}
+          {group === 'R32' ? 'Dieciseisavos de Final' : group === 'R16' ? 'Octavos de Final' : `Grupo ${group}`}
         </span>
         <div className="flex items-center gap-2">
           {isCompleted && (
@@ -1113,10 +1138,10 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
     </div>
   );
 
-  // Separate group stage (before June 28) from knockout (June 28+)
+  // Separate group stage from knockout, then split knockout into R32 vs R16+
   const groupStageMatches = allMatches.filter(m => m.date.split('T')[0] < WC_KNOCKOUT_START);
   const knockoutFromDB = allMatches
-    .filter(m => m.date.split('T')[0] >= WC_KNOCKOUT_START)
+    .filter(m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'R32')
     .sort((a, b) => a.date.localeCompare(b.date) || a.match_id - b.match_id);
 
   const gm = groupStageMatches as unknown as GroupMatch[];
@@ -1400,6 +1425,46 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
   );
 }
 
+// ── R16 (Octavos) match cards ─────────────────────────────────────────
+function RealR16View({ allMatches, loading }: { allMatches: Match[]; loading: boolean }) {
+  if (loading) return (
+    <div className="text-center py-16 text-slate-500">
+      <div className="text-5xl mb-4 animate-pulse">⏳</div>
+      <p>Cargando partidos...</p>
+    </div>
+  );
+
+  const r16Matches = allMatches
+    .filter(m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'R16')
+    .sort((a, b) => a.date.localeCompare(b.date) || a.match_id - b.match_id);
+
+  if (r16Matches.length === 0) return (
+    <div className="text-center py-16 text-slate-500">
+      <div className="text-5xl mb-4">🏆</div>
+      <p className="text-lg font-semibold text-slate-300">Octavos de Final próximamente</p>
+      <p className="text-sm text-slate-500 mt-1">Se publicarán tras completar los dieciseisavos.</p>
+    </div>
+  );
+
+  const completed = r16Matches.filter(m => m.home_goals !== null && m.home_goals !== undefined).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 mb-1">
+        <h2 className="text-white font-bold text-lg">Octavos de Final</h2>
+        <span className="text-xs text-yellow-400/80 bg-yellow-400/10 border border-yellow-400/20 px-2.5 py-1 rounded-full">
+          🏆 {completed}/{r16Matches.length} partidos
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {r16Matches.map(m => (
+          <WCMatchCard key={m.match_id} match={m} group="R16" currentSearchParams="" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 interface Props {
   initialGroup?: string | null;
@@ -1438,7 +1503,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
 
   const handleSelectGroup = (g: string | null) => {
     setSelectedGroup(g);
-    if (g === '16avos') return; // no persisted in URL
+    if (g === '16avos' || g === '8avos') return; // not persisted in URL
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (g) next.set('group', g);
@@ -1455,7 +1520,8 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
   }
 
   const isR32View = activeTab === 'matches' && selectedGroup === '16avos';
-  const groupsToShow = selectedGroup && selectedGroup !== '16avos'
+  const isR16View = activeTab === 'matches' && selectedGroup === '8avos';
+  const groupsToShow = selectedGroup && selectedGroup !== '16avos' && selectedGroup !== '8avos'
     ? [selectedGroup]
     : GROUPS.filter(g => matchesByGroup[g]?.length);
 
@@ -1476,6 +1542,8 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
         {activeTab === 'matches' && (
           isR32View ? (
             <RealR32View allMatches={allWcMatches} loading={loadingMatches} />
+          ) : isR16View ? (
+            <RealR16View allMatches={allWcMatches} loading={loadingMatches} />
           ) : loadingMatches ? (
             <div className="text-center py-16 text-slate-500">
               <div className="text-5xl mb-4">⏳</div>
