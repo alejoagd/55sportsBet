@@ -233,10 +233,10 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'today',     label: 'Hoy',           icon: '📅' },
     { id: 'matches',   label: 'Partidos',      icon: '⚽' },
-    { id: 'standings', label: 'Posiciones',    icon: '📊' },
     { id: 'bracket',   label: 'Bracket',       icon: '🗺️' },
     { id: 'stats',     label: 'Estadísticas',  icon: '🏅' },
     { id: 'news',      label: 'Noticias',      icon: '📰' },
+    { id: 'standings', label: 'Posiciones',    icon: '📊' },
   ];
   return (
     <div className="bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50 overflow-x-auto scrollbar-hide">
