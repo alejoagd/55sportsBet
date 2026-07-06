@@ -1238,6 +1238,26 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
     }
   }
 
+  // Compute R16 winners to propagate qualified teams into QF bracket slots.
+  const r16FromDB = allMatches.filter(
+    m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'R16' && m.actual_result
+  );
+  for (let rnum = 1; rnum <= 8; rnum++) {
+    const mid = `R16-${rnum}`;
+    if (realWinners[mid]) continue;
+    const teamA = resolveTeam(mid, 'a', realRankings, finalThirdPicks, realWinners);
+    const teamB = resolveTeam(mid, 'b', realRankings, finalThirdPicks, realWinners);
+    if (!teamA || !teamB) continue;
+    const m = r16FromDB.find(
+      x => (x.home_team === teamA && x.away_team === teamB) ||
+           (x.home_team === teamB && x.away_team === teamA)
+    );
+    if (!m) continue;
+    if (m.actual_result === 'H') realWinners[mid] = m.home_team;
+    else if (m.actual_result === 'A') realWinners[mid] = m.away_team;
+    else if (m.actual_result === 'D' && m.penalty_winner) realWinners[mid] = m.penalty_winner;
+  }
+
   // Shared bracket props — DB picks take priority, greedy fills the rest
   const bracketProps = {
     rankings: realRankings,
