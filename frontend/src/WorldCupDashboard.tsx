@@ -326,6 +326,17 @@ function GroupSelector({
               <span>⚡</span>
               <span>8avos</span>
             </button>
+            <button
+              onClick={() => onSelect('4tos')}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
+                ${selected === '4tos'
+                  ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+                }`}
+            >
+              <span>🔥</span>
+              <span>4tos</span>
+            </button>
             <div className="w-px bg-slate-700 self-stretch mx-1 flex-shrink-0" />
           </>
         )}
@@ -411,7 +422,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
       {/* Header */}
       <div className="flex items-center justify-between px-3 sm:px-4 pt-3 pb-2 border-b border-slate-700/50">
         <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">
-          {group === 'R32' ? 'Dieciseisavos de Final' : group === 'R16' ? 'Octavos de Final' : `Grupo ${group}`}
+          {group === 'R32' ? 'Dieciseisavos de Final' : group === 'R16' ? 'Octavos de Final' : group === 'QF' ? 'Cuartos de Final' : `Grupo ${group}`}
         </span>
         <div className="flex items-center gap-2">
           {isCompleted && (
@@ -1485,6 +1496,45 @@ function RealR16View({ allMatches, loading }: { allMatches: Match[]; loading: bo
   );
 }
 
+function RealQFView({ allMatches, loading }: { allMatches: Match[]; loading: boolean }) {
+  if (loading) return (
+    <div className="text-center py-16 text-slate-500">
+      <div className="text-5xl mb-4 animate-pulse">⏳</div>
+      <p>Cargando partidos...</p>
+    </div>
+  );
+
+  const qfMatches = allMatches
+    .filter(m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'QF')
+    .sort((a, b) => a.date.localeCompare(b.date) || a.match_id - b.match_id);
+
+  if (qfMatches.length === 0) return (
+    <div className="text-center py-16 text-slate-500">
+      <div className="text-5xl mb-4">🔥</div>
+      <p className="text-lg font-semibold text-slate-300">Cuartos de Final próximamente</p>
+      <p className="text-sm text-slate-500 mt-1">Se publicarán tras completar los octavos.</p>
+    </div>
+  );
+
+  const completed = qfMatches.filter(m => m.home_goals !== null && m.home_goals !== undefined).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 mb-1">
+        <h2 className="text-white font-bold text-lg">Cuartos de Final</h2>
+        <span className="text-xs text-yellow-400/80 bg-yellow-400/10 border border-yellow-400/20 px-2.5 py-1 rounded-full">
+          🏆 {completed}/{qfMatches.length} partidos
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {qfMatches.map(m => (
+          <WCMatchCard key={m.match_id} match={m} group="QF" currentSearchParams="" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 interface Props {
   initialGroup?: string | null;
@@ -1523,7 +1573,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
 
   const handleSelectGroup = (g: string | null) => {
     setSelectedGroup(g);
-    if (g === '16avos' || g === '8avos') return; // not persisted in URL
+    if (g === '16avos' || g === '8avos' || g === '4tos') return; // not persisted in URL
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (g) next.set('group', g);
@@ -1541,7 +1591,8 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
 
   const isR32View = activeTab === 'matches' && selectedGroup === '16avos';
   const isR16View = activeTab === 'matches' && selectedGroup === '8avos';
-  const groupsToShow = selectedGroup && selectedGroup !== '16avos' && selectedGroup !== '8avos'
+  const isQFView  = activeTab === 'matches' && selectedGroup === '4tos';
+  const groupsToShow = selectedGroup && selectedGroup !== '16avos' && selectedGroup !== '8avos' && selectedGroup !== '4tos'
     ? [selectedGroup]
     : GROUPS.filter(g => matchesByGroup[g]?.length);
 
@@ -1564,6 +1615,8 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
             <RealR32View allMatches={allWcMatches} loading={loadingMatches} />
           ) : isR16View ? (
             <RealR16View allMatches={allWcMatches} loading={loadingMatches} />
+          ) : isQFView ? (
+            <RealQFView allMatches={allWcMatches} loading={loadingMatches} />
           ) : loadingMatches ? (
             <div className="text-center py-16 text-slate-500">
               <div className="text-5xl mb-4">⏳</div>
