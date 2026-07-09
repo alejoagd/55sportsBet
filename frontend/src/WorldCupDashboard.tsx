@@ -239,14 +239,15 @@ function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { id: 'standings', label: 'Posiciones',    icon: '📊' },
   ];
   return (
-    <div className="bg-slate-800/60 p-1 rounded-xl mb-6 border border-slate-700/50 overflow-x-auto scrollbar-hide">
-      <div className="flex gap-1">
+    <div className="bg-slate-800/60 p-1 rounded-xl mb-4 sm:mb-6 border border-slate-700/50 overflow-x-auto scrollbar-hide">
+      <div className="flex gap-0.5 sm:gap-1 min-w-max">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex-shrink-0 flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-lg
-                        text-sm font-semibold transition-all whitespace-nowrap
+            className={`flex-shrink-0 flex items-center justify-center gap-1 sm:gap-1.5
+                        py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-lg
+                        text-xs sm:text-sm font-semibold transition-all whitespace-nowrap
               ${active === t.id
                 ? 'bg-yellow-400 text-slate-900 shadow-md shadow-yellow-400/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
@@ -289,10 +290,10 @@ function GroupSelector({
         <h2 className="text-white font-bold text-lg">Grupos</h2>
         <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">Fase de Grupos</span>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide">
         <button
           onClick={() => onSelect(null)}
-          className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
+          className={`flex-shrink-0 px-3 sm:px-4 py-2 min-h-[38px] rounded-lg text-xs sm:text-sm font-semibold transition-all border
             ${selected === null
               ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
               : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
@@ -304,39 +305,24 @@ function GroupSelector({
         {showR32 && (
           <>
             <div className="w-px bg-slate-700 self-stretch mx-1 flex-shrink-0" />
-            <button
-              onClick={() => onSelect('16avos')}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
-                ${selected === '16avos'
-                  ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
-                }`}
-            >
-              <span>🎯</span>
-              <span>16avos</span>
-            </button>
-            <button
-              onClick={() => onSelect('8avos')}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
-                ${selected === '8avos'
-                  ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
-                }`}
-            >
-              <span>⚡</span>
-              <span>8avos</span>
-            </button>
-            <button
-              onClick={() => onSelect('4tos')}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border
-                ${selected === '4tos'
-                  ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
-                }`}
-            >
-              <span>🔥</span>
-              <span>4tos</span>
-            </button>
+            {[
+              { id: '16avos', icon: '🎯', label: '16avos' },
+              { id: '8avos',  icon: '⚡', label: '8avos'  },
+              { id: '4tos',   icon: '🔥', label: '4tos'   },
+            ].map(({ id, icon, label }) => (
+              <button
+                key={id}
+                onClick={() => onSelect(id)}
+                className={`flex-shrink-0 flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2 min-h-[38px]
+                            rounded-lg text-xs sm:text-sm font-semibold transition-all border
+                  ${selected === id
+                    ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+                  }`}
+              >
+                <span>{icon}</span><span>{label}</span>
+              </button>
+            ))}
             <div className="w-px bg-slate-700 self-stretch mx-1 flex-shrink-0" />
           </>
         )}
@@ -345,13 +331,13 @@ function GroupSelector({
           <button
             key={g}
             onClick={() => onSelect(g)}
-            className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-bold transition-all border
+            className={`flex-shrink-0 px-2.5 sm:px-3 py-2 min-h-[38px] rounded-lg text-xs sm:text-sm font-bold transition-all border
               ${selected === g
                 ? 'bg-yellow-400 text-slate-900 border-yellow-400 shadow-lg shadow-yellow-400/20'
                 : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
               }`}
           >
-            Grupo {g}
+            <span className="hidden sm:inline">Grupo </span>{g}
           </button>
         ))}
       </div>
@@ -1339,8 +1325,9 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
         {knockoutFromDB.length === 0 && (
           <p className="text-xs text-slate-500 mb-3">Los slots de terceros se completarán cuando los partidos estén disponibles en la base de datos.</p>
         )}
-        <div className="overflow-x-auto pb-3">
-          <div className="flex items-stretch gap-1 min-w-max">
+        <p className="sm:hidden text-xs text-slate-500 text-center mb-2">← desliza para ver el bracket →</p>
+        <div className="overflow-x-auto pb-3 -mx-1">
+          <div className="flex items-stretch gap-1 min-w-max px-1">
             <BracketHalf matches={leftMatches} side="L" {...bracketProps} />
 
             {/* Final center */}
@@ -1597,7 +1584,7 @@ export default function WorldCupDashboard({ initialGroup }: Props) {
     : GROUPS.filter(g => matchesByGroup[g]?.length);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
+    <div className="min-h-screen bg-slate-900 px-3 py-3 sm:px-6 sm:py-6">
       <div className="max-w-7xl mx-auto">
         <WorldCupBanner matchCount={allWcMatches.length || 72} />
         <TabNav active={activeTab} onChange={setActiveTab} />

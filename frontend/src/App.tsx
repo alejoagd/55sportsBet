@@ -7,7 +7,7 @@ import TeamStatistics from './Teamstatistics';
 import ImprovedDashboard from './ImprovedDashboard';
 import MatchDetail from './MatchDetail';
 import BestBetsSection from './BestBetsSection';
-import { ResponsiveWrapper, ResponsiveNav, useIsMobile } from './ResponsiveWrapper';
+import { ResponsiveWrapper } from './ResponsiveWrapper';
 import SubscribeModal from './SubscribeModal';
 import './mobile-responsive.css';
 
@@ -27,88 +27,69 @@ export interface AppFilters {
 // Componente de Navegación Responsive
 function Navigation() {
   const location = useLocation();
-  const isMobile = useIsMobile();
   const { isAdmin, showAdminLogin, loginAsAdmin, toggleAdminLogin } = useAdminMode();
-  
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
+
+  const isActive = (path: string) => location.pathname === path;
 
   const navItems = [
-    { path: '/', icon: '📊', label: 'Dashboard' },
-    { path: '/best-bets', icon: '🎯', label: isMobile ? 'Apuestas' : 'Mejores Apuestas' },
-    { path: '/evolution', icon: '📈', label: isMobile ? 'Evolución' : 'Evolución' },
-    { path: '/statistics', icon: '📋', label: isMobile ? 'Stats' : 'Estadísticas' }
+    { path: '/',            icon: '📊', label: 'Dashboard'    },
+    { path: '/best-bets',  icon: '🎯', label: 'Apuestas'     },
+    { path: '/evolution',  icon: '📈', label: 'Evolución'     },
+    { path: '/statistics', icon: '📋', label: 'Estadísticas'  },
   ];
+
+  const linkClass = (path: string) =>
+    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium
+     transition-all whitespace-nowrap flex-shrink-0
+     ${isActive(path)
+       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+       : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`;
 
   return (
     <>
       <nav className="bg-slate-900 border-b border-slate-700 sticky top-0 z-50 shadow-lg">
-        <div className={`${isMobile ? 'nav-container' : 'max-w-7xl mx-auto px-4'}`}>
-          <div className={`${isMobile ? 'flex flex-col' : 'flex items-center justify-between h-16'}`}>
-            {/* Logo / Título */}
-            <div className={`flex items-center justify-center space-x-2 ${isMobile ? 'py-3' : ''}`}>
-              <img src="/55sports2.svg" alt="55sportsBet Logo" className="w-8 h-8" />
-              <h1 className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-white`}>
+        <div className="max-w-7xl mx-auto px-3 sm:px-4">
+          <div className="flex items-center h-12 sm:h-14 gap-2 sm:gap-4">
+            {/* Logo — no encoge nunca */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <img src="/55sports2.svg" alt="55sportsBet Logo" className="w-7 h-7 sm:w-8 sm:h-8" />
+              <h1 className="text-sm sm:text-xl font-bold text-white whitespace-nowrap">
                 55sportsBet
               </h1>
-              
-              {/* 🔐 Botón para activar login admin (solo si no está logueado) */}
               {!isAdmin && (
                 <button
                   onClick={toggleAdminLogin}
-                  className="text-xs text-slate-500 hover:text-slate-300 ml-2"
+                  className="text-slate-600 hover:text-slate-400 text-xs ml-0.5 leading-none"
                   title="Acceso administrativo"
-                >
-                  🔐
-                </button>
+                >🔐</button>
               )}
             </div>
 
-            {/* Links de Navegación */}
-            <ResponsiveNav className={isMobile ? 'nav-links' : ''}>
-              {navItems.map(({ path, icon, label }) => (
-                <Link
-                  key={path}
-                  to={path}
-                  className={`nav-link ${
-                    isActive(path) 
-                      ? 'bg-blue-600 text-white shadow-lg' 
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
-                  } ${isMobile ? 'rounded-md' : 'px-6 py-2 rounded-lg font-medium transition-all'}`}
-                >
-                  <span className="mr-2">{icon}</span>
-                  {label}
-                </Link>
-              ))}
-              
-              {/* 🔐 Stats 2 - Solo visible para admins */}
-              <AdminOnly hideCompletely={true}>
-                <Link
-                  to="/statistics2"
-                  className={`nav-link ${
-                    isActive('/statistics2') 
-                      ? 'bg-blue-600 text-white shadow-lg' 
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
-                  } ${isMobile ? 'rounded-md' : 'px-6 py-2 rounded-lg font-medium transition-all'}`}
-                >
-                  <span className="mr-2">📊</span>
-                  Stats 2
-                </Link>
-              </AdminOnly>
-            </ResponsiveNav>
+            {/* Separador */}
+            <div className="w-px h-5 bg-slate-700 flex-shrink-0 hidden sm:block" />
+
+            {/* Links — scrollan horizontalmente en móvil */}
+            <div className="flex-1 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-1 min-w-max sm:justify-end">
+                {navItems.map(({ path, icon, label }) => (
+                  <Link key={path} to={path} className={linkClass(path)}>
+                    <span>{icon}</span>
+                    <span>{label}</span>
+                  </Link>
+                ))}
+                <AdminOnly hideCompletely={true}>
+                  <Link to="/statistics2" className={linkClass('/statistics2')}>
+                    <span>📊</span>
+                    <span>Stats 2</span>
+                  </Link>
+                </AdminOnly>
+              </div>
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* 🔐 Modal de login administrativo */}
-      <AdminLogin
-        isVisible={showAdminLogin}
-        onLogin={loginAsAdmin}
-        onClose={toggleAdminLogin}
-      />
-
-      {/* 🔐 Badge indicador de modo admin */}
+      <AdminLogin isVisible={showAdminLogin} onLogin={loginAsAdmin} onClose={toggleAdminLogin} />
       <AdminBadge />
     </>
   );
@@ -124,7 +105,7 @@ function App() {
         <div className="min-h-screen bg-slate-900">
           <Navigation />
 
-          <main className={`main-container`}>
+          <main>
             <Routes>
               <Route path="/" element={<ImprovedDashboard />} />
               <Route path="/best-bets" element={<BestBetsSection />} />
