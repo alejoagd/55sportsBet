@@ -372,11 +372,17 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
   const bttsProb = safeNum(match.weinston_btts ?? match.poisson_btts);
   const hasPredictions = match.weinston_home_goals != null || match.weinston_prob_home != null;
 
+  // Derive effective result from actual_result, or from goals when actual_result not yet set.
+  const effectiveResult: 'H' | 'A' | 'D' | null = match.actual_result
+    ?? (isCompleted
+      ? (match.home_goals! > match.away_goals! ? 'H' : match.home_goals! < match.away_goals! ? 'A' : 'D')
+      : null);
+
   // Prediction accuracy (only meaningful when completed)
   const predictedResult = homeP > awayP && homeP > drawP ? 'H'
     : awayP > homeP && awayP > drawP ? 'A' : 'D';
-  const result1x2Hit  = isCompleted && predictedResult === match.actual_result;
-  const result1x2Miss = isCompleted && predictedResult !== match.actual_result;
+  const result1x2Hit  = isCompleted && effectiveResult !== null && predictedResult === effectiveResult;
+  const result1x2Miss = isCompleted && effectiveResult !== null && predictedResult !== effectiveResult;
 
   const predictedOver  = overProb >= 0.5;
   const actualTotalGoals = isCompleted ? (match.home_goals! + match.away_goals!) : null;
@@ -423,7 +429,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
       {/* Teams + Score */}
       <div className="px-3 sm:px-4 py-4">
         <div className="flex items-center justify-between gap-2">
-          <div className={`flex-1 text-right ${!isCompleted && favorite === 'home' ? 'opacity-100' : isCompleted && match.actual_result === 'H' ? 'opacity-100' : 'opacity-70'}`}>
+          <div className={`flex-1 text-right ${!isCompleted && favorite === 'home' ? 'opacity-100' : isCompleted && effectiveResult === 'H' ? 'opacity-100' : 'opacity-70'}`}>
             <div className="text-2xl mb-1">{homeFlag}</div>
             <div className="text-xs sm:text-sm font-bold leading-tight text-slate-200">
               {match.home_team}
@@ -459,7 +465,7 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
             )}
           </div>
 
-          <div className={`flex-1 text-left ${!isCompleted && favorite === 'away' ? 'opacity-100' : isCompleted && match.actual_result === 'A' ? 'opacity-100' : 'opacity-70'}`}>
+          <div className={`flex-1 text-left ${!isCompleted && favorite === 'away' ? 'opacity-100' : isCompleted && effectiveResult === 'A' ? 'opacity-100' : 'opacity-70'}`}>
             <div className="text-2xl mb-1">{awayFlag}</div>
             <div className="text-xs sm:text-sm font-bold leading-tight text-slate-200">
               {match.away_team}
@@ -474,17 +480,17 @@ function WCMatchCard({ match, group, currentSearchParams }: { match: Match; grou
           <div>
             <div className="flex text-xs justify-between mb-1">
               <span className={`font-bold ${
-                result1x2Hit && match.actual_result === 'H' ? 'text-green-400' :
+                result1x2Hit && effectiveResult === 'H' ? 'text-green-400' :
                 result1x2Miss && predictedResult === 'H' ? 'text-red-400' :
                 !isCompleted && favorite === 'home' ? 'text-green-400' : 'text-slate-400'
               }`}>{homeP.toFixed(0)}%</span>
-              <span className={`font-${result1x2Hit && match.actual_result === 'D' ? 'bold' : 'normal'} ${
-                result1x2Hit && match.actual_result === 'D' ? 'text-green-400' :
+              <span className={`font-${result1x2Hit && effectiveResult === 'D' ? 'bold' : 'normal'} ${
+                result1x2Hit && effectiveResult === 'D' ? 'text-green-400' :
                 result1x2Miss && predictedResult === 'D' ? 'text-red-400' :
                 !isCompleted && favorite === 'draw' ? 'text-yellow-400' : 'text-slate-400'
               }`}>Empate {drawP.toFixed(0)}%</span>
               <span className={`font-bold ${
-                result1x2Hit && match.actual_result === 'A' ? 'text-green-400' :
+                result1x2Hit && effectiveResult === 'A' ? 'text-green-400' :
                 result1x2Miss && predictedResult === 'A' ? 'text-red-400' :
                 !isCompleted && favorite === 'away' ? 'text-green-400' : 'text-slate-400'
               }`}>{awayP.toFixed(0)}%</span>
@@ -1237,7 +1243,8 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
 
   // Compute R16 winners to propagate qualified teams into QF bracket slots.
   const r16FromDB = allMatches.filter(
-    m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'R16' && m.actual_result
+    m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'R16' &&
+         (m.actual_result || (m.home_goals != null && m.away_goals != null))
   );
   for (let rnum = 1; rnum <= 8; rnum++) {
     const mid = `R16-${rnum}`;
@@ -1250,14 +1257,18 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
            (x.home_team === teamB && x.away_team === teamA)
     );
     if (!m) continue;
-    if (m.actual_result === 'H') realWinners[mid] = m.home_team;
-    else if (m.actual_result === 'A') realWinners[mid] = m.away_team;
-    else if (m.actual_result === 'D' && m.penalty_winner) realWinners[mid] = m.penalty_winner;
+    const res = m.actual_result
+      ?? (m.home_goals! > m.away_goals! ? 'H' : m.home_goals! < m.away_goals! ? 'A' : 'D');
+    if (res === 'H') realWinners[mid] = m.home_team;
+    else if (res === 'A') realWinners[mid] = m.away_team;
+    else if (m.penalty_winner) realWinners[mid] = m.penalty_winner;
   }
 
   // Compute QF winners to propagate into SF bracket slots.
+  // Also handles home_goals/away_goals when actual_result is not yet set.
   const qfFromDB = allMatches.filter(
-    m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'QF' && m.actual_result
+    m => m.date.split('T')[0] >= WC_KNOCKOUT_START && getMatchRound(m) === 'QF' &&
+         (m.actual_result || (m.home_goals != null && m.away_goals != null))
   );
   for (let qnum = 1; qnum <= 4; qnum++) {
     const mid = `QF-${qnum}`;
@@ -1270,9 +1281,31 @@ function RealR32View({ allMatches, loading, bracketOnly = false }: { allMatches:
            (x.home_team === teamB && x.away_team === teamA)
     );
     if (!m) continue;
-    if (m.actual_result === 'H') realWinners[mid] = m.home_team;
-    else if (m.actual_result === 'A') realWinners[mid] = m.away_team;
-    else if (m.actual_result === 'D' && m.penalty_winner) realWinners[mid] = m.penalty_winner;
+    const res = m.actual_result
+      ?? (m.home_goals! > m.away_goals! ? 'H' : m.home_goals! < m.away_goals! ? 'A' : 'D');
+    if (res === 'H') realWinners[mid] = m.home_team;
+    else if (res === 'A') realWinners[mid] = m.away_team;
+    else if (m.penalty_winner) realWinners[mid] = m.penalty_winner;
+  }
+
+  // Backfill missing QF winners from SF fixtures already inserted in DB.
+  // When SF matches (e.g., England vs Argentina) exist before QF actual_result
+  // is stored, we can infer each QF winner by checking which SF team was in
+  // that QF's slot (cross-referencing with known R16 winners).
+  for (const [sfDate, qa, qb] of [
+    ['2026-07-14', 'QF-1', 'QF-2'],
+    ['2026-07-15', 'QF-3', 'QF-4'],
+  ] as [string, string, string][]) {
+    const sfMatch = allMatches.find(m => m.date.split('T')[0] === sfDate);
+    if (!sfMatch) continue;
+    const sfTeams = [sfMatch.home_team, sfMatch.away_team];
+    for (const mid of [qa, qb]) {
+      if (realWinners[mid]) continue;
+      const a = resolveTeam(mid, 'a', realRankings, finalThirdPicks, realWinners);
+      const b = resolveTeam(mid, 'b', realRankings, finalThirdPicks, realWinners);
+      const winner = sfTeams.find(t => t === a || t === b);
+      if (winner) realWinners[mid] = winner;
+    }
   }
 
   // Shared bracket props — DB picks take priority, greedy fills the rest
