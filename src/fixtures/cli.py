@@ -328,19 +328,46 @@ def bulk(
     print(f"\n✅ {len(team_id_by_name)} equipos de {league} mapeados")
     print(f"   Liga ID: {league_id}, Season ID: {season_id}")
 
-    unknown = []
-    for idx, row in df.iterrows():
-        h = team_id_by_name.get(_norm(row["home_team"]))
-        a = team_id_by_name.get(_norm(row["away_team"]))
-        if h is None or a is None:
-            unknown.append((idx, row["home_team"], row["away_team"], row["date"]))
+    # Equipos únicos que aparecen en el CSV (normalizados)
+    csv_teams_norm = set()
+    csv_name_by_norm: dict[str, str] = {}
+    for _, row in df.iterrows():
+        for col in ["home_team", "away_team"]:
+            n = _norm(row[col])
+            csv_teams_norm.add(n)
+            csv_name_by_norm[n] = row[col].strip()
 
-    if unknown:
-        lines = "\n".join([f"- fila {i}: {h} vs {a} ({d})" for i, h, a, d in unknown])
-        raise ValueError(
-            "Se encontraron equipos no registrados en la base de datos.\n"
-            "Corrige los nombres en el CSV y vuelve a ejecutar el bulk:\n" + lines
-        )
+    # ── Crear equipos ascendidos (en CSV pero no en BD) ──────────────────
+    new_teams = {n: csv_name_by_norm[n] for n in csv_teams_norm if n not in team_id_by_name}
+    if new_teams:
+        print(f"\n🆕 {len(new_teams)} equipo(s) nuevo(s) detectado(s) — creando en BD:")
+        with engine.begin() as conn:
+            for norm, name in new_teams.items():
+                result = conn.execute(
+                    text("INSERT INTO teams (name, league_id, status) VALUES (:n, :l, 'active') RETURNING id"),
+                    {"n": name, "l": league_id},
+                )
+                new_id = result.scalar()
+                team_id_by_name[norm] = new_id
+                print(f"   ✅ '{name}' creado (id={new_id})")
+
+    # ── Marcar como Disabled equipos que ya no están en el CSV ───────────
+    with engine.begin() as conn:
+        prev_rows = conn.execute(text("""
+            SELECT DISTINCT t.id, t.name
+            FROM teams t
+            JOIN matches m ON (m.home_team_id = t.id OR m.away_team_id = t.id)
+            JOIN seasons s ON s.id = m.season_id
+            WHERE s.league_id = :league_id
+              AND LOWER(t.status) != 'disabled'
+        """), {"league_id": league_id}).fetchall()
+
+        relegated = [(tid, tname) for tid, tname in prev_rows if _norm(tname) not in csv_teams_norm]
+        if relegated:
+            print(f"\n🔴 {len(relegated)} equipo(s) descendido(s) — marcando como Disabled:")
+            for tid, tname in relegated:
+                conn.execute(text("UPDATE teams SET status = 'Disabled' WHERE id = :id"), {"id": tid})
+                print(f"   🔴 '{tname}' (id={tid}) → Disabled")
 
     # 5) Mapear IDs para el insert
     df["home_team_id"] = df["home_team"].apply(lambda x: team_id_by_name[_norm(x)])

@@ -16,6 +16,7 @@ class Team(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, index=True)
     league_id: Mapped[int | None] = mapped_column(ForeignKey("leagues.id"))
+    status: Mapped[str] = mapped_column(String(20), default="active")
 
 class Match(Base):
     __tablename__ = "matches"
