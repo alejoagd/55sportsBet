@@ -102,12 +102,12 @@ class LeagueManager:
         
         configs = []
         for row in rows:
-            # Obtener configuración CSV
-            csv_code, dayfirst = self.LEAGUE_CSV_MAPPING.get(
-                row['league_name'], 
-                ("UNKNOWN", True)
-            )
-            
+            # Obtener configuración CSV — saltar ligas sin mapeo (ej: FIFA World Cup)
+            if row['league_name'] not in self.LEAGUE_CSV_MAPPING:
+                continue
+
+            csv_code, dayfirst = self.LEAGUE_CSV_MAPPING[row['league_name']]
+
             config = LeagueConfig(
                 league_id=row['league_id'],
                 league_name=row['league_name'],

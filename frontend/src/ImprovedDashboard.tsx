@@ -388,8 +388,8 @@ export default function ImprovedDashboard() {
             ) : (
               <div className="flex items-center justify-center py-6">
                 <div className="text-center">
-                  <div className="text-slate-500 text-sm mb-1">⏳</div>
-                  <div className="text-slate-400 text-xs">Predicción próximamente</div>
+                  <div className="text-slate-500 text-sm mb-1">{showResult ? '—' : '⏳'}</div>
+                  <div className="text-slate-400 text-xs">{showResult ? 'Sin predicción disponible' : 'Predicción próximamente'}</div>
                 </div>
               </div>
             )}
@@ -509,8 +509,8 @@ export default function ImprovedDashboard() {
             ) : (
               <div className="flex items-center justify-center py-6">
                 <div className="text-center">
-                  <div className="text-slate-500 text-sm mb-1">⏳</div>
-                  <div className="text-slate-400 text-xs">Predicción próximamente</div>
+                  <div className="text-slate-500 text-sm mb-1">{showResult ? '—' : '⏳'}</div>
+                  <div className="text-slate-400 text-xs">{showResult ? 'Sin predicción disponible' : 'Predicción próximamente'}</div>
                 </div>
               </div>
             )}
