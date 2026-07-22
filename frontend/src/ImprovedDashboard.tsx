@@ -104,7 +104,7 @@ export default function ImprovedDashboard() {
           const leagueData = await response.json();
           setSeasonId(leagueData.seasonId);
           setLeagueName(leagueData.name || '');
-          setUpcomingLimit(Math.max(leagueData.upcomingCount || 10, 10));
+          setUpcomingLimit(20);
         } else {
           // League id not found — fall back to first active league
           const activeResp = await fetch(`${API_URL}/api/leagues/active`);
