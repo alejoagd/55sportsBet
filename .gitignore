@@ -36,3 +36,6 @@ logs/
 # Database
 *.db
 *.sqlite
+
+# Cache de respuestas de API-Football (regenerable, no es código fuente)
+data/api_football_cache/

@@ -59,16 +59,18 @@ class LeagueConfig:
 class LeagueManager:
     """Gestiona la selección y configuración de ligas"""
     
-    # Mapeo de ligas a códigos CSV de football-data.co.uk
+    # Mapeo de ligas a códigos CSV de football-data.co.uk.
+    # Brasileirao / Liga Argentina / Liga Betplay / Copa Libertadores / Copa
+    # Sudamericana NO están acá: football-data.co.uk no tiene datos de
+    # Sudamérica. Esas 5 competencias se ingestan aparte vía API-Football
+    # (histórico) + ESPN (temporada actual) — ver src/ingest/load_api_football_history.py
+    # y update_competitions_espn_sync.py. No pasan por LeagueManager/run_update_automated.py.
     LEAGUE_CSV_MAPPING = {
         "Premier League": ("E0", True),    # England, dayfirst=True
         "La Liga": ("SP1", True),          # Spain, dayfirst=True
         "Serie A": ("I1", True),           # Italy, dayfirst=True
         "Bundesliga": ("D1", True),        # Germany, dayfirst=True
         "Ligue 1": ("F1", True),           # France, dayfirst=True
-        "Brasileirao": ("BR", False),      # Brazil, dayfirst=False
-        "Liga Argentina": ("AR", False),   # Argentina, dayfirst=False
-        "Liga Betplay": ("CO", False),     # Colombia, dayfirst=False
     }
     
     def __init__(self, conn):

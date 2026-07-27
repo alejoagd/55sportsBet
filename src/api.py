@@ -1032,6 +1032,112 @@ def get_wc2026_group_matches():
     return result
 
 
+# ── Competencias genéricas (Copa Libertadores / Copa Sudamericana / futuras) ──
+# A diferencia de /api/wc2026/*, estos endpoints son genéricos por :season_id
+# y leen stage/round_label/group_name directo de matches — sin diccionarios de
+# grupo/bracket hardcodeados (ver src/ingest/stage_mapping.py, match_upsert.py).
+
+_KNOCKOUT_STAGE_ORDER = {
+    "preliminary": 0,
+    "round_of_32": 1,
+    "round_of_16": 2,
+    "quarterfinal": 3,
+    "semifinal": 4,
+    "third_place": 5,
+    "final": 6,
+}
+
+
+@router.get("/api/competitions/{season_id}/groups")
+def get_competition_groups(season_id: int):
+    """Tablas de posiciones + partidos por grupo para una temporada de copa."""
+    query = text("""
+        SELECT
+            m.id as match_id, m.group_name, m.date,
+            th.id as home_id, th.name as home_team, m.home_goals,
+            ta.id as away_id, ta.name as away_team, m.away_goals
+        FROM matches m
+        JOIN teams th ON th.id = m.home_team_id
+        JOIN teams ta ON ta.id = m.away_team_id
+        WHERE m.season_id = :season_id AND m.stage = 'group'
+        ORDER BY m.group_name, m.date
+    """)
+    with engine.begin() as conn:
+        rows = conn.execute(query, {"season_id": season_id}).mappings().all()
+
+    groups: dict[str, dict] = {}
+    for row in rows:
+        gname = row["group_name"] or "?"
+        group = groups.setdefault(gname, {"group_name": gname, "matches": [], "_table": {}})
+
+        match = dict(row)
+        if match.get("date") and hasattr(match["date"], "isoformat"):
+            match["date"] = match["date"].isoformat()
+        group["matches"].append(match)
+
+        table = group["_table"]
+        for team_id, team_name in ((row["home_id"], row["home_team"]), (row["away_id"], row["away_team"])):
+            table.setdefault(team_id, {
+                "team_id": team_id, "team": team_name,
+                "played": 0, "won": 0, "drawn": 0, "lost": 0,
+                "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0,
+            })
+
+        if row["home_goals"] is not None and row["away_goals"] is not None:
+            hg, ag = row["home_goals"], row["away_goals"]
+            h, a = table[row["home_id"]], table[row["away_id"]]
+            h["played"] += 1; a["played"] += 1
+            h["goals_for"] += hg; h["goals_against"] += ag
+            a["goals_for"] += ag; a["goals_against"] += hg
+            if hg > ag:
+                h["won"] += 1; h["points"] += 3; a["lost"] += 1
+            elif ag > hg:
+                a["won"] += 1; a["points"] += 3; h["lost"] += 1
+            else:
+                h["drawn"] += 1; a["drawn"] += 1; h["points"] += 1; a["points"] += 1
+
+    result = []
+    for gname, group in sorted(groups.items()):
+        for t in group["_table"].values():
+            t["goal_diff"] = t["goals_for"] - t["goals_against"]
+        standings = sorted(
+            group["_table"].values(),
+            key=lambda t: (-t["points"], -t["goal_diff"], -t["goals_for"], t["team"]),
+        )
+        result.append({"group_name": gname, "standings": standings, "matches": group["matches"]})
+
+    return {"season_id": season_id, "groups": result}
+
+
+@router.get("/api/competitions/{season_id}/bracket")
+def get_competition_bracket(season_id: int):
+    """Partidos de eliminatoria (todo lo que no sea fase de grupos/liga regular), ordenados por ronda."""
+    query = text("""
+        SELECT
+            m.id as match_id, m.stage, m.round_label, m.date,
+            th.name as home_team, m.home_goals,
+            ta.name as away_team, m.away_goals
+        FROM matches m
+        JOIN teams th ON th.id = m.home_team_id
+        JOIN teams ta ON ta.id = m.away_team_id
+        WHERE m.season_id = :season_id
+          AND m.stage IS NOT NULL AND m.stage NOT IN ('regular', 'group')
+        ORDER BY m.date
+    """)
+    with engine.begin() as conn:
+        rows = conn.execute(query, {"season_id": season_id}).mappings().all()
+
+    matches = []
+    for row in rows:
+        d = dict(row)
+        if d.get("date") and hasattr(d["date"], "isoformat"):
+            d["date"] = d["date"].isoformat()
+        matches.append(d)
+
+    matches.sort(key=lambda m: (_KNOCKOUT_STAGE_ORDER.get(m["stage"], 99), m["date"] or ""))
+    return {"season_id": season_id, "matches": matches}
+
+
 # ── WC 2026 News ────────────────────────────────────────────────────────────
 _wc_news_cache: dict = {"data": None, "expires": 0.0}
 

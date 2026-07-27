@@ -1,0 +1,112 @@
+name: Update API-Football Competitions
+
+# ──────────────────────────────────────────────────────────────────────────────
+# FUENTES DE DATOS
+# ──────────────────────────────────────────────────────────────────────────────
+# Backfill histórico (2022-2024): API-Football / api-sports.io (plan Free,
+#   100 req/día — solo sirve para temporadas pasadas, NO la actual). Se corre
+#   manualmente una sola vez (src/ingest/load_api_football_history.py), NO
+#   forma parte de este workflow.
+# Temporada en curso (calendario + resultados + ronda/grupo): ESPN, público,
+#   sin autenticación (update_competitions_espn_sync.py) — mismo mecanismo que
+#   ya usa el pipeline del Mundial.
+# ──────────────────────────────────────────────────────────────────────────────
+# Competencias: Brasileirao, Liga Argentina, Liga Betplay, Copa Libertadores,
+# Copa Sudamericana.
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 9:00 AM UTC
+    - cron: '0 21 * * *'  # 9:00 PM UTC
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no modifica BD, solo muestra qué actualizaría)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  update-competitions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env.production
+        env:
+          DB_HOST:        ${{ secrets.DB_HOST }}
+          DB_PORT:        ${{ secrets.DB_PORT }}
+          DB_NAME:        ${{ secrets.DB_NAME }}
+          DB_USER:        ${{ secrets.DB_USER }}
+          DB_PASS:        ${{ secrets.DB_PASS }}
+          DB_SCHEMA:      ${{ secrets.DB_SCHEMA }}
+          API_URL:        ${{ secrets.API_URL }}
+          APIFOOTBALL_KEY: ${{ secrets.APIFOOTBALL_KEY }}
+        run: |
+          cat > .env.production << EOF
+          DB_HOST=$DB_HOST
+          DB_PORT=$DB_PORT
+          DB_NAME=$DB_NAME
+          DB_USER=$DB_USER
+          DB_PASSWORD=$DB_PASS
+          DB_SCHEMA=$DB_SCHEMA
+          API_URL=$API_URL
+          APIFOOTBALL_KEY=$APIFOOTBALL_KEY
+          EOF
+
+          if [ -z "$DB_PASS" ]; then
+            echo "::error::DB_PASS secret no configurado en GitHub"
+            exit 1
+          fi
+          echo "✓ .env.production creado"
+
+      - name: Sync temporada actual (ESPN) — Brasileirao / Liga Argentina / Liga Betplay / Copa Libertadores / Copa Sudamericana
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python update_competitions_espn_sync.py --dry-run
+          else
+            python update_competitions_espn_sync.py
+          fi
+
+      - name: Generar predicciones (Poisson + Weinston) para las 5 competencias
+        env:
+          ENV_FILE: .env.production
+        run: |
+          if [ "${{ inputs.dry_run }}" != "true" ]; then
+            python -m src.scripts.run_predictions_for_competitions
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-football-update-logs-${{ github.run_number }}
+          path: |
+            *.log
+            logs/**
+          retention-days: 14
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::API-Football competitions update failed. Check logs."

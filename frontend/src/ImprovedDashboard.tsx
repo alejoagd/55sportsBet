@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
 import LeagueSwitcher from './Leagueswitcher';
 import WorldCupDashboard from './WorldCupDashboard';
+import CompetitionDashboard from './CompetitionDashboard';
 
 
 
@@ -556,6 +557,7 @@ export default function ImprovedDashboard() {
 // ═══════════════════════════════════════════════════════════════════
 
   const isWorldCup = leagueName === 'FIFA World Cup';
+  const isCupCompetition = leagueName === 'Copa Libertadores' || leagueName === 'Copa Sudamericana';
 
   return (
     <>
@@ -579,8 +581,13 @@ export default function ImprovedDashboard() {
         <WorldCupDashboard initialGroup={searchParams.get('group')} />
       )}
 
+      {/* VISTA GRUPOS + BRACKET (Copa Libertadores / Copa Sudamericana) */}
+      {isCupCompetition && seasonId && (
+        <CompetitionDashboard seasonId={seasonId} />
+      )}
+
       {/* CONTENIDO DEL DASHBOARD (solo para ligas normales) */}
-      {!isWorldCup && (
+      {!isWorldCup && !isCupCompetition && (
       <div className="min-h-screen bg-slate-900 p-6">
         <div className="max-w-7xl mx-auto space-y-8">
 
