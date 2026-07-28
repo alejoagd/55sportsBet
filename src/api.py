@@ -697,8 +697,54 @@ def get_upcoming_matches(
             "season_id": season_id,
             "limit": limit
         }).mappings().all()
-        
+
         return [dict(row) for row in rows]
+
+
+@router.get("/api/matches/today")
+def get_todays_matches():
+    """
+    Retorna los partidos de la fecha actual en TODAS las ligas activas
+    (vista por defecto del dashboard, en vez de una liga específica).
+    """
+    query = text("""
+        SELECT
+            m.id as match_id,
+            m.date,
+            l.id as league_id,
+            l.name as league_name,
+            CASE l.name
+                WHEN 'Premier League' THEN '🏴󠁧󠁢󠁥󠁮󠁧󠁿'
+                WHEN 'La Liga' THEN '🇪🇸'
+                WHEN 'Serie A' THEN '🇮🇹'
+                WHEN 'Bundesliga' THEN '🇩🇪'
+                WHEN 'Ligue 1' THEN '🇫🇷'
+                WHEN 'FIFA World Cup' THEN '🏆'
+                WHEN 'Brasileirao' THEN '🇧🇷'
+                WHEN 'Liga Argentina' THEN '🇦🇷'
+                WHEN 'Liga Betplay' THEN '🇨🇴'
+                WHEN 'Copa Libertadores' THEN '🏆'
+                WHEN 'Copa Sudamericana' THEN '🥈'
+                ELSE '⚽'
+            END as league_emoji,
+            th.name as home_team,
+            ta.name as away_team,
+            m.home_goals,
+            m.away_goals
+
+        FROM matches m
+        JOIN teams th ON th.id = m.home_team_id
+        JOIN teams ta ON ta.id = m.away_team_id
+        JOIN seasons s ON s.id = m.season_id
+        JOIN leagues l ON l.id = s.league_id
+        WHERE m.date = CURRENT_DATE
+        ORDER BY l.name, m.date
+    """)
+
+    with engine.begin() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    return [dict(row) for row in rows]
 
 
 @router.get("/api/wc2026/all-matches")

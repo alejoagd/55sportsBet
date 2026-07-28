@@ -111,20 +111,124 @@ function GroupTable({ group }: { group: Group }) {
   );
 }
 
-function BracketRound({ stage, matches }: { stage: string; matches: BracketMatch[] }) {
+// ── Llaves (ida/vuelta) ───────────────────────────────────────────────────
+// Octavos/cuartos/semis de Libertadores y Sudamericana son series de ida y
+// vuelta (la Final es partido único). Para saber quién avanza hay que sumar
+// el marcador de los 2 fixtures de la llave. Se agrupan por (stage, equipos
+// sin importar orden) — a diferencia del bracket del Mundial, acá no hace
+// falta adivinar nada: los fixtures reales ya vienen con los equipos
+// correctos desde ESPN/API-Football.
+
+interface Tie {
+  key: string;
+  stage: string;
+  teamA: string;
+  teamB: string;
+  legs: BracketMatch[];
+  aggA: number | null;
+  aggB: number | null;
+}
+
+function groupIntoTies(matches: BracketMatch[]): Tie[] {
+  const byKey = new Map<string, BracketMatch[]>();
+  for (const m of matches) {
+    const [a, b] = [m.home_team, m.away_team].sort();
+    const key = `${m.stage}__${a}__${b}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key)!.push(m);
+  }
+
+  return Array.from(byKey.values()).map((legs) => {
+    const sorted = [...legs].sort((x, y) => x.date.localeCompare(y.date));
+    const [teamA, teamB] = [sorted[0].home_team, sorted[0].away_team].sort();
+
+    let aggA: number | null = 0;
+    let aggB: number | null = 0;
+    for (const leg of sorted) {
+      if (leg.home_goals === null || leg.away_goals === null) {
+        aggA = null;
+        aggB = null;
+        break;
+      }
+      if (leg.home_team === teamA) {
+        aggA! += leg.home_goals;
+        aggB! += leg.away_goals;
+      } else {
+        aggA! += leg.away_goals;
+        aggB! += leg.home_goals;
+      }
+    }
+
+    return {
+      key: `${sorted[0].stage}__${teamA}__${teamB}`,
+      stage: sorted[0].stage,
+      teamA,
+      teamB,
+      legs: sorted,
+      aggA,
+      aggB,
+    };
+  });
+}
+
+function TieTeamRow({ name, isWinner, dim }: { name: string; isWinner: boolean; dim: boolean }) {
   return (
-    <div>
-      <h3 className="text-slate-300 font-bold mb-2">{STAGE_LABEL[stage] || matches[0]?.round_label || stage}</h3>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {matches.map((m) => (
-          <div key={m.match_id} className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-3">
-            <div className="text-xs text-slate-500 mb-1">{formatDate(m.date)}</div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-200">{m.home_team}</span>
-              <ScoreOrDash home={m.home_goals} away={m.away_goals} />
-              <span className="text-slate-200 text-right">{m.away_team}</span>
+    <div className={`flex items-center justify-between px-2.5 py-1.5 ${isWinner ? 'bg-green-500/20' : ''} ${dim ? 'opacity-40' : ''}`}>
+      <span className="text-xs font-semibold text-white truncate">{name}</span>
+      {isWinner && <span className="text-green-400 text-xs flex-shrink-0">✓</span>}
+    </div>
+  );
+}
+
+function TieCard({ tie }: { tie: Tie }) {
+  const complete = tie.aggA !== null && tie.aggB !== null;
+  const decidedByPens = complete && tie.aggA === tie.aggB;
+  const winner = complete && !decidedByPens
+    ? (tie.aggA! > tie.aggB! ? tie.teamA : tie.teamB)
+    : null;
+
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden w-56 flex-shrink-0">
+      <div className="px-2.5 py-1 bg-slate-900/60 border-b border-slate-700/50 text-[10px] text-slate-500 font-bold">
+        {formatDate(tie.legs[0].date)}
+        {tie.legs.length > 1 && ` – ${formatDate(tie.legs[tie.legs.length - 1].date)}`}
+      </div>
+      <TieTeamRow name={tie.teamA} isWinner={winner === tie.teamA} dim={!!winner && winner !== tie.teamA} />
+      <div className="mx-2.5 h-px bg-slate-700" />
+      <TieTeamRow name={tie.teamB} isWinner={winner === tie.teamB} dim={!!winner && winner !== tie.teamB} />
+      <div className="px-2.5 py-1.5 border-t border-slate-700/50 space-y-0.5">
+        {tie.legs.map((leg, i) => {
+          const homeIsA = leg.home_team === tie.teamA;
+          return (
+            <div key={leg.match_id} className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>{tie.legs.length > 1 ? (i === 0 ? 'Ida' : 'Vuelta') : ''}</span>
+              <ScoreOrDash
+                home={homeIsA ? leg.home_goals : leg.away_goals}
+                away={homeIsA ? leg.away_goals : leg.home_goals}
+              />
             </div>
+          );
+        })}
+        {complete && (
+          <div className={`text-[11px] font-bold text-center pt-1 mt-1 border-t border-slate-700/30
+            ${decidedByPens ? 'text-yellow-400' : 'text-green-400'}`}>
+            Global {tie.aggA}-{tie.aggB}{decidedByPens ? ' (penales)' : ''}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BracketColumn({ stage, ties }: { stage: string; ties: Tie[] }) {
+  return (
+    <div className="flex flex-col gap-4 flex-shrink-0">
+      <h3 className="text-slate-300 font-bold text-sm text-center">
+        {STAGE_LABEL[stage] || ties[0]?.legs[0]?.round_label || stage}
+      </h3>
+      <div className="flex flex-col justify-around gap-4 flex-1">
+        {ties.map((tie) => (
+          <TieCard key={tie.key} tie={tie} />
         ))}
       </div>
     </div>
@@ -161,11 +265,13 @@ export default function CompetitionDashboard({ seasonId }: { seasonId: number })
     return <div className="text-center py-16 text-red-400">{error}</div>;
   }
 
-  const bracketByStage = bracket.reduce<Record<string, BracketMatch[]>>((acc, m) => {
-    (acc[m.stage] ||= []).push(m);
+  const stageOrder = ['preliminary', 'round_of_32', 'round_of_16', 'quarterfinal', 'semifinal', 'third_place', 'final'];
+  const ties = groupIntoTies(bracket);
+  const tiesByStage = ties.reduce<Record<string, Tie[]>>((acc, t) => {
+    (acc[t.stage] ||= []).push(t);
     return acc;
   }, {});
-  const stageOrder = ['preliminary', 'round_of_32', 'round_of_16', 'quarterfinal', 'semifinal', 'third_place', 'final'];
+  const stagesPresent = stageOrder.filter((s) => tiesByStage[s]?.length);
 
   return (
     <div className="min-h-screen bg-slate-900 p-6 space-y-8">
@@ -182,13 +288,18 @@ export default function CompetitionDashboard({ seasonId }: { seasonId: number })
         )}
 
         {bracket.length > 0 && (
-          <section className="space-y-6">
+          <section className="space-y-4">
             <h2 className="text-xl font-bold text-white">Eliminatoria</h2>
-            {stageOrder
-              .filter((s) => bracketByStage[s]?.length)
-              .map((s) => (
-                <BracketRound key={s} stage={s} matches={bracketByStage[s]} />
+            <div className="flex gap-6 overflow-x-auto scrollbar-hide pb-2">
+              {stagesPresent.map((s, i) => (
+                <div key={s} className="flex items-center gap-6">
+                  <BracketColumn stage={s} ties={tiesByStage[s]} />
+                  {i < stagesPresent.length - 1 && (
+                    <span className="text-slate-600 text-xl flex-shrink-0">➜</span>
+                  )}
+                </div>
               ))}
+            </div>
           </section>
         )}
 

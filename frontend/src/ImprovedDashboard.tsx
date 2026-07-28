@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
 import WorldCupDashboard from './WorldCupDashboard';
 import CompetitionDashboard from './CompetitionDashboard';
+import TodayAllLeaguesView from './TodayAllLeaguesView';
 
 
 
@@ -68,20 +69,9 @@ export default function ImprovedDashboard() {
   const [leagueName, setLeagueName] = useState<string>('');
   const { isAdmin } = useAdminMode();
 
-  // If no ?league= param, fetch active leagues and pick the first one (World Cup is ordered first)
-  useEffect(() => {
-    if (currentLeagueId !== null) return;
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    fetch(`${API_URL}/api/leagues/active`)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then((leagues: { id: number }[]) => {
-        if (leagues.length > 0) {
-          setCurrentLeagueId(leagues[0].id);
-          setSearchParams({ league: String(leagues[0].id) }, { replace: true });
-        }
-      })
-      .catch(() => setCurrentLeagueId(1));
-  }, []);
+  // Sin ?league= en la URL: no se auto-selecciona ninguna liga (antes caía
+  // siempre en la primera, que era el Mundial). Se muestra en su lugar
+  // <TodayAllLeaguesView /> — ver el return más abajo.
 
   useEffect(() => {
     const param = searchParams.get('league');
@@ -526,6 +516,12 @@ export default function ImprovedDashboard() {
       </div>
     );
   };
+
+  // Sin liga seleccionada (no hay ?league= en la URL): vista por defecto
+  // con los partidos de hoy en todas las ligas.
+  if (currentLeagueId === null) {
+    return <TodayAllLeaguesView />;
+  }
 
   if (loading) {
     return (
