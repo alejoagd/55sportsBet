@@ -9,6 +9,9 @@ import MatchDetail from './MatchDetail';
 import BestBetsSection from './BestBetsSection';
 import { ResponsiveWrapper } from './ResponsiveWrapper';
 import SubscribeModal from './SubscribeModal';
+import LeagueSidebar from './LeagueSidebar';
+import LeagueMobilePanel from './LeagueMobilePanel';
+import { useIsMobile } from './Hooks/useIsMobile';
 import './mobile-responsive.css';
 
 // 🔐 Imports del sistema administrativo
@@ -24,19 +27,20 @@ export interface AppFilters {
   date_to: string;
 }
 
-// Componente de Navegación Responsive
-function Navigation() {
+const NAV_ITEMS = [
+  { path: '/',            icon: '📊', label: 'Dashboard'    },
+  { path: '/best-bets',  icon: '🎯', label: 'Apuestas'     },
+  { path: '/evolution',  icon: '📈', label: 'Evolución'     },
+  { path: '/statistics', icon: '📋', label: 'Estadísticas'  },
+];
+
+// Barra superior: logo siempre visible; los links de navegación solo se
+// muestran en desktop (en mobile se mueven a la barra inferior fija).
+function TopBar({ isMobile }: { isMobile: boolean }) {
   const location = useLocation();
   const { isAdmin, showAdminLogin, loginAsAdmin, toggleAdminLogin } = useAdminMode();
 
   const isActive = (path: string) => location.pathname === path;
-
-  const navItems = [
-    { path: '/',            icon: '📊', label: 'Dashboard'    },
-    { path: '/best-bets',  icon: '🎯', label: 'Apuestas'     },
-    { path: '/evolution',  icon: '📈', label: 'Evolución'     },
-    { path: '/statistics', icon: '📋', label: 'Estadísticas'  },
-  ];
 
   const linkClass = (path: string) =>
     `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium
@@ -65,26 +69,28 @@ function Navigation() {
               )}
             </div>
 
-            {/* Separador */}
-            <div className="w-px h-5 bg-slate-700 flex-shrink-0 hidden sm:block" />
-
-            {/* Links — scrollan horizontalmente en móvil */}
-            <div className="flex-1 overflow-x-auto scrollbar-hide">
-              <div className="flex items-center gap-1 min-w-max sm:justify-end">
-                {navItems.map(({ path, icon, label }) => (
-                  <Link key={path} to={path} className={linkClass(path)}>
-                    <span>{icon}</span>
-                    <span>{label}</span>
-                  </Link>
-                ))}
-                <AdminOnly hideCompletely={true}>
-                  <Link to="/statistics2" className={linkClass('/statistics2')}>
-                    <span>📊</span>
-                    <span>Stats 2</span>
-                  </Link>
-                </AdminOnly>
-              </div>
-            </div>
+            {/* Links de navegación — solo en desktop, en mobile viven en la barra inferior */}
+            {!isMobile && (
+              <>
+                <div className="w-px h-5 bg-slate-700 flex-shrink-0 hidden sm:block" />
+                <div className="flex-1 overflow-x-auto scrollbar-hide">
+                  <div className="flex items-center gap-1 min-w-max sm:justify-end">
+                    {NAV_ITEMS.map(({ path, icon, label }) => (
+                      <Link key={path} to={path} className={linkClass(path)}>
+                        <span>{icon}</span>
+                        <span>{label}</span>
+                      </Link>
+                    ))}
+                    <AdminOnly hideCompletely={true}>
+                      <Link to="/statistics2" className={linkClass('/statistics2')}>
+                        <span>📊</span>
+                        <span>Stats 2</span>
+                      </Link>
+                    </AdminOnly>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -95,67 +101,109 @@ function Navigation() {
   );
 }
 
+// Barra inferior fija (solo mobile): mismas secciones que el nav de desktop
+// + un botón "Ligas" que abre el panel de selección de liga.
+function BottomTabBar({ onOpenLeagues }: { onOpenLeagues: () => void }) {
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname === path;
+
+  const itemClass = (active: boolean) =>
+    `flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium
+     ${active ? 'text-blue-400' : 'text-slate-400'}`;
+
+  return (
+    <nav
+      className="fixed bottom-0 inset-x-0 z-50 flex border-t border-slate-700 bg-slate-900"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      {NAV_ITEMS.map(({ path, icon, label }) => (
+        <Link key={path} to={path} className={itemClass(isActive(path))}>
+          <span className="text-lg leading-none">{icon}</span>
+          <span>{label}</span>
+        </Link>
+      ))}
+      <button onClick={onOpenLeagues} className={itemClass(false)}>
+        <span className="text-lg leading-none">🏆</span>
+        <span>Ligas</span>
+      </button>
+    </nav>
+  );
+}
+
 // Componente principal de la aplicación
 function App() {
   const [showSubscribe, setShowSubscribe] = useState(false);
+  const [showLeaguePanel, setShowLeaguePanel] = useState(false);
+  const isMobile = useIsMobile();
+
+  const routesElement = (
+    <Routes>
+      <Route path="/" element={<ImprovedDashboard />} />
+      <Route path="/best-bets" element={<BestBetsSection />} />
+      <Route path="/evolution" element={<MetricsEvolutionChart />} />
+      <Route path="/statistics" element={<TeamStatistics />} />
+
+      {/* 🔐 Ruta protegida - Stats 2 solo para admins */}
+      <Route
+        path="/statistics2"
+        element={
+          <AdminOnly
+            fallback={
+              <div className="flex items-center justify-center h-96 text-slate-400">
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🔐</div>
+                  <div className="text-xl">Acceso Restringido</div>
+                  <div className="text-sm mt-2">Esta sección es solo para administradores</div>
+                </div>
+              </div>
+            }
+            hideCompletely={false}
+          >
+            <PredictionsDashboard />
+          </AdminOnly>
+        }
+      />
+
+      <Route path="/match/:matchId" element={<MatchDetail />} />
+
+      {/* Ruta 404 */}
+      <Route path="*" element={
+        <div className="flex flex-col items-center justify-center h-96 text-slate-400">
+          <div className="text-6xl mb-4">404</div>
+          <div className="text-xl">Página no encontrada</div>
+          <Link to="/" className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Volver al Dashboard
+          </Link>
+        </div>
+      } />
+    </Routes>
+  );
 
   return (
     <ResponsiveWrapper>
       <Router>
-        <div className="min-h-screen bg-slate-900">
-          <Navigation />
+        <div className={isMobile ? 'h-[100dvh] flex flex-col overflow-hidden bg-slate-900' : 'min-h-screen bg-slate-900'}>
+          <TopBar isMobile={isMobile} />
 
-          <main>
-            <Routes>
-              <Route path="/" element={<ImprovedDashboard />} />
-              <Route path="/best-bets" element={<BestBetsSection />} />
-              <Route path="/evolution" element={<MetricsEvolutionChart />} />
-              <Route path="/statistics" element={<TeamStatistics />} />
-              
-              {/* 🔐 Ruta protegida - Stats 2 solo para admins */}
-              <Route 
-                path="/statistics2" 
-                element={
-                  <AdminOnly 
-                    fallback={
-                      <div className="flex items-center justify-center h-96 text-slate-400">
-                        <div className="text-center">
-                          <div className="text-6xl mb-4">🔐</div>
-                          <div className="text-xl">Acceso Restringido</div>
-                          <div className="text-sm mt-2">Esta sección es solo para administradores</div>
-                        </div>
-                      </div>
-                    }
-                    hideCompletely={false}
-                  >
-                    <PredictionsDashboard />
-                  </AdminOnly>
-                } 
-              />
-              
-              <Route path="/match/:matchId" element={<MatchDetail />} />
-              
-              {/* Ruta 404 */}
-              <Route path="*" element={
-                <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-                  <div className="text-6xl mb-4">404</div>
-                  <div className="text-xl">Página no encontrada</div>
-                  <Link to="/" className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    Volver al Dashboard
-                  </Link>
-                </div>
-              } />
-            </Routes>
-          </main>
+          <div className={isMobile ? 'flex-1 flex overflow-hidden' : 'flex'}>
+            {!isMobile && <LeagueSidebar />}
+            <main className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0'}>
+              {routesElement}
+            </main>
+          </div>
 
-          {/* Botón flotante de suscripción */}
+          {isMobile && <BottomTabBar onOpenLeagues={() => setShowLeaguePanel(true)} />}
+          {isMobile && <LeagueMobilePanel isOpen={showLeaguePanel} onClose={() => setShowLeaguePanel(false)} />}
+
+          {/* Botón flotante de suscripción — sube en mobile para no tapar la barra inferior */}
           <button
             onClick={() => setShowSubscribe(true)}
-            className="fixed bottom-6 right-6 z-40 flex items-center gap-2
+            className={`fixed right-6 z-40 flex items-center gap-2
                        bg-yellow-400 hover:bg-yellow-300 text-slate-900
                        font-bold text-sm px-4 py-3 rounded-full shadow-lg
                        shadow-yellow-400/30 hover:shadow-yellow-400/50
-                       transition-all hover:scale-105 active:scale-95"
+                       transition-all hover:scale-105 active:scale-95
+                       ${isMobile ? 'bottom-20' : 'bottom-6'}`}
             title="Suscríbete para recibir noticias del Mundial"
           >
             <span className="text-base">🔔</span>

@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Oculta la scrollbar en filas de scroll horizontal (nav, tabs) sin
+   deshabilitar el scroll. Usado por App.tsx, Teamstatistics.tsx y
+   WorldCupDashboard.tsx. */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

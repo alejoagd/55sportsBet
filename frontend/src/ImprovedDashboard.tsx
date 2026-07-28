@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdminMode } from './Hooks/useAdminMode';
-import LeagueSwitcher from './Leagueswitcher';
 import WorldCupDashboard from './WorldCupDashboard';
 import CompetitionDashboard from './CompetitionDashboard';
 
@@ -561,21 +560,6 @@ export default function ImprovedDashboard() {
 
   return (
     <>
-      {/* ✨ SELECTOR DE LIGAS */}
-      <LeagueSwitcher
-        currentLeagueId={currentLeagueId ?? 0}
-        onLeagueChange={(leagueId) => {
-          setCurrentLeagueId(leagueId);
-          setLoading(true);
-          setSearchParams(prev => {
-            const next = new URLSearchParams(prev);
-            next.set('league', leagueId.toString());
-            next.delete('group');
-            return next;
-          });
-        }}
-      />
-
       {/* VISTA ESPECIAL MUNDIAL */}
       {isWorldCup && (
         <WorldCupDashboard initialGroup={searchParams.get('group')} />

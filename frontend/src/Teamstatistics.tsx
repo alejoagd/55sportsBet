@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 interface TeamStats {
   team_id: number;
@@ -53,82 +54,71 @@ interface StatsResponse {
   referees: RefereeStats[];
 }
 
-interface League {
-  id: number;
-  name: string;
-  shortName: string;
-  emoji: string;
-  seasonId: number;
-}
-
-// ============================================================================
-// CONFIGURACIÓN DE LIGAS - AJUSTAR SEGÚN TU BD
-// ============================================================================
-const LEAGUES: League[] = [
-  {
-    id: 1,
-    name: "Premier League",
-    shortName: "Premier League",
-    emoji: "🏴",
-    seasonId: 2, // ← VERIFICAR EN TU BD
-  },
-  {
-    id: 2,
-    name: "La Liga",
-    shortName: "La Liga",
-    emoji: "🇪🇸",
-    seasonId: 15, // ← VERIFICAR EN TU BD
-  },
-  {
-    id: 3,
-    name: "Serie A",
-    shortName: "Serie A",
-    emoji: "🇮🇹",
-    seasonId: 29, // ← VERIFICAR EN TU BD
-  },
-  {
-    id: 4,
-    name: "Bundesliga",
-    shortName: "Bundesliga",
-    emoji: "🇩🇪",
-    seasonId: 54, // ← VERIFICAR EN TU BD
-  }
-];
-
 export default function TeamStatistics() {
-  // Estado con seasonId como primitivo (mejor para React)
-  const [currentSeasonId, setCurrentSeasonId] = useState<number>(LEAGUES[0].seasonId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const leagueParam = searchParams.get('league');
+  const [currentLeagueId, setCurrentLeagueId] = useState<number | null>(
+    leagueParam ? parseInt(leagueParam, 10) : null
+  );
+
+  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const [leagueName, setLeagueName] = useState<string>('');
+  const [leagueEmoji, setLeagueEmoji] = useState<string>('⚽');
+
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
 
-  // Obtener liga actual desde seasonId
-  const currentLeague = LEAGUES.find(l => l.seasonId === currentSeasonId) || LEAGUES[0];
-
-  // Detectar mobile
+  // Sin ?league= en la URL: tomar la primera liga activa (igual que ImprovedDashboard)
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    if (currentLeagueId !== null) return;
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${API_URL}/api/leagues/active`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((leagues: { id: number }[]) => {
+        if (leagues.length > 0) {
+          setCurrentLeagueId(leagues[0].id);
+          setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('league', String(leagues[0].id));
+            return next;
+          }, { replace: true });
+        }
+      })
+      .catch(() => setCurrentLeagueId(1));
   }, []);
+
+  // ?league= cambió (via LeagueSidebar/LeagueMobilePanel) → sincronizar
+  useEffect(() => {
+    const param = searchParams.get('league');
+    if (!param) return;
+    const leagueFromUrl = parseInt(param, 10);
+    if (leagueFromUrl !== currentLeagueId) {
+      setCurrentLeagueId(leagueFromUrl);
+    }
+  }, [searchParams]);
+
+  // Resolver season_id/nombre/emoji reales desde el backend
+  useEffect(() => {
+    if (currentLeagueId === null) return;
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${API_URL}/api/leagues/${currentLeagueId}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((leagueData: { seasonId: number; name: string; emoji: string }) => {
+        setSeasonId(leagueData.seasonId);
+        setLeagueName(leagueData.name || '');
+        setLeagueEmoji(leagueData.emoji || '⚽');
+      })
+      .catch((error) => console.error('❌ Error obteniendo season_id:', error));
+  }, [currentLeagueId]);
 
   // Función de fetch con useCallback
   const fetchStatistics = useCallback(async (seasonId: number) => {
     setLoading(true);
     setData(null); // Limpiar datos anteriores IMPORTANTE
-    
+
     try {
       const today = new Date().toISOString().split('T')[0];
-      const league = LEAGUES.find(l => l.seasonId === seasonId);
-      
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📊 Fetching statistics:');
-      console.log('   League:', league?.name);
-      console.log('   Season ID:', seasonId);
-      console.log('   Emoji:', league?.emoji);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
+
       const params = new URLSearchParams({
         season_id: seasonId.toString(),
         date_from: '2024-08-01',
@@ -168,16 +158,12 @@ export default function TeamStatistics() {
     }
   }, []);
 
-  // Fetch cuando cambia currentSeasonId
+  // Fetch cuando cambia seasonId
   useEffect(() => {
-    fetchStatistics(currentSeasonId);
-  }, [currentSeasonId, fetchStatistics]);
-
-  // Handler para cambio de liga
-  const handleLeagueChange = (league: League) => {
-    console.log('🔄 Changing league to:', league.name, '(season_id:', league.seasonId, ')');
-    setCurrentSeasonId(league.seasonId);
-  };
+    if (seasonId && seasonId > 0) {
+      fetchStatistics(seasonId);
+    }
+  }, [seasonId, fetchStatistics]);
 
   // Funciones para obtener rankings
   const getTopTeams = (key: keyof TeamStats, limit: number = 5, ascending: boolean = false) => {
@@ -221,40 +207,10 @@ export default function TeamStatistics() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950">
-        {/* Tabs visibles durante loading */}
-        <div className="bg-slate-900 border-b border-slate-700">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              {LEAGUES.map((league) => {
-                const isActive = league.seasonId === currentSeasonId;
-                return (
-                  <button
-                    key={league.id}
-                    onClick={() => handleLeagueChange(league)}
-                    disabled={loading}
-                    className={`flex items-center gap-2 px-4 py-3 whitespace-nowrap border-b-2 transition-all duration-200
-                      ${isActive 
-                        ? 'border-blue-500 text-white font-semibold bg-slate-800/50' 
-                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-                      }
-                      ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <span className="text-xl">{league.emoji}</span>
-                    <span className="text-sm">{isMobile ? league.shortName : league.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-slate-400">Cargando estadísticas de {currentLeague.name}...</p>
-            <p className="text-slate-500 text-sm mt-2">Season ID: {currentSeasonId}</p>
-          </div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-400">Cargando estadísticas{leagueName ? ` de ${leagueName}` : ''}...</p>
         </div>
       </div>
     );
@@ -262,43 +218,15 @@ export default function TeamStatistics() {
 
   if (!data || !data.teams || data.teams.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-950">
-        {/* Tabs */}
-        <div className="bg-slate-900 border-b border-slate-700">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              {LEAGUES.map((league) => {
-                const isActive = league.seasonId === currentSeasonId;
-                return (
-                  <button
-                    key={league.id}
-                    onClick={() => handleLeagueChange(league)}
-                    className={`flex items-center gap-2 px-4 py-3 whitespace-nowrap border-b-2 transition-all duration-200
-                      ${isActive 
-                        ? 'border-blue-500 text-white font-semibold bg-slate-800/50' 
-                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-                      }`}
-                  >
-                    <span className="text-xl">{league.emoji}</span>
-                    <span className="text-sm">{isMobile ? league.shortName : league.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        
-        <div className="p-6 text-center">
-          <div className="text-6xl mb-4">{currentLeague.emoji}</div>
-          <div className="text-slate-400 text-xl">No hay datos disponibles para {currentLeague.name}</div>
-          <div className="text-slate-500 text-sm mt-2">Season ID: {currentSeasonId}</div>
-          <button
-            onClick={() => fetchStatistics(currentSeasonId)}
-            className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            🔄 Reintentar
-          </button>
-        </div>
+      <div className="min-h-screen bg-slate-950 p-6 text-center">
+        <div className="text-6xl mb-4">{leagueEmoji}</div>
+        <div className="text-slate-400 text-xl">No hay datos disponibles para {leagueName}</div>
+        <button
+          onClick={() => seasonId && fetchStatistics(seasonId)}
+          className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          🔄 Reintentar
+        </button>
       </div>
     );
   }
@@ -348,49 +276,21 @@ export default function TeamStatistics() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      
-      {/* ============================================================ */}
-      {/* TABS DE LIGAS                                               */}
-      {/* ============================================================ */}
-      <div className="bg-slate-900 border-b border-slate-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            {LEAGUES.map((league) => {
-              const isActive = league.seasonId === currentSeasonId;
-              return (
-                <button
-                  key={league.id}
-                  onClick={() => handleLeagueChange(league)}
-                  className={`flex items-center gap-2 px-4 py-3 whitespace-nowrap border-b-2 transition-all duration-200
-                    ${isActive 
-                      ? 'border-blue-500 text-white font-semibold bg-slate-800/50' 
-                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-                    }`}
-                >
-                  <span className="text-xl">{league.emoji}</span>
-                  <span className="text-sm">{isMobile ? league.shortName : league.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
       {/* ============================================================ */}
       {/* CONTENIDO DE ESTADÍSTICAS                                   */}
       {/* ============================================================ */}
       <div className="w-full max-w-[1600px] mx-auto p-6 space-y-6">
-        
+
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-6 shadow-xl">
           <div className="flex items-center gap-3 mb-2">
-            <span className="text-4xl">{currentLeague.emoji}</span>
+            <span className="text-4xl">{leagueEmoji}</span>
             <h1 className="text-3xl font-bold text-white">
               📊 Análisis Estadístico por Equipos
             </h1>
           </div>
           <p className="text-slate-300">
-            Rankings y comparativas de rendimiento - {currentLeague.name} Temporada {currentSeasonId}
+            Rankings y comparativas de rendimiento - {leagueName} Temporada {seasonId}
           </p>
           <p className="text-slate-500 text-sm mt-1">
             {data.teams.length} equipos • {data.referees?.length || 0} árbitros
