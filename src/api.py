@@ -4594,6 +4594,11 @@ def get_active_leagues():
                 WHEN 'Bundesliga' THEN '🇩🇪'
                 WHEN 'Ligue 1' THEN '🇫🇷'
                 WHEN 'FIFA World Cup' THEN '🏆'
+                WHEN 'Brasileirao' THEN '🇧🇷'
+                WHEN 'Liga Argentina' THEN '🇦🇷'
+                WHEN 'Liga Betplay' THEN '🇨🇴'
+                WHEN 'Copa Libertadores' THEN '🏆'
+                WHEN 'Copa Sudamericana' THEN '🥈'
                 ELSE '⚽'
             END as emoji,
             season_id,
@@ -4657,6 +4662,11 @@ def get_league_detail(league_id: int):
                 WHEN 'Bundesliga' THEN '🇩🇪'
                 WHEN 'Ligue 1' THEN '🇫🇷'
                 WHEN 'FIFA World Cup' THEN '🏆'
+                WHEN 'Brasileirao' THEN '🇧🇷'
+                WHEN 'Liga Argentina' THEN '🇦🇷'
+                WHEN 'Liga Betplay' THEN '🇨🇴'
+                WHEN 'Copa Libertadores' THEN '🏆'
+                WHEN 'Copa Sudamericana' THEN '🥈'
                 ELSE '⚽'
             END as emoji,
             a.season_id,
