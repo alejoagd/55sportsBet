@@ -711,6 +711,7 @@ def get_todays_matches():
         SELECT
             m.id as match_id,
             m.date,
+            m.kickoff_at,
             l.id as league_id,
             l.name as league_name,
             CASE l.name
@@ -728,7 +729,9 @@ def get_todays_matches():
                 ELSE '⚽'
             END as league_emoji,
             th.name as home_team,
+            th.logo_url as home_team_logo,
             ta.name as away_team,
+            ta.logo_url as away_team_logo,
             m.home_goals,
             m.away_goals
 
@@ -737,8 +740,8 @@ def get_todays_matches():
         JOIN teams ta ON ta.id = m.away_team_id
         JOIN seasons s ON s.id = m.season_id
         JOIN leagues l ON l.id = s.league_id
-        WHERE m.date = CURRENT_DATE
-        ORDER BY l.name, m.date
+        WHERE m.date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 1
+        ORDER BY m.kickoff_at NULLS LAST, l.name
     """)
 
     with engine.begin() as conn:

@@ -75,7 +75,12 @@ export default function ImprovedDashboard() {
 
   useEffect(() => {
     const param = searchParams.get('league');
-    if (!param) return;
+    if (!param) {
+      if (currentLeagueId !== null) {
+        setCurrentLeagueId(null);
+      }
+      return;
+    }
     const leagueFromUrl = parseInt(param, 10);
     if (leagueFromUrl !== currentLeagueId) {
       setCurrentLeagueId(leagueFromUrl);

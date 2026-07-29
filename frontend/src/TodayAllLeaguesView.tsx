@@ -12,21 +12,46 @@ const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000
 interface TodayMatch {
   match_id: number;
   date: string;
+  kickoff_at: string | null;
   league_id: number;
   league_name: string;
   league_emoji: string;
   home_team: string;
+  home_team_logo: string | null;
   away_team: string;
+  away_team_logo: string | null;
   home_goals: number | null;
   away_goals: number | null;
 }
 
-function formatTime(iso: string): string {
+function formatTime(kickoffAt: string | null): string {
+  if (!kickoffAt) return 'Hora por confirmar';
   try {
-    return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    return new Date(kickoffAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   } catch {
-    return '';
+    return 'Hora por confirmar';
   }
+}
+
+function isToday(kickoffAt: string | null): boolean {
+  if (!kickoffAt) return false;
+  const d = new Date(kickoffAt);
+  return d.toDateString() === new Date().toDateString();
+}
+
+function TeamLogo({ url, alt }: { url: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) {
+    return <span className="text-base leading-none shrink-0">⚽</span>;
+  }
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="w-5 h-5 object-contain shrink-0"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export default function TodayAllLeaguesView() {
@@ -43,7 +68,9 @@ export default function TodayAllLeaguesView() {
       .finally(() => setLoading(false));
   }, []);
 
-  const byLeague = matches.reduce<Record<string, TodayMatch[]>>((acc, m) => {
+  const todayMatches = matches.filter(m => isToday(m.kickoff_at));
+
+  const byLeague = todayMatches.reduce<Record<string, TodayMatch[]>>((acc, m) => {
     (acc[m.league_name] ||= []).push(m);
     return acc;
   }, {});
@@ -66,7 +93,7 @@ export default function TodayAllLeaguesView() {
           <div className="text-center py-16 text-red-400">{error}</div>
         )}
 
-        {!loading && !error && matches.length === 0 && (
+        {!loading && !error && todayMatches.length === 0 && (
           <div className="text-center py-16 text-slate-500">No hay partidos programados para hoy en ninguna liga</div>
         )}
 
@@ -83,9 +110,12 @@ export default function TodayAllLeaguesView() {
                   onClick={() => navigate(`/match/${m.match_id}`)}
                   className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:bg-slate-700/50 transition-colors cursor-pointer"
                 >
-                  <div className="text-slate-400 text-xs mb-2">{formatTime(m.date)}</div>
+                  <div className="text-slate-400 text-xs mb-2">{formatTime(m.kickoff_at)}</div>
                   <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                    <div className="text-right text-white font-semibold text-sm truncate">{m.home_team}</div>
+                    <div className="flex items-center justify-end gap-2 text-right text-white font-semibold text-sm min-w-0">
+                      <span className="truncate">{m.home_team}</span>
+                      <TeamLogo url={m.home_team_logo} alt={m.home_team} />
+                    </div>
                     <div className="text-center min-w-[48px]">
                       {m.home_goals !== null && m.away_goals !== null ? (
                         <span className="text-lg font-bold text-white">{m.home_goals} - {m.away_goals}</span>
@@ -93,7 +123,10 @@ export default function TodayAllLeaguesView() {
                         <span className="text-slate-500 text-sm">vs</span>
                       )}
                     </div>
-                    <div className="text-left text-white font-semibold text-sm truncate">{m.away_team}</div>
+                    <div className="flex items-center gap-2 text-left text-white font-semibold text-sm min-w-0">
+                      <TeamLogo url={m.away_team_logo} alt={m.away_team} />
+                      <span className="truncate">{m.away_team}</span>
+                    </div>
                   </div>
                 </div>
               ))}

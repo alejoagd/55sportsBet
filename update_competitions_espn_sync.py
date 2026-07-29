@@ -62,8 +62,8 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
             for fx in fixtures:
                 if not fx["date"]:
                     continue
-                home_id = resolver.resolve(fx["home_name"], league_id, "espn", fx["home_espn_id"])
-                away_id = resolver.resolve(fx["away_name"], league_id, "espn", fx["away_espn_id"])
+                home_id = resolver.resolve(fx["home_name"], league_id, "espn", fx["home_espn_id"], fx.get("home_logo"))
+                away_id = resolver.resolve(fx["away_name"], league_id, "espn", fx["away_espn_id"], fx.get("away_logo"))
 
                 if comp["kind"] == "league":
                     stage, group_name = "regular", None
@@ -89,6 +89,7 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
                     round_label=fx["round_label"],
                     group_name=group_name,
                     espn_event_id=fx["espn_event_id"],
+                    kickoff_at=fx.get("kickoff_at"),
                 )
                 if action == "inserted":
                     inserted += 1

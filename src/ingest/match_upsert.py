@@ -8,7 +8,7 @@ clave, cae a (season_id, home_id, away_id, date) para evitar duplicar si el
 mismo partido ya existe por otra vía.
 """
 from __future__ import annotations
-from datetime import date as DateType
+from datetime import date as DateType, datetime
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -37,6 +37,7 @@ def upsert_match(
     group_name: str | None = None,
     api_football_fixture_id: int | None = None,
     espn_event_id: int | None = None,
+    kickoff_at: datetime | None = None,
 ) -> tuple[int, str]:
     """Retorna (match_id, accion) con accion en {"inserted", "updated", "skipped"}."""
     existing = None
@@ -74,6 +75,7 @@ def upsert_match(
         "gn": group_name,
         "afid": api_football_fixture_id,
         "eeid": espn_event_id,
+        "kat": kickoff_at,
     }
 
     if existing:
@@ -88,7 +90,8 @@ def upsert_match(
                     round_label = COALESCE(:rl, round_label),
                     group_name = :gn,
                     api_football_fixture_id = COALESCE(:afid, api_football_fixture_id),
-                    espn_event_id = COALESCE(:eeid, espn_event_id)
+                    espn_event_id = COALESCE(:eeid, espn_event_id),
+                    kickoff_at = COALESCE(:kat, kickoff_at)
                 WHERE id = :id
             """),
             params,
@@ -101,11 +104,11 @@ def upsert_match(
             INSERT INTO matches (
                 season_id, date, home_team_id, away_team_id, home_goals, away_goals,
                 fulltime_result, stage, round_label, group_name,
-                api_football_fixture_id, espn_event_id
+                api_football_fixture_id, espn_event_id, kickoff_at
             ) VALUES (
                 :sid, :d, :hid, :aid, :hg, :ag,
                 :ft, :stage, :rl, :gn,
-                :afid, :eeid
+                :afid, :eeid, :kat
             ) RETURNING id
         """),
         params,

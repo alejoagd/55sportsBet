@@ -34,10 +34,13 @@ class TeamResolver:
         for row in conn.execute(text("SELECT id, name FROM teams")).fetchall():
             self._by_name[normalize_name(row.name)] = row.id
 
-    def resolve(self, name: str, league_id: int, source: str, external_id: int) -> int:
+    def resolve(self, name: str, league_id: int, source: str, external_id: int, logo_url: str | None = None) -> int:
         key = (source, external_id)
         if key in self._by_source_id:
-            return self._by_source_id[key]
+            team_id = self._by_source_id[key]
+            if logo_url:
+                self._set_logo(team_id, logo_url)
+            return team_id
 
         row = self.conn.execute(
             text("SELECT team_id FROM team_external_ids WHERE source = :source AND external_id = :eid"),
@@ -45,6 +48,8 @@ class TeamResolver:
         ).fetchone()
         if row:
             self._by_source_id[key] = row.team_id
+            if logo_url:
+                self._set_logo(row.team_id, logo_url)
             return row.team_id
 
         norm = normalize_name(name)
@@ -69,4 +74,12 @@ class TeamResolver:
             {"tid": team_id, "source": source, "eid": external_id},
         )
         self._by_source_id[key] = team_id
+        if logo_url:
+            self._set_logo(team_id, logo_url)
         return team_id
+
+    def _set_logo(self, team_id: int, logo_url: str) -> None:
+        self.conn.execute(
+            text("UPDATE teams SET logo_url = :logo WHERE id = :tid"),
+            {"logo": logo_url, "tid": team_id},
+        )

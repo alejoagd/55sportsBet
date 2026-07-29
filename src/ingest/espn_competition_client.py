@@ -20,11 +20,17 @@ armados (`children[].name = "Group A"`) — confirmado en vivo el 2026-07-24.
 """
 from __future__ import annotations
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import requests
 
 BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 STANDINGS_BASE = "https://site.api.espn.com/apis/v2/sports/soccer"
+
+# Referencia única para truncar el instante UTC de ESPN a "fecha local" del
+# partido — evita que partidos nocturnos sudamericanos (UTC-3/-5) caigan del
+# lado equivocado de la medianoche UTC.
+LOCAL_TZ = ZoneInfo("America/Bogota")
 
 HEADERS = {
     "User-Agent": (
@@ -66,15 +72,22 @@ def _extract_fixture(ev: dict) -> dict | None:
         round_label = season_slug.replace("-", " ").title() if season_slug else None
 
     raw_date = comp.get("date") or ev.get("date") or ""
-    match_date = raw_date.split("T")[0] if raw_date else None
+    kickoff_at = None
+    match_date = None
+    if raw_date:
+        kickoff_at = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+        match_date = kickoff_at.astimezone(LOCAL_TZ).date()
 
     return {
         "espn_event_id": int(ev.get("id")),
         "date": match_date,
+        "kickoff_at": kickoff_at,
         "home_espn_id": int(home["team"]["id"]),
         "home_name": home["team"].get("displayName", ""),
+        "home_logo": home["team"].get("logo"),
         "away_espn_id": int(away["team"]["id"]),
         "away_name": away["team"].get("displayName", ""),
+        "away_logo": away["team"].get("logo"),
         "home_goals": home_goals,
         "away_goals": away_goals,
         "status_short": status_short,
