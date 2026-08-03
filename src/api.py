@@ -648,10 +648,13 @@ def get_upcoming_matches(
         SELECT
             m.id as match_id,
             m.date,
+            m.kickoff_at,
             th.name as home_team,
+            th.logo_url as home_team_logo,
             ta.name as away_team,
+            ta.logo_url as away_team_logo,
             m.referee,
-            
+
             -- Poisson predictions (son probabilidades 0-1)
             pp.expected_home_goals as poisson_home_goals,
             pp.expected_away_goals as poisson_away_goals,
@@ -1297,8 +1300,11 @@ def get_recent_results(
         SELECT
             m.id as match_id,
             m.date,
+            m.kickoff_at,
             th.name as home_team,
+            th.logo_url as home_team_logo,
             ta.name as away_team,
+            ta.logo_url as away_team_logo,
             m.home_goals as actual_home_goals,
             m.away_goals as actual_away_goals,
             m.referee,
@@ -1322,7 +1328,10 @@ def get_recent_results(
             -- Weinston predictions
             wp.local_goals as weinston_home_goals,
             wp.away_goals as weinston_away_goals,
-            
+            wp.prob_home_win as weinston_prob_home,
+            wp.prob_draw as weinston_prob_draw,
+            wp.prob_away_win as weinston_prob_away,
+
             -- Convertir result_1x2 a formato letra
             CASE 
                 WHEN wp.result_1x2 = 0 THEN 'D'
