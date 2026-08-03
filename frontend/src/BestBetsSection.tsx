@@ -256,7 +256,7 @@ export default function BestBetsSection() {
         {topBets.map((bet) => (
           <div
             key={bet.id}
-            onClick={() => navigate(`/match/${bet.match_id}`)}
+            onClick={() => navigate(`/match/${bet.match_id}`, { state: { returnPath: '/best-bets' } })}
             className={`relative bg-slate-800 rounded-lg p-4 sm:p-6 border-2 cursor-pointer hover:scale-[1.02] transition-transform ${getScoreBgColor(bet.combined_score)}`}
           >
             {/* Badge de ranking */}

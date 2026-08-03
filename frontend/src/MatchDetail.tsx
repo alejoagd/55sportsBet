@@ -89,12 +89,29 @@ export default function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  // returnPath: adónde volver exactamente (ej. '/' para la vista de hoy,
+  // '/?league=6' para el dashboard de una liga) — lo fija quien navega hacia
+  // acá. Si no viene (link directo, WC legacy), se cae a returnSearch/leagueId.
+  const returnPath: string | null = (location.state as any)?.returnPath ?? null;
   const returnSearch: string = (location.state as any)?.returnSearch ?? '';
   const fromWorldCup: boolean = !!(location.state as any)?.group;
   const [match, setMatch] = useState<MatchStats | null>(null);
   const [bettingLines, setBettingLines] = useState<BettingLinesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const goBack = () => {
+    if (returnPath) {
+      navigate(returnPath);
+      return;
+    }
+    if (fromWorldCup) {
+      navigate(-1);
+      return;
+    }
+    const leagueId = match?.league_id || 1;
+    navigate(returnSearch ? `/?${returnSearch}` : `/?league=${leagueId}`);
+  };
 
   useEffect(() => {
     fetchMatchDetails();
@@ -304,14 +321,7 @@ export default function MatchDetail() {
             <h2 className="text-red-400 text-2xl font-bold mb-4">Error</h2>
             <p className="text-red-300">{error}</p>
             <button
-                onClick={() => {
-                  if (fromWorldCup) {
-                    navigate(-1);
-                  } else {
-                    const leagueId = match?.league_id || 1;
-                    navigate(returnSearch ? `/?${returnSearch}` : `/?league=${leagueId}`);
-                  }
-                }}
+              onClick={goBack}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
             >
               Volver al Dashboard
@@ -335,10 +345,7 @@ export default function MatchDetail() {
         {/* Header del partido */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 border border-slate-600">
           <button
-            onClick={() => {
-              const leagueId = match?.league_id || 1;
-              navigate(`/?league=${leagueId}`);
-            }}
+            onClick={goBack}
             className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             ← Volver al Dashboard

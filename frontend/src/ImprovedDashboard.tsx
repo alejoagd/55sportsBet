@@ -227,7 +227,7 @@ export default function ImprovedDashboard() {
     return (
       <div
         key={match.match_id}
-        onClick={() => navigate(`/match/${match.match_id}`)}
+        onClick={() => navigate(`/match/${match.match_id}`, { state: { returnPath: `/?${searchParams.toString()}` } })}
         className="bg-slate-800 rounded-lg p-3 sm:p-4 hover:bg-slate-700/50 transition-colors border border-slate-700 cursor-pointer"
       >
         {/* Fecha */}

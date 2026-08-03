@@ -107,7 +107,7 @@ export default function TodayAllLeaguesView() {
               {leagueMatches.map((m) => (
                 <div
                   key={m.match_id}
-                  onClick={() => navigate(`/match/${m.match_id}`)}
+                  onClick={() => navigate(`/match/${m.match_id}`, { state: { returnPath: '/' } })}
                   className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:bg-slate-700/50 transition-colors cursor-pointer"
                 >
                   <div className="text-slate-400 text-xs mb-2">{formatTime(m.kickoff_at)}</div>
