@@ -187,7 +187,10 @@ function App() {
 
           <div className={isMobile ? 'flex-1 flex overflow-hidden' : 'flex'}>
             {!isMobile && <LeagueSidebar />}
-            <main className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0'}>
+            <main
+              className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0'}
+              style={isMobile ? { paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom))' } : undefined}
+            >
               {routesElement}
             </main>
           </div>
