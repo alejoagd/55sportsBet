@@ -1163,30 +1163,59 @@ def get_competition_groups(season_id: int):
 
 @router.get("/api/competitions/{season_id}/standings")
 def get_competition_standings(season_id: int):
-    """Tabla de posiciones de toda la temporada (ligas regulares, sin fase de grupos)."""
-    query = text("""
-        SELECT
-            th.id as home_id, th.name as home_team, m.home_goals,
-            ta.id as away_id, ta.name as away_team, m.away_goals
-        FROM matches m
-        JOIN teams th ON th.id = m.home_team_id
-        JOIN teams ta ON ta.id = m.away_team_id
-        WHERE m.season_id = :season_id
-          AND m.home_goals IS NOT NULL
-          AND m.away_goals IS NOT NULL
-    """)
+    """
+    Tabla de posiciones de la fase/torneo ACTUAL de la temporada.
+
+    Varias ligas (Liga Argentina, Liga Betplay) parten el año en Apertura/
+    Clausura bajo el mismo season_id — si sumáramos todo, un equipo con 3
+    partidos del Clausura en curso mostraría 20+ jugados por arrastrar el
+    Apertura ya terminado. Se filtra al round_label con partidos más
+    cercanos a hoy (esa fase es "la actual" sea cual sea su nombre).
+
+    Si esa fase divide a los equipos en zonas/grupos reales (group_name —
+    ej. Liga Argentina Grupo A/B), se devuelve una tabla por grupo en vez
+    de una tabla única.
+    """
     with engine.begin() as conn:
-        rows = conn.execute(query, {"season_id": season_id}).mappings().all()
+        phase_row = conn.execute(text("""
+            SELECT round_label
+            FROM matches
+            WHERE season_id = :season_id AND round_label IS NOT NULL
+            ORDER BY ABS(date - CURRENT_DATE)
+            LIMIT 1
+        """), {"season_id": season_id}).fetchone()
+        current_phase = phase_row.round_label if phase_row else None
+
+        rows = conn.execute(text("""
+            SELECT
+                th.id as home_id, th.name as home_team, m.home_goals,
+                ta.id as away_id, ta.name as away_team, m.away_goals,
+                m.group_name
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            WHERE m.season_id = :season_id
+              AND (:phase IS NULL OR m.round_label = :phase)
+        """), {"season_id": season_id, "phase": current_phase}).mappings().all()
+
+    def blank_row(team_id, team_name):
+        return {
+            "team_id": team_id, "team": team_name,
+            "played": 0, "won": 0, "drawn": 0, "lost": 0,
+            "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0,
+        }
 
     table: dict[int, dict] = {}
+    team_group: dict[int, str] = {}
     for row in rows:
         for team_id, team_name in ((row["home_id"], row["home_team"]), (row["away_id"], row["away_team"])):
-            table.setdefault(team_id, {
-                "team_id": team_id, "team": team_name,
-                "played": 0, "won": 0, "drawn": 0, "lost": 0,
-                "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0,
-            })
+            table.setdefault(team_id, blank_row(team_id, team_name))
+        if row["group_name"]:
+            team_group[row["home_id"]] = row["group_name"]
+            team_group[row["away_id"]] = row["group_name"]
 
+        if row["home_goals"] is None or row["away_goals"] is None:
+            continue
         hg, ag = row["home_goals"], row["away_goals"]
         h, a = table[row["home_id"]], table[row["away_id"]]
         h["played"] += 1; a["played"] += 1
@@ -1202,11 +1231,23 @@ def get_competition_standings(season_id: int):
     for t in table.values():
         t["goal_diff"] = t["goals_for"] - t["goals_against"]
 
-    standings = sorted(
-        table.values(),
-        key=lambda t: (-t["points"], -t["goal_diff"], -t["goals_for"], t["team"]),
-    )
-    return {"season_id": season_id, "standings": standings}
+    def sort_key(t):
+        return (-t["points"], -t["goal_diff"], -t["goals_for"], t["team"])
+
+    distinct_groups = set(team_group.values())
+    if len(distinct_groups) >= 2:
+        by_group: dict[str, list] = {}
+        for team_id, t in table.items():
+            gname = team_group.get(team_id, "?")
+            by_group.setdefault(gname, []).append(t)
+        result_groups = [
+            {"group_name": gname, "standings": sorted(members, key=sort_key)}
+            for gname, members in sorted(by_group.items())
+        ]
+        return {"season_id": season_id, "round_label": current_phase, "groups": result_groups}
+
+    standings = sorted(table.values(), key=sort_key)
+    return {"season_id": season_id, "round_label": current_phase, "standings": standings}
 
 
 @router.get("/api/competitions/{season_id}/bracket")

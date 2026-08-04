@@ -38,11 +38,13 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
     fixtures = fetch_scoreboard_range(comp["espn_slug"], start, end)
     print(f"   {len(fixtures)} fixtures encontrados ({start} → {end})")
 
-    groups: dict[int, str] = {}
-    if comp["kind"] == "cup":
-        groups = fetch_groups(comp["espn_slug"])
-        if groups:
-            print(f"   {len(set(groups.values()))} grupos activos ({len(groups)} equipos)")
+    # Se pide siempre, no solo para copas: varias ligas domésticas (Liga
+    # Argentina, Liga Betplay) también dividen la temporada en zonas/grupos
+    # (Grupo A / Grupo B), no son todas tabla única. Si la competencia no
+    # tiene grupos reales, fetch_groups devuelve {} y no cambia nada.
+    groups: dict[int, str] = fetch_groups(comp["espn_slug"])
+    if groups:
+        print(f"   {len(set(groups.values()))} grupo(s) activo(s) ({len(groups)} equipos)")
 
     if dry_run:
         for fx in fixtures[:5]:
@@ -66,7 +68,15 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
                 away_id = resolver.resolve(fx["away_name"], league_id, "espn", fx["away_espn_id"], fx.get("away_logo"))
 
                 if comp["kind"] == "league":
-                    stage, group_name = "regular", None
+                    stage = "regular"
+                    # Ojo: algunas ligas con zonas (Liga Argentina) tienen
+                    # partidos interzonales (Grupo A vs Grupo B). Si local y
+                    # visitante quedan en zonas distintas, el partido no
+                    # pertenece a ninguna de las dos — dejarlo en None evita
+                    # contaminar la zona real de cualquiera de los 2 equipos.
+                    home_group = groups.get(fx["home_espn_id"])
+                    away_group = groups.get(fx["away_espn_id"])
+                    group_name = home_group if home_group == away_group else None
                 else:
                     # La ronda que entrega ESPN (series.title / season.slug) manda:
                     # es la fuente de verdad. El endpoint de standings puede seguir

@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
-// Tabla de posiciones de toda la temporada para ligas regulares (sin fase de
-// grupos). Mismo look que GroupTable de CompetitionDashboard.tsx.
+// Tabla de posiciones de la fase actual de la temporada (el backend ya
+// resuelve cuál es "la actual" cuando la liga divide el año en Apertura/
+// Clausura). Algunas ligas (Liga Argentina, Liga Betplay) además dividen
+// esa fase en zonas/grupos reales — el backend devuelve `groups` en ese
+// caso en vez de `standings`, y acá se renderiza una tabla por grupo.
 
 interface Standing {
   team_id: number;
@@ -18,34 +21,17 @@ interface Standing {
   points: number;
 }
 
-export default function LeagueStandingsTable({ seasonId }: { seasonId: number }) {
-  const [standings, setStandings] = useState<Standing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface Group {
+  group_name: string;
+  standings: Standing[];
+}
 
-  useEffect(() => {
-    if (!seasonId) return;
-    setLoading(true);
-    setError(null);
-    fetch(`${API_URL}/api/competitions/${seasonId}/standings`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setStandings(data.standings || []))
-      .catch(() => setError('No se pudo cargar la tabla de posiciones'))
-      .finally(() => setLoading(false));
-  }, [seasonId]);
-
-  if (loading) {
-    return <div className="text-center py-16 text-slate-400">Cargando posiciones...</div>;
-  }
-  if (error) {
-    return <div className="text-center py-16 text-red-400">{error}</div>;
-  }
-  if (standings.length === 0) {
-    return <div className="text-center py-16 text-slate-500">Todavía no hay partidos jugados esta temporada</div>;
-  }
-
+function Table({ standings, title }: { standings: Standing[]; title?: string }) {
   return (
     <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+      {title && (
+        <div className="bg-slate-700/50 px-4 py-2 font-bold text-white">{title}</div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -82,4 +68,49 @@ export default function LeagueStandingsTable({ seasonId }: { seasonId: number })
       </div>
     </div>
   );
+}
+
+export default function LeagueStandingsTable({ seasonId }: { seasonId: number }) {
+  const [standings, setStandings] = useState<Standing[] | null>(null);
+  const [groups, setGroups] = useState<Group[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!seasonId) return;
+    setLoading(true);
+    setError(null);
+    setStandings(null);
+    setGroups(null);
+    fetch(`${API_URL}/api/competitions/${seasonId}/standings`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        if (data.groups) setGroups(data.groups);
+        else setStandings(data.standings || []);
+      })
+      .catch(() => setError('No se pudo cargar la tabla de posiciones'))
+      .finally(() => setLoading(false));
+  }, [seasonId]);
+
+  if (loading) {
+    return <div className="text-center py-16 text-slate-400">Cargando posiciones...</div>;
+  }
+  if (error) {
+    return <div className="text-center py-16 text-red-400">{error}</div>;
+  }
+  if ((!groups || groups.length === 0) && (!standings || standings.length === 0)) {
+    return <div className="text-center py-16 text-slate-500">Todavía no hay partidos jugados esta temporada</div>;
+  }
+
+  if (groups) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {groups.map((g) => (
+          <Table key={g.group_name} standings={g.standings} title={`Grupo ${g.group_name.replace(/^Group\s*/i, '')}`} />
+        ))}
+      </div>
+    );
+  }
+
+  return <Table standings={standings!} />;
 }
