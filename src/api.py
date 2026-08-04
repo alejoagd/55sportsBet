@@ -1161,6 +1161,54 @@ def get_competition_groups(season_id: int):
     return {"season_id": season_id, "groups": result}
 
 
+@router.get("/api/competitions/{season_id}/standings")
+def get_competition_standings(season_id: int):
+    """Tabla de posiciones de toda la temporada (ligas regulares, sin fase de grupos)."""
+    query = text("""
+        SELECT
+            th.id as home_id, th.name as home_team, m.home_goals,
+            ta.id as away_id, ta.name as away_team, m.away_goals
+        FROM matches m
+        JOIN teams th ON th.id = m.home_team_id
+        JOIN teams ta ON ta.id = m.away_team_id
+        WHERE m.season_id = :season_id
+          AND m.home_goals IS NOT NULL
+          AND m.away_goals IS NOT NULL
+    """)
+    with engine.begin() as conn:
+        rows = conn.execute(query, {"season_id": season_id}).mappings().all()
+
+    table: dict[int, dict] = {}
+    for row in rows:
+        for team_id, team_name in ((row["home_id"], row["home_team"]), (row["away_id"], row["away_team"])):
+            table.setdefault(team_id, {
+                "team_id": team_id, "team": team_name,
+                "played": 0, "won": 0, "drawn": 0, "lost": 0,
+                "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0,
+            })
+
+        hg, ag = row["home_goals"], row["away_goals"]
+        h, a = table[row["home_id"]], table[row["away_id"]]
+        h["played"] += 1; a["played"] += 1
+        h["goals_for"] += hg; h["goals_against"] += ag
+        a["goals_for"] += ag; a["goals_against"] += hg
+        if hg > ag:
+            h["won"] += 1; h["points"] += 3; a["lost"] += 1
+        elif ag > hg:
+            a["won"] += 1; a["points"] += 3; h["lost"] += 1
+        else:
+            h["drawn"] += 1; a["drawn"] += 1; h["points"] += 1; a["points"] += 1
+
+    for t in table.values():
+        t["goal_diff"] = t["goals_for"] - t["goals_against"]
+
+    standings = sorted(
+        table.values(),
+        key=lambda t: (-t["points"], -t["goal_diff"], -t["goals_for"], t["team"]),
+    )
+    return {"season_id": season_id, "standings": standings}
+
+
 @router.get("/api/competitions/{season_id}/bracket")
 def get_competition_bracket(season_id: int):
     """Partidos de eliminatoria (todo lo que no sea fase de grupos/liga regular), ordenados por ronda."""
@@ -1202,11 +1250,6 @@ _NEWS_FEEDS = [
 ]
 
 
-def _is_wc_article(title: str, desc: str, link: str) -> bool:
-    text = (title + " " + desc + " " + link).lower()
-    return any(kw in text for kw in _WC_KEYWORDS)
-
-
 def _parse_pub_date(pub_date: str) -> str:
     try:
         from email.utils import parsedate_to_datetime
@@ -1215,17 +1258,15 @@ def _parse_pub_date(pub_date: str) -> str:
         return pub_date
 
 
-@router.get("/api/wc2026/news")
-def get_wc2026_news():
+def _fetch_news_by_keywords(keywords: set[str], cache: dict) -> list[dict]:
     """
-    Fetch FIFA World Cup 2026 news from Marca RSS.
-    Each article includes title, summary, image and direct URL.
-    Cached 1 hour.
+    Descarga los feeds RSS de _NEWS_FEEDS y filtra artículos cuyo título/
+    descripción/link contenga alguna de las keywords. Cachea 1h en `cache`
+    (dict mutable {"data": ..., "expires": ...}, uno por liga/competencia).
     """
-    global _wc_news_cache
     now = time.time()
-    if _wc_news_cache["data"] is not None and now < _wc_news_cache["expires"]:
-        return _wc_news_cache["data"]
+    if cache["data"] is not None and now < cache["expires"]:
+        return cache["data"]
 
     headers = {
         "User-Agent": (
@@ -1233,6 +1274,10 @@ def get_wc2026_news():
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         )
     }
+
+    def matches_keywords(title: str, desc: str, link: str) -> bool:
+        text = (title + " " + desc + " " + link).lower()
+        return any(kw in text for kw in keywords)
 
     articles: list[dict] = []
     seen: set[str] = set()
@@ -1249,7 +1294,7 @@ def get_wc2026_news():
                 description = (item.findtext("description") or "").strip()
                 pub_date = (item.findtext("pubDate") or "").strip()
 
-                if not _is_wc_article(title, description, link):
+                if not matches_keywords(title, description, link):
                     continue
 
                 key = title.lower()[:60]
@@ -1284,8 +1329,53 @@ def get_wc2026_news():
         if len(articles) >= 15:
             break
 
-    _wc_news_cache = {"data": articles, "expires": now + 3600}
+    cache["data"] = articles
+    cache["expires"] = now + 3600
     return articles
+
+
+@router.get("/api/wc2026/news")
+def get_wc2026_news():
+    """
+    Fetch FIFA World Cup 2026 news from Marca RSS.
+    Each article includes title, summary, image and direct URL.
+    Cached 1 hour.
+    """
+    return _fetch_news_by_keywords(_WC_KEYWORDS, _wc_news_cache)
+
+
+# ── Noticias por liga (genérico) ───────────────────────────────────────────
+# Mismo mecanismo que /api/wc2026/news (RSS de Marca + filtro por keyword),
+# parametrizado por liga. Marca cubre bien las ligas europeas; para las
+# competencias sudamericanas es normal que salga vacío casi siempre — no hay
+# una fuente RSS sudamericana conectada todavía.
+_LEAGUE_NEWS_KEYWORDS: dict[str, set[str]] = {
+    "Premier League": {"premier league"},
+    "La Liga": {"la liga", "laliga"},
+    "Serie A": {"serie a"},
+    "Bundesliga": {"bundesliga"},
+    "Ligue 1": {"ligue 1"},
+    "Brasileirao": {"brasileirao", "brasileirão", "brasileiro"},
+    "Liga Argentina": {"liga argentina", "torneo clausura", "liga profesional"},
+    "Liga Betplay": {"liga betplay", "primera a colombia"},
+    "Copa Libertadores": {"libertadores"},
+    "Copa Sudamericana": {"sudamericana"},
+}
+
+_league_news_cache: dict[int, dict] = {}
+
+
+@router.get("/api/leagues/{league_id}/news")
+def get_league_news(league_id: int):
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT name FROM leagues WHERE id = :id"), {"id": league_id}).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Liga no encontrada")
+
+    keywords = _LEAGUE_NEWS_KEYWORDS.get(row.name, {row.name.lower()})
+    cache = _league_news_cache.setdefault(league_id, {"data": None, "expires": 0.0})
+    return _fetch_news_by_keywords(keywords, cache)
 
 
 @router.get("/api/matches/recent-results")

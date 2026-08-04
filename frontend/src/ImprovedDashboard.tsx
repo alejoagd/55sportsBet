@@ -5,6 +5,15 @@ import WorldCupDashboard from './WorldCupDashboard';
 import CompetitionDashboard from './CompetitionDashboard';
 import TodayAllLeaguesView from './TodayAllLeaguesView';
 import CompactMatchList from './CompactMatchList';
+import LeagueTabNav, { useLeagueTab } from './LeagueTabNav';
+import LeagueStandingsTable from './LeagueStandingsTable';
+import LeagueNewsView from './LeagueNewsView';
+
+function isMatchToday(m: { date: string; kickoff_at?: string | null }): boolean {
+  const iso = m.kickoff_at || m.date;
+  const d = new Date(iso);
+  return !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
+}
 
 
 
@@ -72,6 +81,7 @@ export default function ImprovedDashboard() {
   const [upcomingLimit, setUpcomingLimit] = useState<number>(10);
   const [leagueName, setLeagueName] = useState<string>('');
   const { isAdmin } = useAdminMode();
+  const [activeTab, setActiveTab] = useLeagueTab('matches');
 
   // Sin ?league= en la URL: no se auto-selecciona ninguna liga (antes caía
   // siempre en la primera, que era el Mundial). Se muestra en su lugar
@@ -207,43 +217,39 @@ export default function ImprovedDashboard() {
   const isWorldCup = leagueName === 'FIFA World Cup';
   const isCupCompetition = leagueName === 'Copa Libertadores' || leagueName === 'Copa Sudamericana';
 
+  const matchClickHandler = (matchId: number) =>
+    navigate(`/match/${matchId}`, { state: { returnPath: `/?${searchParams.toString()}` } });
+
+  const todayUpcoming = upcomingMatches.filter(isMatchToday);
+  const todayRecent = recentMatches.filter(isMatchToday);
+
   return (
     <>
-      {/* VISTA ESPECIAL MUNDIAL */}
+      {/* VISTA ESPECIAL MUNDIAL — sin cambios, tiene su propio menú de pestañas */}
       {isWorldCup && (
         <WorldCupDashboard initialGroup={searchParams.get('group')} />
       )}
 
-      {/* VISTA GRUPOS + BRACKET (Copa Libertadores / Copa Sudamericana) */}
-      {isCupCompetition && seasonId && (
-        <CompetitionDashboard seasonId={seasonId} />
-      )}
+      {/* MENÚ DE PESTAÑAS (todas las ligas menos el Mundial) */}
+      {!isWorldCup && currentLeagueId && (
+        <div className="min-h-screen bg-slate-900 p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <LeagueTabNav
+              active={activeTab}
+              onChange={setActiveTab}
+              leagueId={currentLeagueId}
+              showBracket={isCupCompetition}
+            />
 
-      {/* CONTENIDO DEL DASHBOARD (solo para ligas normales) */}
-      {!isWorldCup && !isCupCompetition && (
-      <div className="min-h-screen bg-slate-900 p-6">
-        <div className="max-w-7xl mx-auto space-y-8">
-
-          {/* Header */}
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
-                  📊 Dashboard de Predicciones
-                </h1>
-                <p className="text-slate-300">
-                  Temporada 2025/2026
-                </p>
-              </div>
-              {/* ✅ SOLO MOSTRAR SI ES ADMIN */}
-              {isAdmin && (
+            {isAdmin && activeTab === 'matches' && (
+              <div className="flex justify-end -mt-2">
                 <button
                   onClick={async () => {
                     if (confirm('¿Recalcular todos los aciertos?')) {
                       try {
                         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
                         const response = await fetch(
-                          `${API_URL}/api/recalculate-outcomes?season_id=${seasonId}`, 
+                          `${API_URL}/api/recalculate-outcomes?season_id=${seasonId}`,
                           { method: 'POST' }
                         );
                         const data = await response.json();
@@ -254,62 +260,80 @@ export default function ImprovedDashboard() {
                       }
                     }
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
                 >
                   🔄 Recalcular Aciertos
                 </button>
-              )}
-            </div>
+              </div>
+            )}
+
+            {activeTab === 'today' && (
+              <div className="space-y-8">
+                {todayUpcoming.length > 0 && (
+                  <section>
+                    <h2 className="text-xl font-bold text-white mb-4">🔮 Próximos de hoy</h2>
+                    <CompactMatchList matches={todayUpcoming} mode="upcoming" onMatchClick={matchClickHandler} />
+                  </section>
+                )}
+                {todayRecent.length > 0 && (
+                  <section>
+                    <h2 className="text-xl font-bold text-white mb-4">📋 Jugados hoy</h2>
+                    <CompactMatchList matches={todayRecent} mode="results" onMatchClick={matchClickHandler} />
+                  </section>
+                )}
+                {todayUpcoming.length === 0 && todayRecent.length === 0 && (
+                  <div className="text-center py-12 text-slate-400">No hay partidos de esta liga hoy</div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'matches' && (
+              <div className="space-y-8">
+                {upcomingMatches.length > 0 && (
+                  <section>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-2xl font-bold text-white">🔮 Próximos Partidos</h2>
+                      <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
+                        {upcomingMatches.length} partidos
+                      </span>
+                    </div>
+                    <CompactMatchList matches={upcomingMatches} mode="upcoming" onMatchClick={matchClickHandler} />
+                  </section>
+                )}
+                {recentMatches.length > 0 && (
+                  <section>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-2xl font-bold text-white">📋 Resultados Recientes</h2>
+                      <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
+                        {recentMatches.length} partidos
+                      </span>
+                    </div>
+                    <CompactMatchList matches={recentMatches} mode="results" onMatchClick={matchClickHandler} />
+                  </section>
+                )}
+                {upcomingMatches.length === 0 && recentMatches.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="text-slate-400 text-lg">No hay partidos disponibles</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'standings' && seasonId && (
+              isCupCompetition
+                ? <CompetitionDashboard seasonId={seasonId} section="groups" />
+                : <LeagueStandingsTable seasonId={seasonId} />
+            )}
+
+            {activeTab === 'bracket' && isCupCompetition && seasonId && (
+              <CompetitionDashboard seasonId={seasonId} section="bracket" />
+            )}
+
+            {activeTab === 'news' && (
+              <LeagueNewsView leagueId={currentLeagueId} leagueName={leagueName} />
+            )}
           </div>
-
-          {/* Próximos Partidos */}
-          {upcomingMatches.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-white">
-                  🔮 Próximos Partidos
-                </h2>
-                <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
-                  {upcomingMatches.length} partidos
-                </span>
-              </div>
-              <CompactMatchList
-                matches={upcomingMatches}
-                mode="upcoming"
-                onMatchClick={(matchId) => navigate(`/match/${matchId}`, { state: { returnPath: `/?${searchParams.toString()}` } })}
-              />
-            </section>
-          )}
-
-          {/* Resultados Recientes */}
-          {recentMatches.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-white">
-                  📋 Resultados Recientes
-                </h2>
-                <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
-                  {recentMatches.length} partidos
-                </span>
-              </div>
-              <CompactMatchList
-                matches={recentMatches}
-                mode="results"
-                onMatchClick={(matchId) => navigate(`/match/${matchId}`, { state: { returnPath: `/?${searchParams.toString()}` } })}
-              />
-            </section>
-          )}
-
-          {/* Sin datos */}
-          {upcomingMatches.length === 0 && recentMatches.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-slate-400 text-lg">
-                No hay partidos disponibles
-              </div>
-            </div>
-          )}
         </div>
-      </div>
       )}
     </>
   );

@@ -235,7 +235,14 @@ function BracketColumn({ stage, ties }: { stage: string; ties: Tie[] }) {
   );
 }
 
-export default function CompetitionDashboard({ seasonId }: { seasonId: number }) {
+export default function CompetitionDashboard({
+  seasonId,
+  section = 'both',
+}: {
+  seasonId: number;
+  /** Qué parte mostrar cuando se usa como contenido de una pestaña ("Posiciones" / "Bracket"). */
+  section?: 'groups' | 'bracket' | 'both';
+}) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [bracket, setBracket] = useState<BracketMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -273,40 +280,47 @@ export default function CompetitionDashboard({ seasonId }: { seasonId: number })
   }, {});
   const stagesPresent = stageOrder.filter((s) => tiesByStage[s]?.length);
 
+  const showGroups = section === 'groups' || section === 'both';
+  const showBracket = section === 'bracket' || section === 'both';
+
   return (
-    <div className="min-h-screen bg-slate-900 p-6 space-y-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {groups.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-xl font-bold text-white">Fase de grupos</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {groups.map((g) => (
-                <GroupTable key={g.group_name} group={g} />
-              ))}
-            </div>
-          </section>
-        )}
+    <div className="space-y-8">
+      {showGroups && groups.length > 0 && (
+        <section className="space-y-4">
+          {section === 'both' && <h2 className="text-xl font-bold text-white">Fase de grupos</h2>}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {groups.map((g) => (
+              <GroupTable key={g.group_name} group={g} />
+            ))}
+          </div>
+        </section>
+      )}
 
-        {bracket.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-xl font-bold text-white">Eliminatoria</h2>
-            <div className="flex gap-6 overflow-x-auto scrollbar-hide pb-2">
-              {stagesPresent.map((s, i) => (
-                <div key={s} className="flex items-center gap-6">
-                  <BracketColumn stage={s} ties={tiesByStage[s]} />
-                  {i < stagesPresent.length - 1 && (
-                    <span className="text-slate-600 text-xl flex-shrink-0">➜</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+      {showBracket && bracket.length > 0 && (
+        <section className="space-y-4">
+          {section === 'both' && <h2 className="text-xl font-bold text-white">Eliminatoria</h2>}
+          <div className="flex gap-6 overflow-x-auto scrollbar-hide pb-2">
+            {stagesPresent.map((s, i) => (
+              <div key={s} className="flex items-center gap-6">
+                <BracketColumn stage={s} ties={tiesByStage[s]} />
+                {i < stagesPresent.length - 1 && (
+                  <span className="text-slate-600 text-xl flex-shrink-0">➜</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-        {groups.length === 0 && bracket.length === 0 && (
-          <div className="text-center py-16 text-slate-500">Todavía no hay partidos cargados para esta competencia</div>
-        )}
-      </div>
+      {section === 'both' && groups.length === 0 && bracket.length === 0 && (
+        <div className="text-center py-16 text-slate-500">Todavía no hay partidos cargados para esta competencia</div>
+      )}
+      {section === 'groups' && groups.length === 0 && (
+        <div className="text-center py-16 text-slate-500">Todavía no hay fase de grupos cargada</div>
+      )}
+      {section === 'bracket' && bracket.length === 0 && (
+        <div className="text-center py-16 text-slate-500">Todavía no hay partidos de eliminatoria cargados</div>
+      )}
     </div>
   );
 }
