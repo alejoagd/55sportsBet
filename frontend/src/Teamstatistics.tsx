@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 interface TeamStats {
@@ -54,7 +54,7 @@ interface StatsResponse {
   referees: RefereeStats[];
 }
 
-export default function TeamStatistics() {
+export default function TeamStatistics({ embedded = false }: { embedded?: boolean } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const leagueParam = searchParams.get('league');
   const [currentLeagueId, setCurrentLeagueId] = useState<number | null>(
@@ -206,19 +206,20 @@ export default function TeamStatistics() {
   );
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-slate-400">Cargando estadísticas{leagueName ? ` de ${leagueName}` : ''}...</p>
-        </div>
+    const inner = (
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-slate-400">Cargando estadísticas{leagueName ? ` de ${leagueName}` : ''}...</p>
       </div>
     );
+    return embedded
+      ? <div className="flex items-center justify-center py-16">{inner}</div>
+      : <div className="min-h-screen bg-slate-950 flex items-center justify-center h-96">{inner}</div>;
   }
 
   if (!data || !data.teams || data.teams.length === 0) {
-    return (
-      <div className="min-h-screen bg-slate-950 p-6 text-center">
+    const inner = (
+      <>
         <div className="text-6xl mb-4">{leagueEmoji}</div>
         <div className="text-slate-400 text-xl">No hay datos disponibles para {leagueName}</div>
         <button
@@ -227,8 +228,11 @@ export default function TeamStatistics() {
         >
           🔄 Reintentar
         </button>
-      </div>
+      </>
     );
+    return embedded
+      ? <div className="text-center py-16">{inner}</div>
+      : <div className="min-h-screen bg-slate-950 p-6 text-center">{inner}</div>;
   }
 
   const topHomeOffense = getTopTeams('home_avg_goals_scored', 5);
@@ -274,13 +278,16 @@ export default function TeamStatistics() {
     ? [...data.referees].sort((a, b) => b.avg_cards_per_match - a.avg_cards_per_match).slice(0, 5)
     : [];
 
-  return (
-    <div className="min-h-screen bg-slate-950">
-      {/* ============================================================ */}
-      {/* CONTENIDO DE ESTADÍSTICAS                                   */}
-      {/* ============================================================ */}
-      <div className="w-full max-w-[1600px] mx-auto p-6 space-y-6">
+  const Wrapper = embedded
+    ? ({ children }: { children: ReactNode }) => <div className="space-y-6">{children}</div>
+    : ({ children }: { children: ReactNode }) => (
+        <div className="min-h-screen bg-slate-950">
+          <div className="w-full max-w-[1600px] mx-auto p-6 space-y-6">{children}</div>
+        </div>
+      );
 
+  return (
+    <Wrapper>
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-6 shadow-xl">
           <div className="flex items-center gap-3 mb-2">
@@ -420,7 +427,6 @@ export default function TeamStatistics() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Wrapper>
   );
 }

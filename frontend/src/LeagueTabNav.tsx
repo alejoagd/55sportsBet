@@ -1,12 +1,13 @@
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 // Menú de pestañas por liga, mismo patrón visual que TabNav de
 // WorldCupDashboard.tsx, generalizado para cualquier liga/copa. "Bracket"
 // solo aplica a competencias de eliminatoria (Libertadores/Sudamericana) —
-// una liga regular no tiene bracket. "Estadísticas" no es una pestaña de
-// contenido: navega a la página de Estadísticas ya existente.
+// una liga regular no tiene bracket. "Estadísticas" es una pestaña más
+// (renderiza TeamStatistics embebido) — no navega a otra ruta, para no
+// sacar al usuario del contenedor con el resto de las pestañas.
 
-export type LeagueTab = 'today' | 'matches' | 'standings' | 'bracket' | 'news';
+export type LeagueTab = 'today' | 'matches' | 'standings' | 'bracket' | 'news' | 'stats';
 
 const TAB_META: Record<LeagueTab, { label: string; icon: string }> = {
   today: { label: 'Hoy', icon: '📅' },
@@ -14,9 +15,10 @@ const TAB_META: Record<LeagueTab, { label: string; icon: string }> = {
   standings: { label: 'Posiciones', icon: '📊' },
   bracket: { label: 'Bracket', icon: '🗺️' },
   news: { label: 'Noticias', icon: '📰' },
+  stats: { label: 'Estadísticas', icon: '🏅' },
 };
 
-const VALID_TABS: LeagueTab[] = ['today', 'matches', 'standings', 'bracket', 'news'];
+const VALID_TABS: LeagueTab[] = ['today', 'matches', 'standings', 'bracket', 'news', 'stats'];
 
 export function useLeagueTab(defaultTab: LeagueTab = 'matches'): [LeagueTab, (t: LeagueTab) => void] {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,7 +39,6 @@ export function useLeagueTab(defaultTab: LeagueTab = 'matches'): [LeagueTab, (t:
 export default function LeagueTabNav({
   active,
   onChange,
-  leagueId,
   showBracket,
 }: {
   active: LeagueTab;
@@ -45,10 +46,9 @@ export default function LeagueTabNav({
   leagueId: number;
   showBracket: boolean;
 }) {
-  const navigate = useNavigate();
   const tabs: LeagueTab[] = showBracket
-    ? ['today', 'matches', 'standings', 'bracket', 'news']
-    : ['today', 'matches', 'standings', 'news'];
+    ? ['today', 'matches', 'standings', 'bracket', 'news', 'stats']
+    : ['today', 'matches', 'standings', 'news', 'stats'];
 
   const buttonClass = (isActive: boolean) =>
     `flex-shrink-0 flex items-center justify-center gap-1 sm:gap-1.5
@@ -68,13 +68,6 @@ export default function LeagueTabNav({
             <span>{TAB_META[t].label}</span>
           </button>
         ))}
-        <button
-          onClick={() => navigate(`/statistics?league=${leagueId}`)}
-          className={buttonClass(false)}
-        >
-          <span>🏅</span>
-          <span>Estadísticas</span>
-        </button>
       </div>
     </div>
   );

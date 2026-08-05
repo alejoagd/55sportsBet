@@ -8,6 +8,7 @@ import CompactMatchList from './CompactMatchList';
 import LeagueTabNav, { useLeagueTab } from './LeagueTabNav';
 import LeagueStandingsTable from './LeagueStandingsTable';
 import LeagueNewsView from './LeagueNewsView';
+import TeamStatistics from './Teamstatistics';
 
 function isMatchToday(m: { date: string; kickoff_at?: string | null }): boolean {
   const iso = m.kickoff_at || m.date;
@@ -332,6 +333,8 @@ export default function ImprovedDashboard() {
             {activeTab === 'news' && (
               <LeagueNewsView leagueId={currentLeagueId} leagueName={leagueName} />
             )}
+
+            {activeTab === 'stats' && <TeamStatistics embedded />}
           </div>
         </div>
       )}
