@@ -3225,6 +3225,30 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info:
     return stats
 
 
+def _venue_stat_items(s: Dict, home_prefix: str, away_prefix: str) -> List[Dict]:
+    """
+    Arma la lista de estadísticas (tiros/corners/faltas/tarjetas) para un
+    bloque de local o visitante, omitiendo cualquiera donde ambos lados
+    promedien 0.0 — eso indica que match_stats no tiene esa columna cargada
+    para esta liga/temporada, no que el promedio real sea cero.
+    """
+    pairs = [
+        ("shots", "Tiros", "🎯"),
+        ("shots_on_target", "Tiros a puerta", "🥅"),
+        ("corners", "Corners", "🚩"),
+        ("fouls", "Faltas", "🟨"),
+        ("cards", "Tarjetas", "🟥"),
+    ]
+    items = []
+    for key, label, icon in pairs:
+        hv = s.get(f"avg_{home_prefix}_{key}")
+        av = s.get(f"avg_{away_prefix}_{key}")
+        if hv is None or av is None or (round(hv, 1) == 0 and round(av, 1) == 0):
+            continue
+        items.append({"label": label, "icon": icon, "home_value": round(hv, 1), "away_value": round(av, 1)})
+    return items
+
+
 def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict], h2h_away: List[Dict]) -> Dict[str, str]:
     """
     Genera narrativa textual del análisis H2H con resumen de resultados y estadísticas
@@ -3237,6 +3261,8 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
             "summary": f"No hay datos históricos disponibles para enfrentamientos entre {home_team} y {away_team}.",
             "home_venue_analysis": "",
             "away_venue_analysis": "",
+            "home_venue_stats": None,
+            "away_venue_stats": None,
             "prediction_analysis": "",
             "conclusion": ""
         }
@@ -3254,9 +3280,10 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
     
     # 2. ANÁLISIS CUANDO JUEGA DE LOCAL CON RESUMEN DE RESULTADOS
     home_venue_analysis = ""
+    home_venue_stats = None
     if h2h_home:
         home_stats = stats.get("home_venue", {})
-        
+
         # 🎯 CALCULAR RESULTADOS (G-E-P, BTTS, Over 2.5)
         wins = sum(1 for m in h2h_home if m['home_goals'] > m['away_goals'])
         draws = sum(1 for m in h2h_home if m['home_goals'] == m['away_goals'])
@@ -3264,7 +3291,7 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         btts_count = sum(1 for m in h2h_home if m.get('btts', False))
         over25_count = sum(1 for m in h2h_home if m.get('over25', False))
         total_home_matches = len(h2h_home)
-        
+
         # Construir narrativa con resumen de resultados
         home_venue_analysis = f"""Cuando {home_team} ha jugado de local contra {away_team} (últimos {total_home_matches} partidos):
 {home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_home_matches} | Over 2.5: {over25_count}/{total_home_matches}
@@ -3276,12 +3303,21 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
 - Promedio de faltas: {home_stats['avg_home_fouls']:.1f} del {home_team} vs {home_stats['avg_away_fouls']:.1f} del {away_team}
 - Promedio de tarjetas: {home_stats['avg_home_cards']:.1f} del {home_team} vs {home_stats['avg_away_cards']:.1f} del {away_team}
 """
-    
+        home_venue_stats = {
+            "matches": total_home_matches,
+            "wins": wins, "draws": draws, "losses": losses,
+            "btts_count": btts_count, "over25_count": over25_count,
+            "avg_goals_home": round(home_stats['avg_home_goals'], 1),
+            "avg_goals_away": round(home_stats['avg_away_goals'], 1),
+            "items": _venue_stat_items(home_stats, "home", "away"),
+        }
+
     # 3. ANÁLISIS CUANDO JUEGA DE VISITANTE CON RESUMEN DE RESULTADOS
     away_venue_analysis = ""
+    away_venue_stats = None
     if h2h_away:
         away_stats = stats.get("away_venue", {})
-        
+
         # 🎯 CALCULAR RESULTADOS (G-E-P, BTTS, Over 2.5)
         # Nota: En h2h_away, el equipo que hoy es local (home_team) fue visitante
         # Por lo tanto: team_goals = away_goals histórico, opponent_goals = home_goals histórico
@@ -3291,7 +3327,7 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         btts_count = sum(1 for m in h2h_away if m.get('btts', False))
         over25_count = sum(1 for m in h2h_away if m.get('over25', False))
         total_away_matches = len(h2h_away)
-        
+
         # Construir narrativa con resumen de resultados
         away_venue_analysis = f"""Cuando {home_team} ha jugado de visitante contra {away_team} (últimos {total_away_matches} partidos):
 {home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_away_matches} | Over 2.5: {over25_count}/{total_away_matches}
@@ -3303,6 +3339,17 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
 - Promedio de faltas: {away_stats['avg_opponent_fouls']:.1f} del {away_team} vs {away_stats['avg_team_fouls']:.1f} del {home_team}
 - Promedio de tarjetas: {away_stats['avg_opponent_cards']:.1f} del {away_team} vs {away_stats['avg_team_cards']:.1f} del {home_team}
 """
+        # avg_goals_home/away se mapean siempre a home_team/away_team (no a
+        # "team"/"opponent") para que ambas tarjetas (local y visitante) se
+        # lean en el mismo orden visual en el frontend.
+        away_venue_stats = {
+            "matches": total_away_matches,
+            "wins": wins, "draws": draws, "losses": losses,
+            "btts_count": btts_count, "over25_count": over25_count,
+            "avg_goals_home": round(away_stats['avg_team_goals'], 1),
+            "avg_goals_away": round(away_stats['avg_opponent_goals'], 1),
+            "items": _venue_stat_items(away_stats, "team", "opponent"),
+        }
     
     # 4. COMPARACIÓN CON PREDICCIÓN ACTUAL
     pred_goals_total = (match_info["pred_home_goals"] or 0) + (match_info["pred_away_goals"] or 0)
@@ -3334,6 +3381,8 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         "summary": summary,
         "home_venue_analysis": home_venue_analysis,
         "away_venue_analysis": away_venue_analysis,
+        "home_venue_stats": home_venue_stats,
+        "away_venue_stats": away_venue_stats,
         "prediction_analysis": prediction_analysis,
         "conclusion": conclusion,
         "full_narrative": f"{summary}\n\n{home_venue_analysis}\n{away_venue_analysis}\n{prediction_analysis}\n\n{conclusion}"

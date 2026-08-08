@@ -6,6 +6,25 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react';
 
+interface VenueStatItem {
+  label: string;
+  icon: string;
+  home_value: number;
+  away_value: number;
+}
+
+interface VenueStats {
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  btts_count: number;
+  over25_count: number;
+  avg_goals_home: number;
+  avg_goals_away: number;
+  items: VenueStatItem[];
+}
+
 interface H2HAnalysisData {
   match_id: number;
   home_team: string;
@@ -28,6 +47,8 @@ interface H2HAnalysisData {
     summary: string;
     home_venue_analysis: string;
     away_venue_analysis: string;
+    home_venue_stats: VenueStats | null;
+    away_venue_stats: VenueStats | null;
     prediction_analysis: string;
     conclusion: string;
     full_narrative: string;
@@ -164,101 +185,86 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
         </div>
       </div>
 
+      {/* HISTORIAL DE PARTIDOS — siempre visible, no depende de "Ver más" */}
+      {(data.h2h_home.length > 0 || data.h2h_away.length > 0) && (
+        <div className="p-4 sm:p-6 border-b border-slate-700">
+          <h4 className="text-white font-semibold text-sm sm:text-base mb-3 flex items-center gap-2">
+            📋 Historial de Partidos
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+            {data.h2h_home.length > 0 && (
+              <div>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1.5">
+                  🏠 Como local <span className="text-slate-500 normal-case font-normal">({data.h2h_home.length})</span>
+                </p>
+                <div>
+                  {data.h2h_home.map((match: any, index: number) => (
+                    <H2HRow
+                      key={match.id || index}
+                      match={match}
+                      venue="home"
+                      homeTeam={data.home_team}
+                      awayTeam={data.away_team}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {data.h2h_away.length > 0 && (
+              <div>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1.5">
+                  ✈️ Como visitante <span className="text-slate-500 normal-case font-normal">({data.h2h_away.length})</span>
+                </p>
+                <div>
+                  {data.h2h_away.map((match: any, index: number) => (
+                    <H2HRow
+                      key={match.id || index}
+                      match={match}
+                      venue="away"
+                      homeTeam={data.home_team}
+                      awayTeam={data.away_team}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 pt-2 border-t border-slate-700/50 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1"><span className="text-green-400">✓</span> BTTS</span>
+            <span className="flex items-center gap-1"><span className="text-blue-400">📈</span> Over 2.5</span>
+          </div>
+        </div>
+      )}
+
       {/* Contenido expandible */}
       {expanded && (
         <div className="p-6 space-y-4">
-          
-          {/* 🏠 NARRATIVA DE LOCAL */}
-          {narrative.home_venue_analysis && (
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-5">
-              <h4 className="text-blue-400 font-semibold mb-3 flex items-center gap-2 text-base">
-                🏠 Jugando de Local
-              </h4>
-              <div className="space-y-2">
-                {narrative.home_venue_analysis.split('\n').map((line, idx) => {
-                  if (!line.trim()) return null;
-                  
-                  // Detectar línea de resumen (G-E-P | BTTS | Over 2.5)
-                  const isResultSummary = line.includes('G') && line.includes('-E') && line.includes('-P') && line.includes('|');
-                  
-                  // Detectar líneas con promedios
-                  const isStatLine = line.includes('Promedio');
-                  
-                  // Línea de resumen con estilo especial
-                  if (isResultSummary) {
-                    return (
-                      <div 
-                        key={idx} 
-                        className="bg-blue-500/20 border border-blue-400/40 rounded-lg p-3 mb-3"
-                      >
-                        <p className="text-white text-sm font-bold">
-                          {highlightNumbers(line)}
-                        </p>
-                      </div>
-                    );
-                  }
-                  
-                  return (
-                    <p 
-                      key={idx} 
-                      className={`text-sm leading-relaxed ${
-                        isStatLine 
-                          ? 'text-slate-200 font-medium pl-2 border-l-2 border-blue-400/50' 
-                          : 'text-slate-300'
-                      }`}
-                    >
-                      {highlightNumbers(line)}
-                    </p>
-                  );
-                })}
-              </div>
-            </div>
+
+          {/* 🏠 JUGANDO DE LOCAL */}
+          {narrative.home_venue_stats && (
+            <VenueCard
+              icon="🏠"
+              title="Jugando de Local"
+              theme="blue"
+              homeTeam={data.home_team}
+              awayTeam={data.away_team}
+              stats={narrative.home_venue_stats}
+            />
           )}
 
-          {/* ✈️ NARRATIVA DE VISITANTE */}
-          {narrative.away_venue_analysis && (
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-5">
-              <h4 className="text-orange-400 font-semibold mb-3 flex items-center gap-2 text-base">
-                ✈️ Jugando de Visitante
-              </h4>
-              <div className="space-y-2">
-                {narrative.away_venue_analysis.split('\n').map((line, idx) => {
-                  if (!line.trim()) return null;
-                  
-                  // Detectar línea de resumen (G-E-P | BTTS | Over 2.5)
-                  const isResultSummary = line.includes('G') && line.includes('-E') && line.includes('-P') && line.includes('|');
-                  
-                  const isStatLine = line.includes('Promedio');
-                  
-                  // Línea de resumen con estilo especial
-                  if (isResultSummary) {
-                    return (
-                      <div 
-                        key={idx} 
-                        className="bg-orange-500/20 border border-orange-400/40 rounded-lg p-3 mb-3"
-                      >
-                        <p className="text-white text-sm font-bold">
-                          {highlightNumbers(line)}
-                        </p>
-                      </div>
-                    );
-                  }
-                  
-                  return (
-                    <p 
-                      key={idx} 
-                      className={`text-sm leading-relaxed ${
-                        isStatLine 
-                          ? 'text-slate-200 font-medium pl-2 border-l-2 border-orange-400/50' 
-                          : 'text-slate-300'
-                      }`}
-                    >
-                      {highlightNumbers(line)}
-                    </p>
-                  );
-                })}
-              </div>
-            </div>
+          {/* ✈️ JUGANDO DE VISITANTE */}
+          {narrative.away_venue_stats && (
+            <VenueCard
+              icon="✈️"
+              title="Jugando de Visitante"
+              theme="orange"
+              homeTeam={data.home_team}
+              awayTeam={data.away_team}
+              stats={narrative.away_venue_stats}
+            />
           )}
 
           {/* 🎯 PREDICCIÓN VS HISTÓRICO */}
@@ -269,7 +275,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
             <div className="space-y-2">
               {narrative.prediction_analysis.split('\n').map((line, idx) => {
                 if (!line.trim()) return null;
-                
+
                 return (
                   <p key={idx} className="text-slate-300 text-sm leading-relaxed">
                     {highlightNumbers(line)}
@@ -288,89 +294,6 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
               {highlightNumbers(narrative.conclusion)}
             </p>
           </div>
-
-          {/* HISTORIAL DE PARTIDOS */}
-          {(data.h2h_home.length > 0 || data.h2h_away.length > 0) && (
-            <div className="bg-slate-900/30 rounded-lg p-6 border border-slate-700">
-              <h4 className="text-white font-semibold text-base mb-6 flex items-center gap-2">
-                📋 Historial de Partidos
-              </h4>
-
-              {/* BLOQUE 1: Como local */}
-              {data.h2h_home.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">🏠</span>
-                    </div>
-                    <p className="text-slate-300 text-sm font-semibold">
-                      Como local ({data.h2h_home.length} partidos)
-                    </p>
-                  </div>
-                  
-                  <div className="bg-white/5 rounded-lg overflow-x-auto border border-slate-700">
-                    <div className="divide-y divide-slate-700 min-w-[600px]">
-                      {data.h2h_home.map((match: any, index: number) => (
-                        <HistoricalMatchRow
-                          key={match.id || index}
-                          match={match}
-                          venue="home"
-                          homeTeam={data.home_team}
-                          awayTeam={data.away_team}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* BLOQUE 2: Como visitante */}
-              {data.h2h_away.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6 bg-orange-500 rounded flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">✈️</span>
-                    </div>
-                    <p className="text-slate-300 text-sm font-semibold">
-                      Como visitante ({data.h2h_away.length} partidos)
-                    </p>
-                  </div>
-                  
-                  <div className="bg-white/5 rounded-lg overflow-x-auto border border-slate-700">
-                    <div className="divide-y divide-slate-700 min-w-[600px]">
-                      {data.h2h_away.map((match: any, index: number) => (
-                        <HistoricalMatchRow
-                          key={match.id || index}
-                          match={match}
-                          venue="away"
-                          homeTeam={data.home_team}
-                          awayTeam={data.away_team}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Leyenda */}
-              <div className="mt-6 pt-4 border-t border-slate-700">
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400">✓</span>
-                    <span>BTTS</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-blue-400">📈</span>
-                    <span>Over 2.5</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500">🚩</span>
-                    <span>Corners</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -430,7 +353,75 @@ function StatCard({ label, value, icon, trend }: StatCardProps) {
 }
 
 // ============================================================================
-// COMPONENTE DE FILA HISTÓRICA
+// COMPONENTE: TARJETA DE ESTADÍSTICAS LOCAL/VISITANTE
+// ============================================================================
+
+function VenueCard({
+  icon,
+  title,
+  theme,
+  homeTeam,
+  awayTeam,
+  stats,
+}: {
+  icon: string;
+  title: string;
+  theme: 'blue' | 'orange';
+  homeTeam: string;
+  awayTeam: string;
+  stats: VenueStats;
+}) {
+  const accent = theme === 'blue'
+    ? { bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400', pill: 'bg-blue-500/20 text-blue-300' }
+    : { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', pill: 'bg-orange-500/20 text-orange-300' };
+
+  return (
+    <div className={`${accent.bg} border ${accent.border} rounded-lg p-4 sm:p-5`}>
+      <h4 className={`${accent.text} font-semibold mb-3 flex items-center gap-2 text-sm sm:text-base`}>
+        {icon} {title} <span className="text-slate-400 font-normal text-xs">({stats.matches} partidos)</span>
+      </h4>
+
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${accent.pill}`}>
+          {homeTeam}: G{stats.wins}-E{stats.draws}-P{stats.losses}
+        </span>
+        <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-slate-700/60 text-slate-300">
+          BTTS {stats.btts_count}/{stats.matches}
+        </span>
+        <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-slate-700/60 text-slate-300">
+          Over 2.5 {stats.over25_count}/{stats.matches}
+        </span>
+      </div>
+
+      <div className="space-y-0.5">
+        <StatRow icon="⚽" label="Goles" homeValue={stats.avg_goals_home} awayValue={stats.avg_goals_away} />
+        {stats.items.map((item) => (
+          <StatRow key={item.label} icon={item.icon} label={item.label} homeValue={item.home_value} awayValue={item.away_value} />
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-700/40 text-[10px] text-slate-500">
+        <span className="truncate max-w-[45%]">{homeTeam}</span>
+        <span className="truncate max-w-[45%] text-right">{awayTeam}</span>
+      </div>
+    </div>
+  );
+}
+
+function StatRow({ icon, label, homeValue, awayValue }: { icon: string; label: string; homeValue: number; awayValue: number }) {
+  return (
+    <div className="flex items-center justify-between text-xs sm:text-sm py-1 border-b border-slate-700/30 last:border-0">
+      <span className="text-blue-300 font-bold tabular-nums w-10 text-right">{homeValue}</span>
+      <span className="text-slate-400 flex items-center gap-1.5 flex-1 justify-center truncate px-1">
+        <span>{icon}</span>{label}
+      </span>
+      <span className="text-orange-300 font-bold tabular-nums w-10 text-left">{awayValue}</span>
+    </div>
+  );
+}
+
+// ============================================================================
+// COMPONENTE DE FILA HISTÓRICA (compacto, estilo TeamFormSection)
 // ============================================================================
 
 interface HistoricalMatchRowProps {
@@ -440,105 +431,62 @@ interface HistoricalMatchRowProps {
   awayTeam: string;
 }
 
-function HistoricalMatchRow({ match, venue, homeTeam, awayTeam }: HistoricalMatchRowProps) {
-  
-  // Formatear fecha SIN restar día
-  const formatDate = (dateString: string) => {
-    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+function formatH2HDate(dateString: string): { top: string; bottom: string } {
+  const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+  return {
+    top: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`,
+    bottom: String(year),
   };
+}
 
-  // Posicionamiento correcto
+function H2HRow({ match, venue, homeTeam, awayTeam }: HistoricalMatchRowProps) {
   let leftTeam: string;
   let rightTeam: string;
   let leftGoals: number;
   let rightGoals: number;
 
   if (venue === 'home') {
-    // BLOQUE 1: Como local - homeTeam a la IZQUIERDA
     leftTeam = homeTeam;
     rightTeam = awayTeam;
     leftGoals = match.home_goals;
     rightGoals = match.away_goals;
   } else {
-    // BLOQUE 2: Como visitante - homeTeam a la DERECHA
     leftTeam = awayTeam;
     rightTeam = homeTeam;
     leftGoals = match.opponent_goals;
     rightGoals = match.team_goals;
   }
 
-  // Determinar resultado
-  const getResultClass = () => {
-    if (venue === 'home') {
-      if (leftGoals > rightGoals) return 'bg-green-500/20';
-      if (leftGoals < rightGoals) return 'bg-red-500/20';
-      return 'bg-yellow-500/20';
-    } else {
-      if (rightGoals > leftGoals) return 'bg-green-500/20';
-      if (rightGoals < leftGoals) return 'bg-red-500/20';
-      return 'bg-yellow-500/20';
-    }
-  };
+  // El color del marcador siempre refleja el resultado desde la
+  // perspectiva de homeTeam (el equipo que juega hoy de local).
+  const homeGoalsToday = venue === 'home' ? leftGoals : rightGoals;
+  const awayGoalsToday = venue === 'home' ? rightGoals : leftGoals;
+  const resultClass = homeGoalsToday === awayGoalsToday
+    ? 'bg-yellow-500 text-black'
+    : homeGoalsToday > awayGoalsToday
+      ? 'bg-green-600 text-white'
+      : 'bg-red-600 text-white';
+
+  const { top, bottom } = formatH2HDate(match.date);
 
   return (
-    <div className={`flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-slate-700/30 transition-colors ${getResultClass()}`}>
-      {/* Fecha */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4 min-w-[100px] sm:min-w-[140px]">
-        <span className="text-slate-400 text-xs font-mono whitespace-nowrap">
-          {formatDate(match.date)}
-        </span>
-        <span className="text-slate-500 text-xs whitespace-nowrap">
-          {match.season}
-        </span>
+    <div className="flex items-center gap-2 text-xs py-1.5 px-1 rounded hover:bg-slate-700/30 transition-colors">
+      <div className="w-10 flex-shrink-0 text-center leading-tight">
+        <div className="text-slate-300 font-medium tabular-nums">{top}</div>
+        <div className="text-slate-500 tabular-nums text-[10px]">{bottom}</div>
       </div>
 
-      {/* Equipos y Marcador */}
-      <div className="flex items-center gap-2 sm:gap-6 flex-1 justify-center">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-[120px] sm:min-w-[160px] justify-end">
-          <span className="text-white text-xs sm:text-sm font-medium text-right truncate">
-            {leftTeam}
-          </span>
-        </div>
+      <span className="flex-1 text-right truncate text-slate-300">{leftTeam}</span>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <span className="text-white text-base sm:text-lg font-bold font-mono bg-slate-800 px-2 sm:px-4 py-1 rounded whitespace-nowrap">
-            {leftGoals} - {rightGoals}
-          </span>
-        </div>
+      <span className={`flex-shrink-0 px-2 py-0.5 rounded font-bold tabular-nums ${resultClass}`}>
+        {leftGoals}-{rightGoals}
+      </span>
 
-        <div className="flex items-center gap-2 sm:gap-3 min-w-[120px] sm:min-w-[160px]">
-          <span className="text-white text-xs sm:text-sm font-medium truncate">
-            {rightTeam}
-          </span>
-        </div>
-      </div>
+      <span className="flex-1 text-left truncate text-slate-300">{rightTeam}</span>
 
-      {/* Competición e Indicadores */}
-      <div className="flex items-center gap-4 min-w-[120px] justify-end">
-        <span className="text-slate-400 text-xs font-semibold">
-          {match.competition || 'EPL'}
-        </span>
-        
-        <div className="flex items-center gap-2">
-          {match.btts && (
-            <span className="text-green-400 text-sm" title="BTTS">✓</span>
-          )}
-          {match.over25 && (
-            <span className="text-blue-400 text-sm" title="Over 2.5">📈</span>
-          )}
-          {match.total_corners && (
-            <span className="text-slate-500 text-xs" title="Corners">
-              🚩 {match.total_corners}
-            </span>
-          )}
-        </div>
+      <div className="w-9 flex-shrink-0 flex items-center justify-end gap-1">
+        {match.btts && <span className="text-green-400 text-[11px]" title="BTTS">✓</span>}
+        {match.over25 && <span className="text-blue-400 text-[11px]" title="Over 2.5">📈</span>}
       </div>
     </div>
   );
