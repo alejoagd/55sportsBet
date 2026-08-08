@@ -290,8 +290,20 @@ export default function CompactMatchList({
       const key = d ? d.toDateString() : 'unknown';
       (map.get(key) ?? map.set(key, []).get(key)!).push(m);
     }
-    return Array.from(map.values());
-  }, [matches]);
+    // Los partidos llegan de la API sin garantía de orden cronológico entre
+    // fechas — hay que ordenar los grupos explícitamente. "upcoming" va de
+    // la fecha más próxima hacia el futuro; "results" muestra lo más
+    // reciente primero.
+    const entries = Array.from(map.values()).map((group) =>
+      [...group].sort((a, b) => (matchDate(a)?.getTime() ?? 0) - (matchDate(b)?.getTime() ?? 0))
+    );
+    entries.sort((a, b) => {
+      const da = matchDate(a[0])?.getTime() ?? 0;
+      const db = matchDate(b[0])?.getTime() ?? 0;
+      return mode === 'results' ? db - da : da - db;
+    });
+    return entries;
+  }, [matches, mode]);
 
   if (groups.length === 0) return null;
 
