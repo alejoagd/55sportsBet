@@ -1752,6 +1752,8 @@ def get_match_details(match_id: int):
                 m.date,
                 ht.name as home_team,
                 at.name as away_team,
+                ht.logo_url as home_team_logo,
+                at.logo_url as away_team_logo,
                 m.season_id,
                 s.league_id,
                 m.home_goals,

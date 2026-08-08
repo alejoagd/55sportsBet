@@ -11,6 +11,8 @@ interface MatchStats {
   league_id?: number;
   home_team: string;
   away_team: string;
+  home_team_logo?: string | null;
+  away_team_logo?: string | null;
   home_goals: number;
   away_goals: number;
   referee: string;
@@ -83,6 +85,25 @@ interface BettingLinesData {
   corners: BettingLine;
   cards: BettingLine;
   fouls: BettingLine;
+}
+
+function TeamCrest({ url, alt }: { url?: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) {
+    return (
+      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl shrink-0">
+        ⚽
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="w-12 h-12 sm:w-16 sm:h-16 object-contain shrink-0"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export default function MatchDetail() {
@@ -352,20 +373,32 @@ export default function MatchDetail() {
           </button>
           
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <div className="text-3xl font-bold text-white mb-2">
-                {match.home_team} vs {match.away_team}
+            <div className="flex-1">
+              <div className="flex items-center justify-center lg:justify-start gap-3 sm:gap-4 mb-3">
+                <div className="flex flex-col items-center gap-1.5 w-20 sm:w-24 min-w-0">
+                  <TeamCrest url={match.home_team_logo} alt={match.home_team} />
+                  <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
+                    {match.home_team}
+                  </span>
+                </div>
+                <span className="text-slate-500 font-bold text-sm shrink-0">VS</span>
+                <div className="flex flex-col items-center gap-1.5 w-20 sm:w-24 min-w-0">
+                  <TeamCrest url={match.away_team_logo} alt={match.away_team} />
+                  <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
+                    {match.away_team}
+                  </span>
+                </div>
               </div>
-              <div className="text-slate-300">
+              <div className="text-slate-300 text-center lg:text-left">
                 {formatMatchDate(match.date)}
               </div>
               {match.referee && (
-                <div className="text-slate-400 text-sm">
+                <div className="text-slate-400 text-sm text-center lg:text-left">
                   Árbitro: {match.referee}
                 </div>
               )}
             </div>
-            
+
             {isFinished && (
               <div className="bg-slate-900 rounded-lg p-4">
                 <div className="text-slate-400 text-sm mb-1">Resultado Final</div>
