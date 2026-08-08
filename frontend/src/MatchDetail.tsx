@@ -374,7 +374,7 @@ export default function MatchDetail() {
           
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex-1">
-              <div className="flex items-center justify-center lg:justify-start gap-3 sm:gap-4 mb-3">
+              <div className="flex items-center justify-center gap-3 sm:gap-4 mb-3">
                 <div className="flex flex-col items-center gap-1.5 w-20 sm:w-24 min-w-0">
                   <TeamCrest url={match.home_team_logo} alt={match.home_team} />
                   <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
@@ -389,11 +389,11 @@ export default function MatchDetail() {
                   </span>
                 </div>
               </div>
-              <div className="text-slate-300 text-center lg:text-left">
+              <div className="text-slate-300 text-center">
                 {formatMatchDate(match.date)}
               </div>
               {match.referee && (
-                <div className="text-slate-400 text-sm text-center lg:text-left">
+                <div className="text-slate-400 text-sm text-center">
                   Árbitro: {match.referee}
                 </div>
               )}
