@@ -33,10 +33,22 @@ function formatTime(kickoffAt: string | null): string {
   }
 }
 
-function isToday(kickoffAt: string | null): boolean {
-  if (!kickoffAt) return false;
-  const d = new Date(kickoffAt);
-  return d.toDateString() === new Date().toDateString();
+function isToday(m: { date: string; kickoff_at: string | null }): boolean {
+  // Igual que en CompactMatchList/ImprovedDashboard: si no hay kickoff_at,
+  // m.date es "YYYY-MM-DD" sin hora y hay que armarlo con componentes
+  // locales — parsearlo directo con new Date() lo corre un día hacia atrás
+  // en zonas detrás de UTC. Antes esta función simplemente descartaba
+  // cualquier partido sin kickoff_at ("Hora por confirmar"), sacándolo de
+  // "Hoy" aunque su fecha SÍ fuera hoy.
+  let d: Date;
+  if (m.kickoff_at) {
+    d = new Date(m.kickoff_at);
+  } else {
+    const [year, month, day] = m.date.split('T')[0].split('-').map(Number);
+    if (!year || !month || !day) return false;
+    d = new Date(year, month - 1, day);
+  }
+  return !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
 }
 
 function TeamLogo({ url, alt }: { url: string | null; alt: string }) {
@@ -68,7 +80,7 @@ export default function TodayAllLeaguesView() {
       .finally(() => setLoading(false));
   }, []);
 
-  const todayMatches = matches.filter(m => isToday(m.kickoff_at));
+  const todayMatches = matches.filter(m => isToday(m));
 
   const byLeague = todayMatches.reduce<Record<string, TodayMatch[]>>((acc, m) => {
     (acc[m.league_name] ||= []).push(m);

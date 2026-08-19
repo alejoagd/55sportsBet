@@ -59,8 +59,13 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 function formatDate(iso: string): string {
+  // iso es "YYYY-MM-DD" sin hora: parsearlo directo con new Date() lo
+  // interpreta como medianoche UTC y corre la fecha un día hacia atrás en
+  // zonas detrás de UTC (ej. Colombia) — se arma con componentes locales.
   try {
-    return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+    const [year, month, day] = iso.split('T')[0].split('-').map(Number);
+    if (!year || !month || !day) return iso;
+    return new Date(year, month - 1, day).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
   } catch {
     return iso;
   }

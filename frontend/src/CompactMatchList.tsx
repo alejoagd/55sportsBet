@@ -46,9 +46,18 @@ function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
 }
 
 function matchDate(m: CompactMatch): Date | null {
-  const iso = m.kickoff_at || m.date;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d;
+  // kickoff_at es un instante real (con offset) -> new Date() lo parsea bien.
+  // m.date es solo "YYYY-MM-DD" (sin hora): new Date(str) lo interpreta como
+  // medianoche UTC, y al formatear en una zona horaria detrás de UTC (ej.
+  // Colombia, UTC-5) el partido se corre un día hacia atrás. Por eso acá se
+  // arma la fecha con los componentes locales, igual que en MatchDetail.tsx.
+  if (m.kickoff_at) {
+    const d = new Date(m.kickoff_at);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const [year, month, day] = m.date.split('T')[0].split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
 }
 
 function formatDateHeader(m: CompactMatch): string {

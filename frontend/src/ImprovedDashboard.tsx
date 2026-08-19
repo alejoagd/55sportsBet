@@ -11,8 +11,18 @@ import LeagueNewsView from './LeagueNewsView';
 import TeamStatistics from './Teamstatistics';
 
 function isMatchToday(m: { date: string; kickoff_at?: string | null }): boolean {
-  const iso = m.kickoff_at || m.date;
-  const d = new Date(iso);
+  // m.date es "YYYY-MM-DD" sin hora: parsearlo con new Date() lo interpreta
+  // como medianoche UTC y corre el partido un día hacia atrás en zonas
+  // detrás de UTC (ej. Colombia). Si no hay kickoff_at, se arma la fecha
+  // con componentes locales en vez de parsear el string directo.
+  let d: Date;
+  if (m.kickoff_at) {
+    d = new Date(m.kickoff_at);
+  } else {
+    const [year, month, day] = m.date.split('T')[0].split('-').map(Number);
+    if (!year || !month || !day) return false;
+    d = new Date(year, month - 1, day);
+  }
   return !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
 }
 
