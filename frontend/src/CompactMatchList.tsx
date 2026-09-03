@@ -165,7 +165,7 @@ function DesktopTable({
                   >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2 whitespace-nowrap">
-                        <span className="text-slate-500 text-xs w-14 shrink-0">{formatTime(m)}</span>
+                        <span className="text-slate-500 text-xs w-24 shrink-0 truncate" title={formatTime(m)}>{formatTime(m)}</span>
                         <TeamLogo url={m.home_team_logo} alt={m.home_team} />
                         <span className="text-white font-medium truncate max-w-[120px]">{m.home_team}</span>
                         <span className="text-slate-400 font-mono text-xs px-1 shrink-0">{row.actualScore ?? 'vs'}</span>
