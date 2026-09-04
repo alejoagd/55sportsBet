@@ -30,20 +30,61 @@ export interface CompactMatch {
   weinston_hit_1x2?: boolean;
 }
 
-function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
+function TeamLogo({ url, alt, size = 'sm' }: { url?: string | null; alt: string; size?: 'sm' | 'lg' }) {
   const [failed, setFailed] = useState(false);
+  const dim = size === 'lg' ? 'w-9 h-9 sm:w-10 sm:h-10' : 'w-5 h-5';
   if (!url || failed) {
-    return <span className="text-base leading-none shrink-0">⚽</span>;
+    return (
+      <span className={`${dim} rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 ${size === 'lg' ? 'text-base' : 'text-xs'}`}>
+        ⚽
+      </span>
+    );
   }
   return (
     <img
       src={url}
       alt={alt}
-      className="w-5 h-5 object-contain shrink-0"
+      className={`${dim} object-contain shrink-0`}
       onError={() => setFailed(true)}
     />
   );
 }
+
+// Barra de probabilidad 1X2 — mismo azul/naranja que usa el resto de la app
+// para local/visitante (MatchDetail, etc.), gris para el empate.
+function ProbabilityBar({
+  home, draw, away, size = 'sm',
+}: {
+  home?: number | null; draw?: number | null; away?: number | null; size?: 'sm' | 'lg';
+}) {
+  const h = Math.max(0, (home ?? 0) * 100);
+  const d = Math.max(0, (draw ?? 0) * 100);
+  const a = Math.max(0, (away ?? 0) * 100);
+  const barH = size === 'lg' ? 'h-2.5' : 'h-1.5';
+  return (
+    <div className="w-full">
+      <div className={`flex ${barH} rounded-full overflow-hidden bg-slate-700/60`}>
+        <div className="bg-blue-500" style={{ width: `${h}%` }} />
+        <div className="bg-slate-400" style={{ width: `${d}%` }} />
+        <div className="bg-orange-500" style={{ width: `${a}%` }} />
+      </div>
+      <div className="flex justify-between mt-1 text-[10px] sm:text-[11px] font-semibold tabular-nums">
+        <span className="text-blue-400">{h.toFixed(0)}%</span>
+        <span className="text-slate-400">{d.toFixed(0)}%</span>
+        <span className="text-orange-400">{a.toFixed(0)}%</span>
+      </div>
+    </div>
+  );
+}
+
+// Colores de acento por resultado (1/X/2), reusados en el badge de
+// predicción para que combinen con ProbabilityBar en vez de ser siempre
+// naranja sin importar el pronóstico.
+const OUTCOME_STYLE: Record<string, string> = {
+  '1': 'bg-blue-500/20 text-blue-400',
+  'X': 'bg-slate-500/20 text-slate-300',
+  '2': 'bg-orange-500/20 text-orange-400',
+};
 
 function matchDate(m: CompactMatch): Date | null {
   // kickoff_at es un instante real (con offset) -> new Date() lo parsea bien.
@@ -77,10 +118,6 @@ function resultLabel(r?: string | null): string {
   return 'X';
 }
 
-function pct(v?: number | null): string {
-  return v !== undefined && v !== null ? `${(v * 100).toFixed(0)}%` : '—';
-}
-
 interface RowData {
   m: CompactMatch;
   hasPrediction: boolean;
@@ -102,18 +139,16 @@ function buildRow(m: CompactMatch, mode: 'upcoming' | 'results'): RowData {
 }
 
 function ResultBadge({ row, mode }: { row: RowData; mode: 'upcoming' | 'results' }) {
-  const colored = mode === 'results' && row.m.weinston_hit_1x2 !== undefined;
+  const label = resultLabel(row.m.weinston_result);
+  const hitColored = mode === 'results' && row.m.weinston_hit_1x2 !== undefined;
+  const style = hitColored
+    ? row.m.weinston_hit_1x2
+      ? 'bg-green-500/20 text-green-400'
+      : 'bg-red-500/20 text-red-400'
+    : OUTCOME_STYLE[label];
   return (
-    <span
-      className={`inline-block px-1.5 py-0.5 rounded font-bold text-xs ${
-        colored
-          ? row.m.weinston_hit_1x2
-            ? 'bg-green-500/20 text-green-400'
-            : 'bg-red-500/20 text-red-400'
-          : 'bg-orange-500/20 text-orange-400'
-      }`}
-    >
-      {resultLabel(row.m.weinston_result)}
+    <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-md font-bold text-xs ${style}`}>
+      {label}
     </span>
   );
 }
@@ -129,29 +164,22 @@ function DesktopTable({
   onMatchClick: (matchId: number) => void;
 }) {
   return (
-    <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+    <div className="bg-slate-800 rounded-xl border border-slate-700/70 overflow-hidden shadow-lg shadow-black/10">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="text-slate-400 text-xs uppercase tracking-wide border-b border-slate-700 bg-slate-900/40">
-            <th className="text-left font-semibold px-3 py-2">Partido</th>
-            <th className="font-semibold px-2 py-2" colSpan={3}>Probabilidad %</th>
-            <th className="font-semibold px-2 py-2">Pred.</th>
-            <th className="font-semibold px-2 py-2">Marcador Pred.</th>
-            <th className="font-semibold px-2 py-2">Prom. Goles</th>
-          </tr>
-          <tr className="text-slate-500 text-[11px] border-b border-slate-700">
-            <th></th>
-            <th className="font-normal px-1 py-1">1</th>
-            <th className="font-normal px-1 py-1">X</th>
-            <th className="font-normal px-1 py-1">2</th>
-            <th colSpan={3}></th>
+          <tr className="text-slate-400 text-xs uppercase tracking-wide border-b border-slate-700 bg-slate-900/50">
+            <th className="text-left font-semibold px-4 py-3">Partido</th>
+            <th className="font-semibold px-3 py-3 w-44">Probabilidad 1X2</th>
+            <th className="font-semibold px-2 py-3">Pred.</th>
+            <th className="font-semibold px-2 py-3">Marcador</th>
+            <th className="font-semibold px-2 py-3">Goles</th>
           </tr>
         </thead>
         <tbody>
           {groups.map((groupMatches) => (
             <Fragment key={groupMatches[0].match_id}>
               <tr>
-                <td colSpan={7} className="bg-slate-900/60 text-slate-300 font-bold text-xs uppercase tracking-wide px-3 py-1.5 capitalize">
+                <td colSpan={5} className="bg-gradient-to-r from-slate-900/70 to-slate-900/30 text-slate-300 font-bold text-xs uppercase tracking-wide px-4 py-2 capitalize border-b border-slate-700/50">
                   {formatDateHeader(groupMatches[0])}
                 </td>
               </tr>
@@ -161,29 +189,35 @@ function DesktopTable({
                   <tr
                     key={m.match_id}
                     onClick={() => onMatchClick(m.match_id)}
-                    className="border-b border-slate-700/50 hover:bg-slate-700/40 cursor-pointer transition-colors"
+                    className="group border-b border-slate-700/40 hover:bg-slate-700/30 cursor-pointer transition-colors"
                   >
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5 whitespace-nowrap">
                         <span className="text-slate-500 text-xs w-24 shrink-0 truncate" title={formatTime(m)}>{formatTime(m)}</span>
                         <TeamLogo url={m.home_team_logo} alt={m.home_team} />
-                        <span className="text-white font-medium truncate max-w-[120px]">{m.home_team}</span>
-                        <span className="text-slate-400 font-mono text-xs px-1 shrink-0">{row.actualScore ?? 'vs'}</span>
+                        <span className="text-white font-semibold truncate max-w-[130px] group-hover:text-yellow-400 transition-colors">{m.home_team}</span>
+                        <span className="text-slate-500 font-mono text-xs px-1 shrink-0">{row.actualScore ?? 'vs'}</span>
                         <TeamLogo url={m.away_team_logo} alt={m.away_team} />
-                        <span className="text-white font-medium truncate max-w-[120px]">{m.away_team}</span>
+                        <span className="text-white font-semibold truncate max-w-[130px] group-hover:text-yellow-400 transition-colors">{m.away_team}</span>
                       </div>
                     </td>
                     {row.hasPrediction ? (
                       <>
-                        <td className="text-center text-white px-1">{pct(m.weinston_prob_home)}</td>
-                        <td className="text-center text-white px-1">{pct(m.weinston_prob_draw)}</td>
-                        <td className="text-center text-white px-1">{pct(m.weinston_prob_away)}</td>
+                        <td className="px-3 py-3">
+                          <div className="max-w-[150px]">
+                            <ProbabilityBar home={m.weinston_prob_home} draw={m.weinston_prob_draw} away={m.weinston_prob_away} />
+                          </div>
+                        </td>
                         <td className="text-center px-2"><ResultBadge row={row} mode={mode} /></td>
-                        <td className="text-center text-white font-mono px-2">{row.predictedScore}</td>
-                        <td className="text-center text-slate-300 px-2">{row.avgGoals}</td>
+                        <td className="text-center px-2">
+                          <span className="inline-block bg-slate-900/60 text-white font-mono font-bold px-2.5 py-1 rounded-md">{row.predictedScore}</span>
+                        </td>
+                        <td className="text-center px-2">
+                          <span className="text-slate-300 font-medium">⚽ {row.avgGoals}</span>
+                        </td>
                       </>
                     ) : (
-                      <td colSpan={6} className="text-center text-slate-500 text-xs px-2">Sin predicción</td>
+                      <td colSpan={4} className="text-center text-slate-500 text-xs px-2">Sin predicción</td>
                     )}
                   </tr>
                 );
@@ -209,67 +243,69 @@ function MobileCards({
   return (
     <div className="space-y-5">
       {groups.map((groupMatches) => (
-        <div key={groupMatches[0].match_id} className="space-y-2">
-          <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wide capitalize">
+        <div key={groupMatches[0].match_id} className="space-y-2.5">
+          <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wide capitalize flex items-center gap-2">
+            <span className="w-1 h-4 bg-yellow-400/70 rounded-full" />
             {formatDateHeader(groupMatches[0])}
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {groupMatches.map((m) => {
               const row = buildRow(m, mode);
               return (
                 <div
                   key={m.match_id}
                   onClick={() => onMatchClick(m.match_id)}
-                  className="bg-slate-800 rounded-lg border border-slate-700 p-3 active:bg-slate-700/40 transition-colors cursor-pointer"
+                  className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border border-slate-700/70 p-4 shadow-md shadow-black/10 active:scale-[0.99] hover:border-slate-600 transition-all cursor-pointer"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-slate-500 text-xs">{formatTime(m)}</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] font-medium bg-slate-900/50 px-2 py-0.5 rounded-full">
+                      🕐 {formatTime(m)}
+                    </span>
                     {row.actualScore && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded font-bold">FT</span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded-full font-bold">FT</span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                      <TeamLogo url={m.home_team_logo} alt={m.home_team} />
-                      <span className="text-white font-medium text-sm truncate">{m.home_team}</span>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                      <TeamLogo url={m.home_team_logo} alt={m.home_team} size="lg" />
+                      <span className="text-white font-semibold text-xs sm:text-sm text-center truncate w-full">{m.home_team}</span>
                     </div>
-                    <span className="text-white font-mono text-sm px-2 shrink-0">{row.actualScore ?? 'vs'}</span>
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end text-right">
-                      <span className="text-white font-medium text-sm truncate">{m.away_team}</span>
-                      <TeamLogo url={m.away_team_logo} alt={m.away_team} />
+                    <div className="flex flex-col items-center shrink-0 px-1">
+                      {row.actualScore ? (
+                        <span className="text-white font-mono font-bold text-lg">{row.actualScore}</span>
+                      ) : (
+                        <span className="text-slate-400 font-bold text-[10px] bg-slate-900/60 rounded-full w-7 h-7 flex items-center justify-center">VS</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                      <TeamLogo url={m.away_team_logo} alt={m.away_team} size="lg" />
+                      <span className="text-white font-semibold text-xs sm:text-sm text-center truncate w-full">{m.away_team}</span>
                     </div>
                   </div>
 
                   {row.hasPrediction ? (
                     <>
-                      <div className="grid grid-cols-3 gap-1 bg-slate-900/50 rounded p-1.5 mb-2 text-center">
-                        <div>
-                          <div className="text-slate-500 text-[10px]">1</div>
-                          <div className="text-white text-xs font-semibold">{pct(m.weinston_prob_home)}</div>
-                        </div>
-                        <div className="border-x border-slate-700">
-                          <div className="text-slate-500 text-[10px]">X</div>
-                          <div className="text-white text-xs font-semibold">{pct(m.weinston_prob_draw)}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-[10px]">2</div>
-                          <div className="text-white text-xs font-semibold">{pct(m.weinston_prob_away)}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-slate-500">Predicción</span>
+                      <ProbabilityBar home={m.weinston_prob_home} draw={m.weinston_prob_draw} away={m.weinston_prob_away} size="lg" />
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg px-2.5 py-1.5">
                           <ResultBadge row={row} mode={mode} />
-                          <span className="text-white font-mono">{row.predictedScore}</span>
+                          <div className="min-w-0">
+                            <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">Predicción</div>
+                            <div className="text-white font-mono font-bold text-sm leading-tight">{row.predictedScore}</div>
+                          </div>
                         </div>
-                        <div className="text-slate-500">
-                          Prom. goles <span className="text-slate-300">{row.avgGoals}</span>
+                        <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg px-2.5 py-1.5">
+                          <span className="text-base leading-none">⚽</span>
+                          <div className="min-w-0">
+                            <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">Prom. Goles</div>
+                            <div className="text-white font-bold text-sm leading-tight">{row.avgGoals}</div>
+                          </div>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="text-slate-500 text-xs text-center py-1">Sin predicción disponible</div>
+                    <div className="text-slate-500 text-xs text-center py-1.5 bg-slate-900/30 rounded-lg">Sin predicción disponible</div>
                   )}
                 </div>
               );
