@@ -38,7 +38,7 @@ on:
         type: string
 
       fetch_team_logos:
-        description: 'Bajar de ESPN nombre+escudo de los equipos de las 4 ligas europeas (para backfill_team_logos_top5.py)'
+        description: 'Bajar de football-data.org nombre+escudo de los equipos de las 4 ligas europeas (para apply_team_logos.py)'
         required: false
         type: boolean
         default: false
@@ -98,17 +98,19 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Fetch ESPN team logos (opt-in)
+      - name: Fetch team logos from football-data.org (opt-in)
         if: ${{ inputs.fetch_team_logos == true }}
+        env:
+          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
         run: |
-          python scripts/fetch_espn_team_logos.py
+          python scripts/fetch_football_data_org_logos.py
 
-      - name: Upload ESPN team logos
+      - name: Upload team logos
         if: ${{ inputs.fetch_team_logos == true }}
         uses: actions/upload-artifact@v4
         with:
-          name: espn-team-logos-${{ github.run_number }}
-          path: data/espn_team_logos.json
+          name: team-logos-${{ github.run_number }}
+          path: data/football_data_org_logos.json
           retention-days: 7
           if-no-files-found: ignore
 
