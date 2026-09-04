@@ -239,11 +239,10 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
         </div>
       )}
 
-      {/* Contenido expandible */}
-      {expanded && (
-        <div className="p-6 space-y-4">
-
-          {/* 🏠 JUGANDO DE LOCAL */}
+      {/* 🏠 JUGANDO DE LOCAL / ✈️ JUGANDO DE VISITANTE — siempre visibles,
+          no dependen del botón "Ver más" (antes quedaban ocultas ahí). */}
+      {(narrative.home_venue_stats || narrative.away_venue_stats) && (
+        <div className="p-4 sm:p-6 space-y-4 border-b border-slate-700">
           {narrative.home_venue_stats && (
             <VenueCard
               icon="🏠"
@@ -255,7 +254,6 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
             />
           )}
 
-          {/* ✈️ JUGANDO DE VISITANTE */}
           {narrative.away_venue_stats && (
             <VenueCard
               icon="✈️"
@@ -266,6 +264,12 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
               stats={narrative.away_venue_stats}
             />
           )}
+        </div>
+      )}
+
+      {/* Contenido expandible */}
+      {expanded && (
+        <div className="p-6 space-y-4">
 
           {/* 🎯 PREDICCIÓN VS HISTÓRICO */}
           <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-5">
