@@ -54,7 +54,12 @@ def _read_csv_flex(path: str) -> pd.DataFrame:
             f"El CSV debe tener columnas (date,home,away) o (Date,HomeTeam,AwayTeam). "
             f"Cabeceras leídas: {list(df.columns)}"
         )
-    return df[["date", "home", "away"]]
+    # kickoff_at es opcional (solo download-fixtures-final.py la trae, y
+    # solo con valor cuando football-data.org ya confirmó la hora) — los
+    # CSV viejos sin esta columna siguen funcionando igual, sin hora.
+    if "kickoff_at" not in df.columns:
+        df["kickoff_at"] = None
+    return df[["date", "home", "away", "kickoff_at"]]
 
 def _parse_date(s: str, *, dayfirst: bool) -> DateType | None:
     dt = pd.to_datetime(s, dayfirst=dayfirst, errors="coerce")
@@ -148,7 +153,7 @@ def _upsert_match_basic(
     # no hace falta flush() para devolver id aquí
     return "created"
 
-def _upsert_match(s, date_: datetime, home_id: int, away_id: int, season_id: int | None) -> int:
+def _upsert_match(s, date_: datetime, home_id: int, away_id: int, season_id: int | None, kickoff_at: datetime | None = None) -> int:
     existing = (
         s.execute(
             select(Match).where(
@@ -161,6 +166,11 @@ def _upsert_match(s, date_: datetime, home_id: int, away_id: int, season_id: int
     if existing:
         if season_id is not None:
             existing.season_id = season_id
+        # Solo se pisa si llega una hora nueva — así un partido que ya tenía
+        # kickoff_at confirmado no se borra si una corrida posterior no trae
+        # hora (ej. CSV viejo sin esa columna).
+        if kickoff_at is not None:
+            existing.kickoff_at = kickoff_at
         s.flush()
         return existing.id
     mt = Match(
@@ -168,6 +178,7 @@ def _upsert_match(s, date_: datetime, home_id: int, away_id: int, season_id: int
         date=date_.date(),
         home_team_id=home_id,
         away_team_id=away_id,
+        kickoff_at=kickoff_at,
     )
     s.add(mt)
     s.flush()
@@ -249,6 +260,10 @@ def bulk(
 
     # 3) Parsear fecha
     df["date"] = pd.to_datetime(df["date"], dayfirst=dayfirst, errors="coerce")
+    # kickoff_at ya viene en ISO8601 (download-fixtures-final.py) cuando hay
+    # hora confirmada; vacío/NaN si no — errors="coerce" deja NaT en ambos
+    # casos de valor faltante, sin necesidad de dayfirst (no es ambiguo).
+    df["kickoff_at"] = pd.to_datetime(df["kickoff_at"], errors="coerce", utc=True)
 
     # 4) Validación de equipos contra BD
     from sqlalchemy import create_engine, text
@@ -402,7 +417,8 @@ def bulk(
                 ).scalar_one_or_none()
             )
 
-            _ = _upsert_match(s, dt, home_id, away_id, season_id)
+            kickoff = r["kickoff_at"] if pd.notna(r["kickoff_at"]) else None
+            _ = _upsert_match(s, dt, home_id, away_id, season_id, kickoff_at=kickoff)
             if existing:
                 updated += 1
             else:

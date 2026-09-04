@@ -34,6 +34,7 @@ class Match(Base):
     halftime_awaygoal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     halftime_result: Mapped[str | None] = mapped_column(String(100), nullable=True)
     referee: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    kickoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class MatchStats(Base):
     __tablename__ = "match_stats"

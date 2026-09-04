@@ -168,8 +168,12 @@ def get_upcoming_fixtures(api_key: str, competition_id: int) -> List[Dict]:
     }
 
     url = f"{API_BASE_URL}/competitions/{competition_id}/matches"
+    # football-data.org distingue SCHEDULED (fecha conocida, hora todavía no
+    # confirmada — utcDate puede traer un placeholder) de TIMED (hora de
+    # arranque ya confirmada). Se piden ambos para no perderse fixtures,
+    # pero solo se usa la hora de los TIMED (ver convert_to_database_format).
     params = {
-        'status': 'SCHEDULED'
+        'status': 'SCHEDULED,TIMED'
     }
 
     print(f"   🔗 Fetching from: {url}")
@@ -228,7 +232,12 @@ def convert_to_database_format(matches: List[Dict]) -> List[Dict]:
         row = {
             'date': utc_date.strftime('%-d/%m/%Y' if os.name != 'nt' else '%#d/%m/%Y'),  # No leading zero: 4/03/2026
             'home': home_team_db,
-            'away': away_team_db
+            'away': away_team_db,
+            # Solo se guarda la hora si football-data.org ya la confirmó
+            # (status TIMED) — en SCHEDULED utcDate trae un placeholder de
+            # hora, mostrarlo sería peor que dejarlo en blanco (el frontend
+            # cae a "Hora por confirmar" cuando esto viene vacío).
+            'kickoff_at': utc_date.isoformat() if match.get('status') == 'TIMED' else '',
         }
 
         csv_rows.append(row)
@@ -247,7 +256,7 @@ def save_fixtures_csv(fixtures_data: List[Dict], league_code: str, output_dir: P
     try:
         # Use semicolon delimiter to match YOUR database format
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['date', 'home', 'away'], delimiter=';')
+            writer = csv.DictWriter(f, fieldnames=['date', 'home', 'away', 'kickoff_at'], delimiter=';')
             writer.writeheader()
             writer.writerows(fixtures_data)
 
@@ -257,7 +266,7 @@ def save_fixtures_csv(fixtures_data: List[Dict], league_code: str, output_dir: P
         # Show first few rows as preview
         print(f"   👀 Preview:")
         for i, row in enumerate(fixtures_data[:3], 1):
-            print(f"      {i}. {row['date']};{row['home']};{row['away']}")
+            print(f"      {i}. {row['date']};{row['home']};{row['away']};{row['kickoff_at'] or '(hora no confirmada)'}")
         if len(fixtures_data) > 3:
             print(f"      ... and {len(fixtures_data) - 3} more")
 
