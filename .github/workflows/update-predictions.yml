@@ -37,6 +37,12 @@ on:
         required: false
         type: string
 
+      fetch_team_logos:
+        description: 'Bajar de ESPN nombre+escudo de los equipos de las 4 ligas europeas (para backfill_team_logos_top5.py)'
+        required: false
+        type: boolean
+        default: false
+
   # Programación automática
   schedule:
     - cron: '0 20 * * 2'  # Martes a las 8 PM UTC - Workflow FINISH
@@ -89,6 +95,20 @@ jobs:
         with:
           name: raw-csv-data-${{ github.run_number }}
           path: data/raw/*.csv
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Fetch ESPN team logos (opt-in)
+        if: ${{ inputs.fetch_team_logos == true }}
+        run: |
+          python scripts/fetch_espn_team_logos.py
+
+      - name: Upload ESPN team logos
+        if: ${{ inputs.fetch_team_logos == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: espn-team-logos-${{ github.run_number }}
+          path: data/espn_team_logos.json
           retention-days: 7
           if-no-files-found: ignore
 
