@@ -1106,8 +1106,8 @@ def get_competition_groups(season_id: int):
     query = text("""
         SELECT
             m.id as match_id, m.group_name, m.date,
-            th.id as home_id, th.name as home_team, m.home_goals,
-            ta.id as away_id, ta.name as away_team, m.away_goals
+            th.id as home_id, th.name as home_team, th.logo_url as home_logo, m.home_goals,
+            ta.id as away_id, ta.name as away_team, ta.logo_url as away_logo, m.away_goals
         FROM matches m
         JOIN teams th ON th.id = m.home_team_id
         JOIN teams ta ON ta.id = m.away_team_id
@@ -1128,9 +1128,12 @@ def get_competition_groups(season_id: int):
         group["matches"].append(match)
 
         table = group["_table"]
-        for team_id, team_name in ((row["home_id"], row["home_team"]), (row["away_id"], row["away_team"])):
+        for team_id, team_name, logo_url in (
+            (row["home_id"], row["home_team"], row["home_logo"]),
+            (row["away_id"], row["away_team"], row["away_logo"]),
+        ):
             table.setdefault(team_id, {
-                "team_id": team_id, "team": team_name,
+                "team_id": team_id, "team": team_name, "logo_url": logo_url,
                 "played": 0, "won": 0, "drawn": 0, "lost": 0,
                 "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0,
             })
@@ -1188,8 +1191,8 @@ def get_competition_standings(season_id: int):
 
         rows = conn.execute(text("""
             SELECT
-                th.id as home_id, th.name as home_team, m.home_goals,
-                ta.id as away_id, ta.name as away_team, m.away_goals,
+                th.id as home_id, th.name as home_team, th.logo_url as home_logo, m.home_goals,
+                ta.id as away_id, ta.name as away_team, ta.logo_url as away_logo, m.away_goals,
                 m.group_name
             FROM matches m
             JOIN teams th ON th.id = m.home_team_id
@@ -1198,9 +1201,9 @@ def get_competition_standings(season_id: int):
               AND (:phase IS NULL OR m.round_label = :phase)
         """), {"season_id": season_id, "phase": current_phase}).mappings().all()
 
-    def blank_row(team_id, team_name):
+    def blank_row(team_id, team_name, logo_url):
         return {
-            "team_id": team_id, "team": team_name,
+            "team_id": team_id, "team": team_name, "logo_url": logo_url,
             "played": 0, "won": 0, "drawn": 0, "lost": 0,
             "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0,
         }
@@ -1208,8 +1211,11 @@ def get_competition_standings(season_id: int):
     table: dict[int, dict] = {}
     team_group: dict[int, str] = {}
     for row in rows:
-        for team_id, team_name in ((row["home_id"], row["home_team"]), (row["away_id"], row["away_team"])):
-            table.setdefault(team_id, blank_row(team_id, team_name))
+        for team_id, team_name, logo_url in (
+            (row["home_id"], row["home_team"], row["home_logo"]),
+            (row["away_id"], row["away_team"], row["away_logo"]),
+        ):
+            table.setdefault(team_id, blank_row(team_id, team_name, logo_url))
         if row["group_name"]:
             team_group[row["home_id"]] = row["group_name"]
             team_group[row["away_id"]] = row["group_name"]

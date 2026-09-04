@@ -11,6 +11,7 @@ const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000
 interface Standing {
   team_id: number;
   team: string;
+  logo_url?: string | null;
   played: number;
   won: number;
   drawn: number;
@@ -19,6 +20,27 @@ interface Standing {
   goals_against: number;
   goal_diff: number;
   points: number;
+}
+
+// Mismo patrón que CompactMatchList: si no hay logo (equipo sin escudo
+// todavía) o la imagen falla al cargar, cae a un placeholder circular.
+function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) {
+    return (
+      <span className="w-5 h-5 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 text-xs">
+        ⚽
+      </span>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="w-5 h-5 object-contain shrink-0"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 interface Group {
@@ -52,7 +74,12 @@ function Table({ standings, title }: { standings: Standing[]; title?: string }) 
             {standings.map((t, i) => (
               <tr key={t.team_id} className={`border-t border-slate-700 ${i < 4 ? 'text-white' : 'text-slate-400'}`}>
                 <td className="px-3 py-2 text-slate-500">{i + 1}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{t.team}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <TeamLogo url={t.logo_url} alt={t.team} />
+                    <span>{t.team}</span>
+                  </div>
+                </td>
                 <td className="text-center px-2 py-2">{t.played}</td>
                 <td className="text-center px-2 py-2">{t.won}</td>
                 <td className="text-center px-2 py-2">{t.drawn}</td>
