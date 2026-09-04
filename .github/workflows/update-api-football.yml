@@ -78,7 +78,18 @@ jobs:
           fi
           echo "✓ .env.production creado"
 
-      - name: Sync temporada actual (ESPN) — Brasileirao / Liga Argentina / Liga Betplay / Copa Libertadores / Copa Sudamericana
+      - name: Sync Brasileirao (football-data.org)
+        env:
+          ENV_FILE: .env.production
+          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python sync_brasileirao_football_data.py
+          else
+            python sync_brasileirao_football_data.py --apply
+          fi
+
+      - name: Sync temporada actual (ESPN) — Liga Argentina / Liga Betplay / Copa Libertadores / Copa Sudamericana
         env:
           ENV_FILE: .env.production
         run: |

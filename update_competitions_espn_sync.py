@@ -121,7 +121,11 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    comps = [get_competition(args.key)] if args.key else COMPETITIONS
+    # Brasileirao se sincroniza aparte vía football-data.org
+    # (sync_brasileirao_football_data.py) — ESPN bloquea (403) esta y las
+    # otras 4 competencias desde GitHub Actions desde 2026-08-04, y de las 5
+    # Brasileirao es la única con una fuente alternativa gratuita disponible.
+    comps = [get_competition(args.key)] if args.key else [c for c in COMPETITIONS if c["key"] != "brasileirao"]
     start = date.today() - timedelta(days=args.days_back)
     end = date.today() + timedelta(days=args.days_forward)
 
