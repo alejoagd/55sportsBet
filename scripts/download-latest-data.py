@@ -11,7 +11,23 @@ import os
 import sys
 import requests
 import argparse
+from datetime import date
 from pathlib import Path
+
+
+def current_season_code() -> str:
+    """
+    Código de temporada europea (football-data.co.uk) para la fecha de hoy,
+    ej. "2627" para 2026/2027. Las temporadas arrancan en julio/agosto, así
+    que enero-junio todavía pertenecen a la temporada que empezó el año
+    calendario anterior. Evita tener que actualizar un valor hardcodeado
+    cada temporada (la razón por la que 2026/27 nunca se cargó: quedó fijo
+    en "2526").
+    """
+    today = date.today()
+    start_year = today.year if today.month >= 7 else today.year - 1
+    end_year = start_year + 1
+    return f"{start_year % 100:02d}{end_year % 100:02d}"
 
 # League mappings
 LEAGUES = {
@@ -63,7 +79,7 @@ def download_csv(league_code: str, season: str, output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(description='Download latest football data CSVs')
-    parser.add_argument('--season', default='2526', help='Season code (e.g., 2526 for 2025/2026)')
+    parser.add_argument('--season', default=current_season_code(), help='Season code (e.g., 2627 for 2026/2027); defaults to the current season computed from today\'s date')
     parser.add_argument('--output', default='data/raw', help='Output directory')
     parser.add_argument('--leagues', default='all', help='Comma-separated league codes or "all"')
 

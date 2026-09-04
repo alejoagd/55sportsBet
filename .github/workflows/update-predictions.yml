@@ -65,7 +65,11 @@ jobs:
 
       - name: Download latest CSV data (Results)
         run: |
-          python scripts/download-latest-data.py --season 2526 --leagues all
+          # Sin --season: el script calcula la temporada actual solo a
+          # partir de la fecha de hoy (ver current_season_code() en
+          # download-latest-data.py) — antes quedaba fijo en "2526" y
+          # nunca se actualizó al arrancar la temporada 2026/27.
+          python scripts/download-latest-data.py --leagues all
 
       - name: Download upcoming fixtures
         env:
