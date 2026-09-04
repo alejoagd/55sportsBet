@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface VenueStatItem {
   label: string;
@@ -63,7 +63,6 @@ interface MatchH2HNarrativeProps {
 export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
   const [data, setData] = useState<H2HAnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,29 +123,13 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg border border-purple-500/20 overflow-hidden">
       {/* Header con resumen ejecutivo */}
       <div className="p-4 sm:p-6 border-b border-slate-700">
-        <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 sm:gap-4 mb-4">
-          <div className="flex-1">
-            <h3 className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
-              📊 Análisis de Enfrentamientos Directos
-            </h3>
-            <p className="text-slate-400 text-xs sm:text-sm">
-              Basado en los últimos {stats.total_matches} partidos entre estos equipos
-            </p>
-          </div>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl group w-full sm:w-auto justify-center sm:justify-start flex-shrink-0"
-            aria-label={expanded ? "Ocultar detalles" : "Ver detalles completos"}
-          >
-            <span className="text-sm sm:text-base font-semibold whitespace-nowrap">
-              {expanded ? "Ocultar" : "Ver más"}
-            </span>
-            {expanded ? (
-              <ChevronUp className="w-5 h-5 sm:w-5 sm:h-5 group-hover:transform group-hover:-translate-y-0.5 transition-transform" />
-            ) : (
-              <ChevronDown className="w-5 h-5 sm:w-5 sm:h-5 group-hover:transform group-hover:translate-y-0.5 transition-transform" />
-            )}
-          </button>
+        <div className="mb-4">
+          <h3 className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
+            📊 Análisis de Enfrentamientos Directos
+          </h3>
+          <p className="text-slate-400 text-xs sm:text-sm">
+            Basado en los últimos {stats.total_matches} partidos entre estos equipos
+          </p>
         </div>
 
         {/* Estadísticas clave en cards */}
@@ -267,39 +250,34 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
         </div>
       )}
 
-      {/* Contenido expandible */}
-      {expanded && (
-        <div className="p-6 space-y-4">
+      {/* 🎯 PREDICCIÓN VS HISTÓRICO / 💡 CONCLUSIÓN — siempre visibles */}
+      <div className="p-6 space-y-4">
+        <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-5">
+          <h4 className="text-purple-400 font-semibold mb-3 flex items-center gap-2 text-base">
+            🎯 Predicción vs. Histórico
+          </h4>
+          <div className="space-y-2">
+            {narrative.prediction_analysis.split('\n').map((line, idx) => {
+              if (!line.trim()) return null;
 
-          {/* 🎯 PREDICCIÓN VS HISTÓRICO */}
-          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-5">
-            <h4 className="text-purple-400 font-semibold mb-3 flex items-center gap-2 text-base">
-              🎯 Predicción vs. Histórico
-            </h4>
-            <div className="space-y-2">
-              {narrative.prediction_analysis.split('\n').map((line, idx) => {
-                if (!line.trim()) return null;
-
-                return (
-                  <p key={idx} className="text-slate-300 text-sm leading-relaxed">
-                    {highlightNumbers(line)}
-                  </p>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 💡 CONCLUSIÓN */}
-          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-5">
-            <h4 className="text-green-400 font-semibold mb-3 flex items-center gap-2 text-base">
-              💡 Conclusión
-            </h4>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              {highlightNumbers(narrative.conclusion)}
-            </p>
+              return (
+                <p key={idx} className="text-slate-300 text-sm leading-relaxed">
+                  {highlightNumbers(line)}
+                </p>
+              );
+            })}
           </div>
         </div>
-      )}
+
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-5">
+          <h4 className="text-green-400 font-semibold mb-3 flex items-center gap-2 text-base">
+            💡 Conclusión
+          </h4>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            {highlightNumbers(narrative.conclusion)}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
