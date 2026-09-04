@@ -1,4 +1,5 @@
 from __future__ import annotations
+import sys
 import typer
 from typing import Optional, List
 from sqlalchemy import create_engine, text
@@ -274,9 +275,12 @@ def fit_weinston_cmd(
         typer.echo(f"⚠️  Advertencia: Solo hay {total_matches} partidos terminados")
         typer.echo(f"   Se recomienda al menos 10-20 partidos para un entrenamiento confiable")
         
-        if not typer.confirm("¿Continuar de todos modos?"):
-            typer.echo("❌ Entrenamiento cancelado")
-            raise typer.Exit(0)
+        if sys.stdin.isatty():
+            if not typer.confirm("¿Continuar de todos modos?"):
+                typer.echo("❌ Entrenamiento cancelado")
+                raise typer.Exit(0)
+        else:
+            typer.echo("   (modo no interactivo: continuando automáticamente)")
     
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # 3. Entrenar el modelo

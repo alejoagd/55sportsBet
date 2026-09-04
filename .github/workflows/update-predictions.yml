@@ -114,6 +114,12 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: DIAG temporal - status crudo La Liga/Serie A
+        env:
+          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+        run: |
+          python scripts/diag_check_status.py
+
       - name: Download upcoming fixtures
         env:
           FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
