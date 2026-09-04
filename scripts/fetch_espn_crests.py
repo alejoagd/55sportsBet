@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 """
-Descarga escudos (crest/logo) de ESPN para las 3 competencias que todavía
-no tienen escudo en la BD: Copa Libertadores, Copa Sudamericana y el
-Mundial 2026 (ver conversación sobre escudos en tabla de posiciones).
+Descarga escudos (crest/logo) de ESPN para Copa Libertadores y Copa
+Sudamericana (equipos que quedaron sin escudo tras el backfill de las 4
+ligas europeas — ver conversación sobre escudos en tabla de posiciones).
 
-A diferencia de fetch_football_data_org_logos.py (equipos de clubes
-europeos, autenticado), acá se reusa el cliente ESPN público que ya usa
-update_competitions_espn_sync.py para cargar el calendario de estas 3
-competencias — cada partido trae el logo del equipo local/visitante
-(`home_logo`/`away_logo`), así que basta con recorrer el calendario ya
-cargado y juntar un logo por equipo (por espn_team_id).
+IMPORTANTE — por qué usa el endpoint de standings y no el de scoreboard:
+un primer intento recorrió el calendario día por día (fetch_scoreboard_range,
+~450 pedidos en una sola corrida) y ESPN devolvió 403 Forbidden en el 100%
+de los pedidos. El sync automático que sí funciona en este mismo repo
+(update_competitions_espn_sync.py, corre varias veces al día sin problema)
+solo pide una ventana de ±26 días — muchísimo menos volumen. Para no repetir
+el bloqueo, este script pide 1 sola vez el endpoint de standings por
+competencia (mismo mecanismo que fetch_groups() en espn_competition_client,
+pero acá además se guarda el logo de cada equipo si el JSON lo trae).
 
 Uso:
     python scripts/fetch_espn_crests.py
@@ -17,38 +20,53 @@ Uso:
 from __future__ import annotations
 import json
 import sys
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from src.ingest.espn_competition_client import fetch_scoreboard_range
+from src.ingest.espn_competition_client import STANDINGS_BASE, HEADERS
+import requests
 
-# Rango de fechas de cada competencia (visto en la BD: MIN/MAX date de sus
-# partidos), con un pequeño margen para no perder el primer/último partido.
-COMPETITIONS = {
-    "conmebol.libertadores": (date(2026, 1, 25), date(2026, 8, 25)),
-    "conmebol.sudamericana": (date(2026, 2, 25), date(2026, 8, 25)),
-    "fifa.world": (date(2026, 6, 5), date(2026, 7, 25)),
-}
+SLUGS = ["conmebol.libertadores", "conmebol.sudamericana"]
+
+
+def fetch_teams_with_logo(slug: str) -> list[dict]:
+    resp = requests.get(f"{STANDINGS_BASE}/{slug}/standings", headers=HEADERS, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()
+
+    teams: dict[int, dict] = {}
+    for child in data.get("children", []):
+        entries = (child.get("standings") or {}).get("entries", [])
+        for entry in entries:
+            team = entry.get("team") or {}
+            team_id = team.get("id")
+            if not team_id:
+                continue
+            logo = team.get("logo")
+            if not logo:
+                logos = team.get("logos") or []
+                logo = logos[0].get("href") if logos else None
+            teams[int(team_id)] = {
+                "espn_id": int(team_id),
+                "name": team.get("displayName") or team.get("name"),
+                "logo": logo,
+            }
+    return list(teams.values())
 
 
 def main() -> None:
     out: dict[str, list[dict]] = {}
-    for slug, (date_from, date_to) in COMPETITIONS.items():
-        print(f"Descargando {slug} ({date_from} a {date_to})...")
-        fixtures = fetch_scoreboard_range(slug, date_from, date_to)
-        teams: dict[int, dict] = {}
-        for fx in fixtures:
-            if fx.get("home_logo"):
-                teams[fx["home_espn_id"]] = {
-                    "espn_id": fx["home_espn_id"], "name": fx["home_name"], "logo": fx["home_logo"],
-                }
-            if fx.get("away_logo"):
-                teams[fx["away_espn_id"]] = {
-                    "espn_id": fx["away_espn_id"], "name": fx["away_name"], "logo": fx["away_logo"],
-                }
-        print(f"  {len(fixtures)} partidos -> {len(teams)} equipos únicos con logo")
-        out[slug] = list(teams.values())
+    for slug in SLUGS:
+        print(f"Descargando standings de {slug}...")
+        try:
+            teams = fetch_teams_with_logo(slug)
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+            out[slug] = []
+            continue
+        with_logo = [t for t in teams if t["logo"]]
+        print(f"   {len(teams)} equipos, {len(with_logo)} con logo")
+        out[slug] = teams
 
     output_path = Path("data/espn_crests.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
