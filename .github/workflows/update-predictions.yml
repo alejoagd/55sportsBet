@@ -43,12 +43,6 @@ on:
         type: boolean
         default: false
 
-      fetch_espn_crests:
-        description: 'Bajar de ESPN escudos de Libertadores/Sudamericana/Mundial (para apply_espn_crests.py)'
-        required: false
-        type: boolean
-        default: false
-
   # Programación automática
   schedule:
     - cron: '0 20 * * 2'  # Martes a las 8 PM UTC - Workflow FINISH
@@ -117,20 +111,6 @@ jobs:
         with:
           name: team-logos-${{ github.run_number }}
           path: data/football_data_org_logos.json
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Fetch ESPN crests for cup competitions (opt-in)
-        if: ${{ inputs.fetch_espn_crests == true }}
-        run: |
-          python scripts/fetch_espn_crests.py
-
-      - name: Upload ESPN crests
-        if: ${{ inputs.fetch_espn_crests == true }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: espn-crests-${{ github.run_number }}
-          path: data/espn_crests.json
           retention-days: 7
           if-no-files-found: ignore
 
