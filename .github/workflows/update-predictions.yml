@@ -32,6 +32,11 @@ on:
         type: string
         default: 'all'
 
+      season_override:
+        description: 'Código de temporada a descargar (ej. 2324 para 2023/2024); vacío = temporada actual'
+        required: false
+        type: string
+
   # Programación automática
   schedule:
     - cron: '0 20 * * 2'  # Martes a las 8 PM UTC - Workflow FINISH
@@ -69,7 +74,23 @@ jobs:
           # partir de la fecha de hoy (ver current_season_code() en
           # download-latest-data.py) — antes quedaba fijo en "2526" y
           # nunca se actualizó al arrancar la temporada 2026/27.
-          python scripts/download-latest-data.py --leagues all
+          # season_override permite bajar el CSV de una temporada vieja
+          # puntualmente (ej. para rellenar un hueco histórico) sin tocar
+          # el comportamiento normal de las corridas programadas.
+          if [ -n "${{ inputs.season_override }}" ]; then
+            python scripts/download-latest-data.py --season "${{ inputs.season_override }}" --leagues all
+          else
+            python scripts/download-latest-data.py --leagues all
+          fi
+
+      - name: Upload downloaded CSVs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raw-csv-data-${{ github.run_number }}
+          path: data/raw/*.csv
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Download upcoming fixtures
         env:
