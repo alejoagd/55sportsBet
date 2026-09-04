@@ -51,6 +51,8 @@ TEAM_NAME_MAPPING = {
     'Hamburger SV': 'Hamburg',
     'FC St. Pauli 1910': 'St Pauli',
     '1. FC Heidenheim 1846': 'Heidenheim',
+    'FC Schalke 04': 'Schalke 04',
+    'SC Paderborn 07': 'SC Paderborn',
 
     # Premier League (E0) - Based on your database
     'Manchester City FC': 'Man City',
@@ -77,6 +79,7 @@ TEAM_NAME_MAPPING = {
     'Burnley FC': 'Burnley',
     'Sunderland AFC': 'Sunderland',
     'Luton Town FC': 'Luton',
+    'Hull City AFC': 'Hull',
 
     # La Liga (SP1) - Based on your database
     'Real Madrid CF': 'Real Madrid',
@@ -107,6 +110,8 @@ TEAM_NAME_MAPPING = {
     'Levante UD': 'Levante',
     'Real Oviedo': 'Oviedo',
     'SD Eibar': 'Eibar',
+    'RC Deportivo La Coruña': 'La Coruna',
+    'Málaga CF': 'Malaga',
 
     # Serie A (I1) - Based on your database
     'SSC Napoli': 'Napoli',
@@ -135,6 +140,7 @@ TEAM_NAME_MAPPING = {
     'Venezia FC': 'Venezia',
     'AC Pisa 1909': 'Pisa',  # Added from your database
     'US Cremonese': 'Cremonese',  # Added from your database
+    'AC Monza': 'Monza',
 }
 
 API_BASE_URL = "https://api.football-data.org/v4"

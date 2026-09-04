@@ -68,10 +68,13 @@ def main() -> None:
         for t in teams:
             api_name = t.get("name")
             crest = t.get("crest")
-            db_name = TEAM_NAME_MAPPING.get(api_name)
-            if not db_name:
-                print(f"  ⚠️  Sin mapeo para '{api_name}' — se omite (agregar a TEAM_NAME_MAPPING si hace falta)")
-                continue
+            # Igual que normalize_team_name(): si no hay mapeo explícito, se
+            # asume que el nombre de la API ya es el nombre de la BD tal
+            # cual (varios equipos no necesitan abreviarse). apply_team_logos.py
+            # igual valida contra la BD antes de escribir nada, así que un
+            # nombre asumido incorrectamente solo queda listado como "no
+            # encontrado", nunca pisa el equipo equivocado.
+            db_name = TEAM_NAME_MAPPING.get(api_name, api_name)
             if not crest:
                 print(f"  ⚠️  '{api_name}' no trae escudo")
                 continue
