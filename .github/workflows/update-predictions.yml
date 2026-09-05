@@ -74,10 +74,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: DIAG temporal - validar TheSportsDB
-        run: |
-          python scripts/diag_thesportsdb.py
-
       - name: Download latest CSV data (Results)
         run: |
           # Sin --season: el script calcula la temporada actual solo a
