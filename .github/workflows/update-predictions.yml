@@ -98,6 +98,10 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: DIAG temporal - validar TheSportsDB
+        run: |
+          python scripts/diag_thesportsdb.py
+
       - name: Fetch team logos from football-data.org (opt-in)
         if: ${{ inputs.fetch_team_logos == true }}
         env:
