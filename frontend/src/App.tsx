@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import PredictionsDashboard from "./predictionsDashboard";
 import MetricsEvolutionChart from "./MetricsEvolutionChart";
-import TeamStatistics from './Teamstatistics';
 import ImprovedDashboard from './ImprovedDashboard';
 import MatchDetail from './MatchDetail';
 import BestBetsSection from './BestBetsSection';
@@ -27,11 +26,14 @@ export interface AppFilters {
   date_to: string;
 }
 
+// "Estadísticas" no vive acá: cada liga ya tiene su propio tab de
+// Estadísticas (LeagueTabNav) con los datos de esa liga específica. Este
+// nav genérico apuntaba siempre a /statistics, que muestra las del Mundial
+// sin importar qué liga estuviera seleccionada — confuso, así que se sacó.
 const NAV_ITEMS = [
   { path: '/',            icon: '📊', label: 'Dashboard'    },
   { path: '/best-bets',  icon: '🎯', label: 'Apuestas'     },
   { path: '/evolution',  icon: '📈', label: 'Evolución'     },
-  { path: '/statistics', icon: '📋', label: 'Estadísticas'  },
 ];
 
 // Barra superior: logo siempre visible; los links de navegación solo se
@@ -141,7 +143,6 @@ function App() {
       <Route path="/" element={<ImprovedDashboard />} />
       <Route path="/best-bets" element={<BestBetsSection />} />
       <Route path="/evolution" element={<MetricsEvolutionChart />} />
-      <Route path="/statistics" element={<TeamStatistics />} />
 
       {/* 🔐 Ruta protegida - Stats 2 solo para admins */}
       <Route

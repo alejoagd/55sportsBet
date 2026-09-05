@@ -1,14 +1,14 @@
 // src/LeagueSidebar.tsx
-// Sidebar de ligas para desktop. En las páginas que sí leen ?league= ("/" y
-// "/statistics") solo actualiza el query param sobre la URL actual, sin
-// forzar navegación, para no perder el resto del estado de esa vista. En
-// cualquier otra ruta (detalle de partido, apuestas, evolución, etc. — que
-// no leen ?league= y por eso el click no tenía ningún efecto visible) navega
-// al dashboard con la liga elegida.
+// Sidebar de ligas para desktop. En "/" (única página que lee ?league=) solo
+// actualiza el query param sobre la URL actual, sin forzar navegación, para
+// no perder el resto del estado de esa vista. En cualquier otra ruta
+// (detalle de partido, apuestas, evolución, etc. — que no leen ?league= y
+// por eso el click no tenía ningún efecto visible) navega al dashboard con
+// la liga elegida.
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useActiveLeagues } from './Hooks/useActiveLeagues';
 
-const LEAGUE_AWARE_PATHS = ['/', '/statistics'];
+const LEAGUE_AWARE_PATHS = ['/'];
 
 export default function LeagueSidebar() {
   const { leagues, loading } = useActiveLeagues();
