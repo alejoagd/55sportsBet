@@ -9,6 +9,17 @@ src/ingest/load_api_football_history.py — este script SOLO mantiene al día la
 temporada actual: calendario futuro, resultados, y para las 2 copas, la ronda
 (`stage`/`round_label`) y el grupo (`group_name`) de cada partido.
 
+Fuente ESPN: usa src/ingest/espn_core_client.py (sports.core.api.espn.com),
+NO espn_competition_client.py (site.api.espn.com) — esa segunda superficie
+devuelve 403 Forbidden en el 100% de los pedidos desde GitHub Actions desde
+2026-08-04. La core API sí responde, con la misma forma de datos, aunque
+requiere más pedidos por partido (ver docstring de espn_core_client.py) y
+por ahora no distingue bien la ronda de las 2 copas (fase de grupos vs
+eliminatoria) — round_label queda con el texto crudo de ESPN ("1st Leg",
+etc.) en vez de un nombre de ronda, así que esas 2 caen a stage="regular".
+Brasileirao no pasa por acá — se sincroniza aparte vía football-data.org
+(sync_brasileirao_football_data.py).
+
 Uso:
   python update_competitions_espn_sync.py
   python update_competitions_espn_sync.py --key copa_libertadores --dry-run
@@ -21,7 +32,7 @@ from datetime import date, timedelta
 
 from src.db import engine
 from src.ingest.competitions_config import COMPETITIONS, get_competition, get_or_create_league, get_or_create_season
-from src.ingest.espn_competition_client import fetch_scoreboard_range, fetch_groups
+from src.ingest.espn_core_client import fetch_scoreboard_range, fetch_groups
 from src.ingest.team_identity import TeamResolver
 from src.ingest.stage_mapping import map_stage
 from src.ingest.match_upsert import upsert_match
