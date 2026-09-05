@@ -1,19 +1,30 @@
 // src/LeagueMobilePanel.tsx
 // Panel de ligas para mobile, abierto desde el botón "Ligas" de la barra
-// inferior. Mismo comportamiento que LeagueSidebar (actualiza ?league= en la
-// ruta actual), solo cambia la presentación (overlay a pantalla completa).
-import { useSearchParams } from 'react-router-dom';
+// inferior. Mismo comportamiento que LeagueSidebar: en páginas que leen
+// ?league= actualiza el query param en la ruta actual; en cualquier otra
+// (detalle de partido, apuestas, evolución, etc.) navega al dashboard con
+// la liga elegida, para que el click siempre tenga efecto.
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useActiveLeagues } from './Hooks/useActiveLeagues';
+
+const LEAGUE_AWARE_PATHS = ['/', '/statistics'];
 
 export default function LeagueMobilePanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { leagues, loading } = useActiveLeagues();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const currentLeagueId = searchParams.get('league');
 
   if (!isOpen) return null;
 
   const selectLeague = (id: number) => {
+    if (!LEAGUE_AWARE_PATHS.includes(location.pathname)) {
+      navigate(`/?league=${id}`);
+      onClose();
+      return;
+    }
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('league', String(id));

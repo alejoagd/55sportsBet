@@ -1,17 +1,27 @@
 // src/LeagueSidebar.tsx
-// Sidebar de ligas para desktop. No es dueño de la selección: al hacer click
-// solo actualiza ?league= en la URL actual (via useSearchParams, que preserva
-// el pathname), así funciona igual en "/" y en "/statistics" sin forzar
-// navegación a otra ruta.
-import { useSearchParams } from 'react-router-dom';
+// Sidebar de ligas para desktop. En las páginas que sí leen ?league= ("/" y
+// "/statistics") solo actualiza el query param sobre la URL actual, sin
+// forzar navegación, para no perder el resto del estado de esa vista. En
+// cualquier otra ruta (detalle de partido, apuestas, evolución, etc. — que
+// no leen ?league= y por eso el click no tenía ningún efecto visible) navega
+// al dashboard con la liga elegida.
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useActiveLeagues } from './Hooks/useActiveLeagues';
+
+const LEAGUE_AWARE_PATHS = ['/', '/statistics'];
 
 export default function LeagueSidebar() {
   const { leagues, loading } = useActiveLeagues();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const currentLeagueId = searchParams.get('league');
 
   const selectLeague = (id: number) => {
+    if (!LEAGUE_AWARE_PATHS.includes(location.pathname)) {
+      navigate(`/?league=${id}`);
+      return;
+    }
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('league', String(id));
