@@ -94,9 +94,9 @@ jobs:
           ENV_FILE: .env.production
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            python update_competitions_espn_sync.py --dry-run
+            python update_competitions_espn_sync.py --dry-run --days-back 250 --days-forward 90
           else
-            python update_competitions_espn_sync.py
+            python update_competitions_espn_sync.py --days-back 250 --days-forward 90
           fi
 
       - name: Generar predicciones (Poisson + Weinston) para las 5 competencias
