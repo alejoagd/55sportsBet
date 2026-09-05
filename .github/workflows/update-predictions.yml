@@ -74,9 +74,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: DIAG temporal - profundizar ESPN core API
+      - name: DIAG temporal - ESPN core API, temporada completa
         run: |
-          python scripts/diag_espn_core.py
+          python scripts/diag_espn_core2.py
 
       - name: Download latest CSV data (Results)
         run: |
