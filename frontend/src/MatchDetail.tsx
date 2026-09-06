@@ -1,5 +1,6 @@
 import { useState, useEffect, type JSX } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import MatchH2HNarrative from './MatchH2HNarrative';
 import H2HScoring from './H2Hscoring';
 import TeamFormSection from './TeamFormSection';
@@ -389,10 +390,10 @@ export default function MatchDetail() {
         <div className="fixed top-12 left-0 right-0 z-50 h-10 px-4 bg-slate-900 border-b border-slate-700 flex items-center gap-3">
           <button
             onClick={goBack}
-            className="text-slate-300 hover:text-white text-sm shrink-0"
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-700/80 text-white hover:bg-slate-600 active:bg-slate-500 transition-colors shrink-0"
             aria-label="Volver"
           >
-            ←
+            <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
           </button>
           <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
             <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
