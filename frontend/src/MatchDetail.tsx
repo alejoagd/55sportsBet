@@ -123,6 +123,23 @@ export default function MatchDetail() {
   const [bettingLines, setBettingLines] = useState<BettingLinesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // El header grande (escudos + "Volver al Dashboard" + fecha) vive en el
+  // flujo normal de la página. Al scrollear más allá de su alto se
+  // reemplaza visualmente por la barra chica fija (mismo botón de volver +
+  // escudos chicos) — nunca las dos a la vez. El scroll real ocurre en
+  // <main> (mobile usa overflow-y-auto ahí, no en window), así que se
+  // escucha ese contenedor en vez de window.
+  useEffect(() => {
+    if (!isMobile) return;
+    const scrollEl = document.querySelector('main') as HTMLElement | null;
+    if (!scrollEl) return;
+    const threshold = 130;
+    const onScroll = () => setCollapsed(scrollEl.scrollTop > threshold);
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => scrollEl.removeEventListener('scroll', onScroll);
+  }, [isMobile]);
 
   const goBack = () => {
     if (returnPath) {
@@ -364,30 +381,25 @@ export default function MatchDetail() {
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
-      {/* Barra compacta fija (solo mobile): mantiene visible el botón de
-          volver y los escudos chicos mientras se scrollea el card, ya que
-          el header completo de abajo (con fecha) se pierde de vista.
-          "fixed" (no "sticky") + fondo sólido opaco, para que nunca quede
-          detrás/mezclada con el contenido que scrollea debajo — con
-          "sticky" el contenido se veía transparentado encima de la barra. */}
-      {isMobile && (
-        <>
-          <div className="fixed top-12 left-0 right-0 z-50 h-10 px-4 bg-slate-900 border-b border-slate-700 flex items-center gap-3">
-            <button
-              onClick={goBack}
-              className="text-slate-300 hover:text-white text-sm shrink-0"
-              aria-label="Volver"
-            >
-              ←
-            </button>
-            <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-              <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
-              <span className="text-slate-500 text-[10px] font-bold shrink-0">vs</span>
-              <TeamCrest url={match.away_team_logo} alt={match.away_team} size="sm" />
-            </div>
+      {/* Barra compacta (solo mobile): reemplaza al header grande una vez
+          que se scrollea más allá de él — nunca las dos a la vez. Fondo
+          sólido opaco para que el contenido de abajo no se mezcle con ella
+          al scrollear. */}
+      {isMobile && collapsed && (
+        <div className="fixed top-12 left-0 right-0 z-50 h-10 px-4 bg-slate-900 border-b border-slate-700 flex items-center gap-3">
+          <button
+            onClick={goBack}
+            className="text-slate-300 hover:text-white text-sm shrink-0"
+            aria-label="Volver"
+          >
+            ←
+          </button>
+          <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
+            <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
+            <span className="text-slate-500 text-[10px] font-bold shrink-0">vs</span>
+            <TeamCrest url={match.away_team_logo} alt={match.away_team} size="sm" />
           </div>
-          <div className="h-10 -mx-6 mb-3" />
-        </>
+        </div>
       )}
 
       <div className="max-w-7xl mx-auto space-y-6">
