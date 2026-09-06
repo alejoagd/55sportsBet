@@ -291,18 +291,18 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
 
   return (
     <Wrapper>
-        {/* Header */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-6 shadow-xl">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-4xl">{leagueEmoji}</span>
-            <h1 className="text-3xl font-bold text-white">
-              📊 Análisis Estadístico por Equipos
+        {/* Header — compacto: los datos son el protagonista, no el título */}
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-3 sm:p-6 shadow-xl">
+          <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-2">
+            <span className="text-base sm:text-4xl shrink-0">{leagueEmoji}</span>
+            <h1 className="text-sm sm:text-3xl font-bold text-white truncate">
+              📊 Análisis Estadístico
             </h1>
           </div>
-          <p className="text-slate-300">
-            Rankings y comparativas de rendimiento - {leagueName} Temporada {seasonId}
+          <p className="text-slate-300 text-xs sm:text-base">
+            {leagueName} · Temporada {seasonId}
           </p>
-          <p className="text-slate-500 text-sm mt-1">
+          <p className="text-slate-500 text-[11px] sm:text-sm mt-0.5 sm:mt-1">
             {data.teams.length} equipos • {data.referees?.length || 0} árbitros
           </p>
         </div>
