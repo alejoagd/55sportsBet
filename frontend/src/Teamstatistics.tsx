@@ -180,23 +180,26 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
     label: string,
     color: string
   ) => (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <h3 className={`text-lg font-bold mb-3 ${color}`}>{title}</h3>
+    <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
+      <h3 className={`text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight ${color}`}>{title}</h3>
       {teams.length === 0 ? (
-        <div className="text-slate-500 text-center py-4">No hay datos</div>
+        <div className="text-slate-500 text-center py-4 text-xs sm:text-base">No hay datos</div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           {teams.map((team, idx) => (
-            <div key={team.team_id} className="flex items-center justify-between bg-slate-700/50 rounded px-3 py-2">
-              <div className="flex items-center gap-3">
-                <span className="text-slate-400 font-bold w-6">{idx + 1}</span>
-                <span className="text-white font-medium">{team.team_name}</span>
+            <div
+              key={team.team_id}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0"
+            >
+              <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                <span className="text-slate-400 font-bold w-4 sm:w-6 text-xs sm:text-base shrink-0">{idx + 1}</span>
+                <span className="text-white font-medium text-xs sm:text-base truncate">{team.team_name}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`font-bold ${color}`}>
+              <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
+                <span className={`font-bold text-xs sm:text-base ${color}`}>
                   {typeof team[valueKey] === 'number' ? team[valueKey].toFixed(2) : team[valueKey]}
                 </span>
-                <span className="text-slate-400 text-sm">{label}</span>
+                <span className="text-slate-400 text-[10px] sm:text-sm">{label}</span>
               </div>
             </div>
           ))}
@@ -307,7 +310,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 1. OFENSIVA */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">⚽ Ofensiva (Goles Anotados)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Mejor Ofensiva Local', topHomeOffense, 'home_avg_goals_scored', 'goles/partido', 'text-green-400')}
             {renderRankingTable('🏠 Peor Ofensiva Local', bottomHomeOffense, 'home_avg_goals_scored', 'goles/partido', 'text-red-400')}
             {renderRankingTable('✈️ Mejor Ofensiva Visitante', topAwayOffense, 'away_avg_goals_scored', 'goles/partido', 'text-green-400')}
@@ -318,7 +321,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 2. DEFENSA */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🛡️ Defensa (Goles Recibidos)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Mejor Defensa Local', topHomeDefense, 'home_avg_goals_conceded', 'goles/partido', 'text-green-400')}
             {renderRankingTable('🏠 Peor Defensa Local', bottomHomeDefense, 'home_avg_goals_conceded', 'goles/partido', 'text-red-400')}
             {renderRankingTable('✈️ Mejor Defensa Visitante', topAwayDefense, 'away_avg_goals_conceded', 'goles/partido', 'text-green-400')}
@@ -329,7 +332,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 3. CORNERS */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Más Corners Local', topHomeCorners, 'home_avg_corners', 'corners/partido', 'text-yellow-400')}
             {renderRankingTable('🏠 Menos Corners Local', bottomHomeCorners, 'home_avg_corners', 'corners/partido', 'text-slate-400')}
             {renderRankingTable('✈️ Más Corners Visitante', topAwayCorners, 'away_avg_corners', 'corners/partido', 'text-yellow-400')}
@@ -340,7 +343,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 4. TIROS */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🎯 Tiros</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Más Tiros Local', topHomeShots, 'home_avg_shots', 'tiros/partido', 'text-blue-400')}
             {renderRankingTable('🏠 Menos Tiros Local', bottomHomeShots, 'home_avg_shots', 'tiros/partido', 'text-slate-400')}
             {renderRankingTable('✈️ Más Tiros Visitante', topAwayShots, 'away_avg_shots', 'tiros/partido', 'text-blue-400')}
@@ -351,7 +354,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 5. TIROS A PUERTA */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🎯 Tiros a Puerta</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Más Tiros a Puerta Local', topHomeShotsTarget, 'home_avg_shots_target', 'tiros/partido', 'text-purple-400')}
             {renderRankingTable('🏠 Menos Tiros a Puerta Local', bottomHomeShotsTarget, 'home_avg_shots_target', 'tiros/partido', 'text-slate-400')}
             {renderRankingTable('✈️ Más Tiros a Puerta Visitante', topAwayShotsTarget, 'away_avg_shots_target', 'tiros/partido', 'text-purple-400')}
@@ -362,7 +365,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 6. FALTAS */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">⚠️ Faltas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Más Faltas Local', topHomeFouls, 'home_avg_fouls', 'faltas/partido', 'text-orange-400')}
             {renderRankingTable('🏠 Menos Faltas Local', bottomHomeFouls, 'home_avg_fouls', 'faltas/partido', 'text-slate-400')}
             {renderRankingTable('✈️ Más Faltas Visitante', topAwayFouls, 'away_avg_fouls', 'faltas/partido', 'text-orange-400')}
@@ -373,7 +376,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {/* 7. TARJETAS */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🟨 Tarjetas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {renderRankingTable('🏠 Más Tarjetas Local', topHomeCards, 'home_avg_cards', 'tarjetas/partido', 'text-yellow-400')}
             {renderRankingTable('🏠 Menos Tarjetas Local', bottomHomeCards, 'home_avg_cards', 'tarjetas/partido', 'text-slate-400')}
             {renderRankingTable('✈️ Más Tarjetas Visitante', topAwayCards, 'away_avg_cards', 'tarjetas/partido', 'text-yellow-400')}
@@ -385,21 +388,21 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         {data.referees && data.referees.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-white">👨‍⚖️ Árbitros</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+
               {/* Árbitros con más faltas */}
-              <div className="bg-slate-800 rounded-lg p-4">
-                <h3 className="text-lg font-bold mb-3 text-orange-400">⚠️ Más Faltas por Partido</h3>
-                <div className="space-y-2">
+              <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
+                <h3 className="text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight text-orange-400">⚠️ Más Faltas por Partido</h3>
+                <div className="space-y-1.5 sm:space-y-2">
                   {topRefereesFouls.map((ref, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-slate-700/50 rounded px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-slate-400 font-bold w-6">{idx + 1}</span>
-                        <span className="text-white font-medium">{ref.referee}</span>
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                        <span className="text-slate-400 font-bold w-4 sm:w-6 text-xs sm:text-base shrink-0">{idx + 1}</span>
+                        <span className="text-white font-medium text-xs sm:text-base truncate">{ref.referee}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-orange-400">{ref.avg_fouls_per_match.toFixed(2)}</span>
-                        <span className="text-slate-400 text-sm">faltas/partido</span>
+                      <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
+                        <span className="font-bold text-xs sm:text-base text-orange-400">{ref.avg_fouls_per_match.toFixed(2)}</span>
+                        <span className="text-slate-400 text-[10px] sm:text-sm">faltas/partido</span>
                       </div>
                     </div>
                   ))}
@@ -407,18 +410,18 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
               </div>
 
               {/* Árbitros con más tarjetas */}
-              <div className="bg-slate-800 rounded-lg p-4">
-                <h3 className="text-lg font-bold mb-3 text-yellow-400">🟨 Más Tarjetas por Partido</h3>
-                <div className="space-y-2">
+              <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
+                <h3 className="text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight text-yellow-400">🟨 Más Tarjetas por Partido</h3>
+                <div className="space-y-1.5 sm:space-y-2">
                   {topRefereesCards.map((ref, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-slate-700/50 rounded px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-slate-400 font-bold w-6">{idx + 1}</span>
-                        <span className="text-white font-medium">{ref.referee}</span>
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                        <span className="text-slate-400 font-bold w-4 sm:w-6 text-xs sm:text-base shrink-0">{idx + 1}</span>
+                        <span className="text-white font-medium text-xs sm:text-base truncate">{ref.referee}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-yellow-400">{ref.avg_cards_per_match.toFixed(2)}</span>
-                        <span className="text-slate-400 text-sm">tarjetas/partido</span>
+                      <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
+                        <span className="font-bold text-xs sm:text-base text-yellow-400">{ref.avg_cards_per_match.toFixed(2)}</span>
+                        <span className="text-slate-400 text-[10px] sm:text-sm">tarjetas/partido</span>
                       </div>
                     </div>
                   ))}
