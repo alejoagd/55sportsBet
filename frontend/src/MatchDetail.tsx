@@ -366,22 +366,28 @@ export default function MatchDetail() {
     <div className="min-h-screen bg-slate-900 p-6">
       {/* Barra compacta fija (solo mobile): mantiene visible el botón de
           volver y los escudos chicos mientras se scrollea el card, ya que
-          el header completo de abajo (con fecha) se pierde de vista. */}
+          el header completo de abajo (con fecha) se pierde de vista.
+          "fixed" (no "sticky") + fondo sólido opaco, para que nunca quede
+          detrás/mezclada con el contenido que scrollea debajo — con
+          "sticky" el contenido se veía transparentado encima de la barra. */}
       {isMobile && (
-        <div className="sticky top-12 z-40 -mx-6 mb-3 px-4 py-2 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 flex items-center gap-3">
-          <button
-            onClick={goBack}
-            className="text-slate-300 hover:text-white text-sm shrink-0"
-            aria-label="Volver"
-          >
-            ←
-          </button>
-          <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-            <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
-            <span className="text-slate-500 text-[10px] font-bold shrink-0">vs</span>
-            <TeamCrest url={match.away_team_logo} alt={match.away_team} size="sm" />
+        <>
+          <div className="fixed top-12 left-0 right-0 z-50 h-10 px-4 bg-slate-900 border-b border-slate-700 flex items-center gap-3">
+            <button
+              onClick={goBack}
+              className="text-slate-300 hover:text-white text-sm shrink-0"
+              aria-label="Volver"
+            >
+              ←
+            </button>
+            <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
+              <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
+              <span className="text-slate-500 text-[10px] font-bold shrink-0">vs</span>
+              <TeamCrest url={match.away_team_logo} alt={match.away_team} size="sm" />
+            </div>
           </div>
-        </div>
+          <div className="h-10 -mx-6 mb-3" />
+        </>
       )}
 
       <div className="max-w-7xl mx-auto space-y-6">
