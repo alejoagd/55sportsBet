@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MatchH2HNarrative from './MatchH2HNarrative';
 import H2HScoring from './H2Hscoring';
 import TeamFormSection from './TeamFormSection';
+import { useIsMobile } from './Hooks/useIsMobile';
 
 interface MatchStats {
   match_id: number;
@@ -87,11 +88,12 @@ interface BettingLinesData {
   fouls: BettingLine;
 }
 
-function TeamCrest({ url, alt }: { url?: string | null; alt: string }) {
+function TeamCrest({ url, alt, size = 'lg' }: { url?: string | null; alt: string; size?: 'lg' | 'sm' }) {
   const [failed, setFailed] = useState(false);
+  const dim = size === 'sm' ? 'w-6 h-6' : 'w-12 h-12 sm:w-16 sm:h-16';
   if (!url || failed) {
     return (
-      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl shrink-0">
+      <div className={`${dim} rounded-full bg-slate-700 flex items-center justify-center shrink-0 ${size === 'sm' ? 'text-sm' : 'text-2xl'}`}>
         ⚽
       </div>
     );
@@ -100,7 +102,7 @@ function TeamCrest({ url, alt }: { url?: string | null; alt: string }) {
     <img
       src={url}
       alt={alt}
-      className="w-12 h-12 sm:w-16 sm:h-16 object-contain shrink-0"
+      className={`${dim} object-contain shrink-0`}
       onError={() => setFailed(true)}
     />
   );
@@ -110,6 +112,7 @@ export default function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   // returnPath: adónde volver exactamente (ej. '/' para la vista de hoy,
   // '/?league=6' para el dashboard de una liga) — lo fija quien navega hacia
   // acá. Si no viene (link directo, WC legacy), se cae a returnSearch/leagueId.
@@ -361,8 +364,28 @@ export default function MatchDetail() {
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
+      {/* Barra compacta fija (solo mobile): mantiene visible el botón de
+          volver y los escudos chicos mientras se scrollea el card, ya que
+          el header completo de abajo (con fecha) se pierde de vista. */}
+      {isMobile && (
+        <div className="sticky top-12 z-40 -mx-6 mb-3 px-4 py-2 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 flex items-center gap-3">
+          <button
+            onClick={goBack}
+            className="text-slate-300 hover:text-white text-sm shrink-0"
+            aria-label="Volver"
+          >
+            ←
+          </button>
+          <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
+            <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
+            <span className="text-slate-500 text-[10px] font-bold shrink-0">vs</span>
+            <TeamCrest url={match.away_team_logo} alt={match.away_team} size="sm" />
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto space-y-6">
-        
+
         {/* Header del partido */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 border border-slate-600">
           <button
