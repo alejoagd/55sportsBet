@@ -13,10 +13,10 @@ Fuente ESPN: usa src/ingest/espn_core_client.py (sports.core.api.espn.com),
 NO espn_competition_client.py (site.api.espn.com) — esa segunda superficie
 devuelve 403 Forbidden en el 100% de los pedidos desde GitHub Actions desde
 2026-08-04. La core API sí responde, con la misma forma de datos, aunque
-requiere más pedidos por partido (ver docstring de espn_core_client.py) y
-por ahora no distingue bien la ronda de las 2 copas (fase de grupos vs
-eliminatoria) — round_label queda con el texto crudo de ESPN ("1st Leg",
-etc.) en vez de un nombre de ronda, así que esas 2 caen a stage="regular".
+requiere más pedidos por partido (ver docstring de espn_core_client.py).
+La ronda/grupo real de las 2 copas (fase de grupos vs eliminatoria) se
+deriva ahí por fecha del partido contra las fases de la temporada, no del
+propio partido — ver _fetch_season_phases en espn_core_client.py.
 Brasileirao no pasa por acá — se sincroniza aparte vía football-data.org
 (sync_brasileirao_football_data.py).
 
@@ -89,14 +89,13 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
                     away_group = groups.get(fx["away_espn_id"])
                     group_name = home_group if home_group == away_group else None
                 else:
-                    # La ronda que entrega ESPN (series.title / season.slug) manda:
-                    # es la fuente de verdad. El endpoint de standings puede seguir
-                    # listando a los equipos en su grupo histórico incluso durante
-                    # la eliminatoria, así que solo se usa para rellenar group_name
-                    # cuando la propia ronda ya dice que es fase de grupos — nunca
-                    # para reclasificar un partido de knockout como "group".
+                    # round_label viene de la fase real de la temporada (por
+                    # fecha del partido, ver espn_core_client._fetch_season_phases)
+                    # — es la fuente de verdad. group_name solo viene poblado
+                    # en fixtures de la fase de grupos (ver group_cache ahí
+                    # mismo), nunca en partidos de eliminatoria.
                     stage = map_stage(fx["round_label"])
-                    group_name = groups.get(fx["home_espn_id"]) if stage == "group" else None
+                    group_name = fx.get("group_name")
 
                 _, action = upsert_match(
                     conn,
