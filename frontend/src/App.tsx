@@ -31,7 +31,7 @@ export interface AppFilters {
 // nav genérico apuntaba siempre a /statistics, que muestra las del Mundial
 // sin importar qué liga estuviera seleccionada — confuso, así que se sacó.
 const NAV_ITEMS = [
-  { path: '/',            icon: '📊', label: 'Dashboard'    },
+  { path: '/',            icon: '📊', label: 'Inicio'    },
   { path: '/best-bets',  icon: '🎯', label: 'Apuestas'     },
   { path: '/evolution',  icon: '📈', label: 'Evolución'     },
 ];
