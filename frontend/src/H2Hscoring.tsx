@@ -126,7 +126,8 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                 🎯 H2H Scoring System
               </h3>
               <p className="text-slate-400 text-xs sm:text-sm">
-                ¿Cómo le hubiera ido a cada pronóstico en los últimos {data.total_h2h_matches} enfrentamientos?
+                Cuántas veces se ha acertado cada pronóstico en los últimos {data.total_h2h_matches} enfrentamientos
+                <span className="text-slate-500"> (varía según el historial disponible entre estos equipos)</span>
               </p>
             </div>
           </div>
@@ -140,7 +141,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
               data.overall_confidence >= 4 ? 'bg-orange-500/20 text-orange-400' :
               'bg-red-500/20 text-red-400'
             }`}>
-              {data.overall_confidence.toFixed(1)}/12
+              {data.overall_confidence.toFixed(1)}/{data.total_h2h_matches}
             </div>
           </div>
         </div>
@@ -167,10 +168,9 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                 <div className="text-white font-semibold text-sm truncate">
                   {formatStatName(statKey)}
                 </div>
-                {(statData.line !== undefined || statData.predicted_total !== undefined) && (
+                {statData.predicted_total !== undefined && (
                   <div className="text-slate-500 text-[11px] truncate">
-                    {statData.line !== undefined && `Línea ${statData.line}`}
-                    {statData.predicted_total !== undefined && ` · Predicho ${statData.predicted_total.toFixed(1)}`}
+                    Predicción {statData.predicted_total.toFixed(1)}
                   </div>
                 )}
               </div>
@@ -180,7 +180,9 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                 statData.prediction === 'YES' ? 'bg-green-500/20 text-green-400' :
                 'bg-red-500/20 text-red-400'
               }`}>
-                {statData.prediction}
+                {statData.line !== undefined && !statData.prediction.includes(' ')
+                  ? `${statData.prediction} ${statData.line}`
+                  : statData.prediction}
               </span>
             </div>
 
