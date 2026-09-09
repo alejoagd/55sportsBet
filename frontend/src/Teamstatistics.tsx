@@ -177,7 +177,6 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
     title: string,
     teams: TeamStats[],
     valueKey: keyof TeamStats,
-    label: string,
     color: string
   ) => (
     <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
@@ -208,7 +207,6 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
                   <span className={`font-bold text-xs sm:text-base whitespace-nowrap ${color}`}>
                     {typeof team[valueKey] === 'number' ? team[valueKey].toFixed(2) : team[valueKey]}
                   </span>
-                  <span className="hidden sm:inline text-slate-400 text-sm whitespace-nowrap">{label}</span>
                   <span
                     className={`text-[9px] sm:text-[11px] font-medium px-1 rounded shrink-0 whitespace-nowrap ${lowSample ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
                     title="Partidos jugados que respaldan este promedio"
@@ -321,16 +319,19 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
           <p className="text-slate-500 text-[11px] sm:text-sm mt-0.5 sm:mt-1">
             {data.teams.length} equipos • {data.referees?.length || 0} árbitros
           </p>
+          <p className="text-slate-500 text-[10px] sm:text-xs mt-1.5 sm:mt-2 italic">
+            Los valores de cada módulo son el promedio por partido jugado (PJ) — a menos partidos, menos estable el promedio.
+          </p>
         </div>
 
         {/* 1. OFENSIVA */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">⚽ Ofensiva (Goles Anotados)</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Mejor Ofensiva Local', topHomeOffense, 'home_avg_goals_scored', 'goles/partido', 'text-green-400')}
-            {renderRankingTable('🏠 Peor Ofensiva Local', bottomHomeOffense, 'home_avg_goals_scored', 'goles/partido', 'text-red-400')}
-            {renderRankingTable('✈️ Mejor Ofensiva Visitante', topAwayOffense, 'away_avg_goals_scored', 'goles/partido', 'text-green-400')}
-            {renderRankingTable('✈️ Peor Ofensiva Visitante', bottomAwayOffense, 'away_avg_goals_scored', 'goles/partido', 'text-red-400')}
+            {renderRankingTable('🏠 Mejor Ofensiva Local', topHomeOffense, 'home_avg_goals_scored', 'text-green-400')}
+            {renderRankingTable('🏠 Peor Ofensiva Local', bottomHomeOffense, 'home_avg_goals_scored', 'text-red-400')}
+            {renderRankingTable('✈️ Mejor Ofensiva Visitante', topAwayOffense, 'away_avg_goals_scored', 'text-green-400')}
+            {renderRankingTable('✈️ Peor Ofensiva Visitante', bottomAwayOffense, 'away_avg_goals_scored', 'text-red-400')}
           </div>
         </div>
 
@@ -338,10 +339,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🛡️ Defensa (Goles Recibidos)</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Mejor Defensa Local', topHomeDefense, 'home_avg_goals_conceded', 'goles/partido', 'text-green-400')}
-            {renderRankingTable('🏠 Peor Defensa Local', bottomHomeDefense, 'home_avg_goals_conceded', 'goles/partido', 'text-red-400')}
-            {renderRankingTable('✈️ Mejor Defensa Visitante', topAwayDefense, 'away_avg_goals_conceded', 'goles/partido', 'text-green-400')}
-            {renderRankingTable('✈️ Peor Defensa Visitante', bottomAwayDefense, 'away_avg_goals_conceded', 'goles/partido', 'text-red-400')}
+            {renderRankingTable('🏠 Mejor Defensa Local', topHomeDefense, 'home_avg_goals_conceded', 'text-green-400')}
+            {renderRankingTable('🏠 Peor Defensa Local', bottomHomeDefense, 'home_avg_goals_conceded', 'text-red-400')}
+            {renderRankingTable('✈️ Mejor Defensa Visitante', topAwayDefense, 'away_avg_goals_conceded', 'text-green-400')}
+            {renderRankingTable('✈️ Peor Defensa Visitante', bottomAwayDefense, 'away_avg_goals_conceded', 'text-red-400')}
           </div>
         </div>
 
@@ -349,10 +350,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Corners Local', topHomeCorners, 'home_avg_corners', 'corners/partido', 'text-yellow-400')}
-            {renderRankingTable('🏠 Menos Corners Local', bottomHomeCorners, 'home_avg_corners', 'corners/partido', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Corners Visitante', topAwayCorners, 'away_avg_corners', 'corners/partido', 'text-yellow-400')}
-            {renderRankingTable('✈️ Menos Corners Visitante', bottomAwayCorners, 'away_avg_corners', 'corners/partido', 'text-slate-400')}
+            {renderRankingTable('🏠 Más Corners Local', topHomeCorners, 'home_avg_corners', 'text-yellow-400')}
+            {renderRankingTable('🏠 Menos Corners Local', bottomHomeCorners, 'home_avg_corners', 'text-slate-400')}
+            {renderRankingTable('✈️ Más Corners Visitante', topAwayCorners, 'away_avg_corners', 'text-yellow-400')}
+            {renderRankingTable('✈️ Menos Corners Visitante', bottomAwayCorners, 'away_avg_corners', 'text-slate-400')}
           </div>
         </div>
 
@@ -360,10 +361,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🎯 Tiros</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Tiros Local', topHomeShots, 'home_avg_shots', 'tiros/partido', 'text-blue-400')}
-            {renderRankingTable('🏠 Menos Tiros Local', bottomHomeShots, 'home_avg_shots', 'tiros/partido', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Tiros Visitante', topAwayShots, 'away_avg_shots', 'tiros/partido', 'text-blue-400')}
-            {renderRankingTable('✈️ Menos Tiros Visitante', bottomAwayShots, 'away_avg_shots', 'tiros/partido', 'text-slate-400')}
+            {renderRankingTable('🏠 Más Tiros Local', topHomeShots, 'home_avg_shots', 'text-blue-400')}
+            {renderRankingTable('🏠 Menos Tiros Local', bottomHomeShots, 'home_avg_shots', 'text-slate-400')}
+            {renderRankingTable('✈️ Más Tiros Visitante', topAwayShots, 'away_avg_shots', 'text-blue-400')}
+            {renderRankingTable('✈️ Menos Tiros Visitante', bottomAwayShots, 'away_avg_shots', 'text-slate-400')}
           </div>
         </div>
 
@@ -371,10 +372,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🎯 Tiros a Puerta</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Tiros a Puerta Local', topHomeShotsTarget, 'home_avg_shots_target', 'tiros/partido', 'text-purple-400')}
-            {renderRankingTable('🏠 Menos Tiros a Puerta Local', bottomHomeShotsTarget, 'home_avg_shots_target', 'tiros/partido', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Tiros a Puerta Visitante', topAwayShotsTarget, 'away_avg_shots_target', 'tiros/partido', 'text-purple-400')}
-            {renderRankingTable('✈️ Menos Tiros a Puerta Visitante', bottomAwayShotsTarget, 'away_avg_shots_target', 'tiros/partido', 'text-slate-400')}
+            {renderRankingTable('🏠 Más Tiros a Puerta Local', topHomeShotsTarget, 'home_avg_shots_target', 'text-purple-400')}
+            {renderRankingTable('🏠 Menos Tiros a Puerta Local', bottomHomeShotsTarget, 'home_avg_shots_target', 'text-slate-400')}
+            {renderRankingTable('✈️ Más Tiros a Puerta Visitante', topAwayShotsTarget, 'away_avg_shots_target', 'text-purple-400')}
+            {renderRankingTable('✈️ Menos Tiros a Puerta Visitante', bottomAwayShotsTarget, 'away_avg_shots_target', 'text-slate-400')}
           </div>
         </div>
 
@@ -382,10 +383,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">⚠️ Faltas</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Faltas Local', topHomeFouls, 'home_avg_fouls', 'faltas/partido', 'text-orange-400')}
-            {renderRankingTable('🏠 Menos Faltas Local', bottomHomeFouls, 'home_avg_fouls', 'faltas/partido', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Faltas Visitante', topAwayFouls, 'away_avg_fouls', 'faltas/partido', 'text-orange-400')}
-            {renderRankingTable('✈️ Menos Faltas Visitante', bottomAwayFouls, 'away_avg_fouls', 'faltas/partido', 'text-slate-400')}
+            {renderRankingTable('🏠 Más Faltas Local', topHomeFouls, 'home_avg_fouls', 'text-orange-400')}
+            {renderRankingTable('🏠 Menos Faltas Local', bottomHomeFouls, 'home_avg_fouls', 'text-slate-400')}
+            {renderRankingTable('✈️ Más Faltas Visitante', topAwayFouls, 'away_avg_fouls', 'text-orange-400')}
+            {renderRankingTable('✈️ Menos Faltas Visitante', bottomAwayFouls, 'away_avg_fouls', 'text-slate-400')}
           </div>
         </div>
 
@@ -393,10 +394,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">🟨 Tarjetas</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Tarjetas Local', topHomeCards, 'home_avg_cards', 'tarjetas/partido', 'text-yellow-400')}
-            {renderRankingTable('🏠 Menos Tarjetas Local', bottomHomeCards, 'home_avg_cards', 'tarjetas/partido', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Tarjetas Visitante', topAwayCards, 'away_avg_cards', 'tarjetas/partido', 'text-yellow-400')}
-            {renderRankingTable('✈️ Menos Tarjetas Visitante', bottomAwayCards, 'away_avg_cards', 'tarjetas/partido', 'text-slate-400')}
+            {renderRankingTable('🏠 Más Tarjetas Local', topHomeCards, 'home_avg_cards', 'text-yellow-400')}
+            {renderRankingTable('🏠 Menos Tarjetas Local', bottomHomeCards, 'home_avg_cards', 'text-slate-400')}
+            {renderRankingTable('✈️ Más Tarjetas Visitante', topAwayCards, 'away_avg_cards', 'text-yellow-400')}
+            {renderRankingTable('✈️ Menos Tarjetas Visitante', bottomAwayCards, 'away_avg_cards', 'text-slate-400')}
           </div>
         </div>
 
@@ -418,7 +419,6 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
                         <span className="font-bold text-xs sm:text-base text-orange-400">{ref.avg_fouls_per_match.toFixed(2)}</span>
-                        <span className="text-slate-400 text-[10px] sm:text-sm">faltas/partido</span>
                       </div>
                     </div>
                   ))}
@@ -437,7 +437,6 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
                         <span className="font-bold text-xs sm:text-base text-yellow-400">{ref.avg_cards_per_match.toFixed(2)}</span>
-                        <span className="text-slate-400 text-[10px] sm:text-sm">tarjetas/partido</span>
                       </div>
                     </div>
                   ))}
