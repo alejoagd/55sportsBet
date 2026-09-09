@@ -4826,7 +4826,7 @@ def get_active_leagues():
             FROM leagues l
             JOIN seasons s ON s.league_id = l.id
             LEFT JOIN matches m ON m.season_id = s.id
-            WHERE s.year_start >= 2024
+            WHERE s.year_start >= 2024 AND l.name != 'FIFA World Cup'
             GROUP BY l.id, l.name, s.id, s.year_start
             HAVING COUNT(DISTINCT m.id) > 0
         )
@@ -4851,9 +4851,7 @@ def get_active_leagues():
             upcoming_count
         FROM ranked_seasons
         WHERE rn = 1  -- Solo la season con más partidos próximos por liga
-        ORDER BY
-            CASE league_name WHEN 'FIFA World Cup' THEN 0 ELSE 1 END,
-            league_id
+        ORDER BY league_id
     """)
     
     with engine.begin() as conn:
