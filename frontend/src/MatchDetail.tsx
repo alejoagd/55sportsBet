@@ -276,69 +276,50 @@ export default function MatchDetail() {
     return 'X';
   };
 
-  // 🎯 FUNCIÓN PARA RENDERIZAR BETTING LINE
+  // 🎯 Badge compacto de betting line — mismo lenguaje visual que el badge
+  // de predicción en H2HScoring (OVER/UNDER + línea juntos en un solo chip).
   const renderBettingLine = (line: BettingLine | undefined) => {
     if (!line) {
-      return <span className="text-slate-500 text-xs">-</span>;
+      return <span className="text-slate-500 text-xs">Sin línea</span>;
     }
 
     const isFinished = line.actual_total !== null;
-    
+    const predictionBadge = (
+      <span className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${
+        line.prediction === 'over' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+      }`}>
+        {line.prediction.toUpperCase()} {line.line}
+      </span>
+    );
+
     if (isFinished) {
-      // Partido ya jugado - mostrar si acertó
       return (
-        <div className="flex flex-col items-center gap-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 font-mono">
-              {line.prediction.toUpperCase()} {line.line}
-            </span>
-            {line.hit ? (
-              <span className="text-green-500 text-lg">✅</span>
-            ) : (
-              <span className="text-red-500 text-lg">❌</span>
-            )}
-          </div>
-          <span className="text-[10px] text-slate-500">
-            Real: {line.actual_total}
-          </span>
-        </div>
-      );
-    } else {
-      // Partido no jugado - mostrar predicción con confianza
-      const confidencePercent = Math.round(line.confidence);
-      const confidenceColor = 
-        confidencePercent >= 50 ? 'text-green-400' :
-        confidencePercent >= 30 ? 'text-yellow-400' :
-        confidencePercent >= 15 ? 'text-orange-400' :
-        'text-slate-500';
-      
-      const confidenceEmoji =
-        confidencePercent >= 50 ? '🔥' :
-        confidencePercent >= 30 ? '🟢' :
-        confidencePercent >= 15 ? '🟡' :
-        '⚪';
-      
-      return (
-        <div className="flex flex-col items-center gap-1">
-          <span className={`font-semibold text-sm ${
-            line.prediction === 'over' ? 'text-green-400' : 'text-blue-400'
-          }`}>
-            {line.prediction.toUpperCase()} {line.line}
-          </span>
-          <div className="flex items-center gap-1">
-            <span className="text-[9px] text-slate-500">
-              Pred: {line.predicted_total.toFixed(1)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs">{confidenceEmoji}</span>
-            <span className={`text-[10px] font-bold ${confidenceColor}`}>
-              {confidencePercent}%
-            </span>
-          </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {predictionBadge}
+          {line.hit ? (
+            <span className="text-green-500 text-sm" title={`Real: ${line.actual_total}`}>✅</span>
+          ) : (
+            <span className="text-red-500 text-sm" title={`Real: ${line.actual_total}`}>❌</span>
+          )}
         </div>
       );
     }
+
+    const confidencePercent = Math.round(line.confidence);
+    const confidenceClass =
+      confidencePercent >= 50 ? 'bg-green-500/20 text-green-400' :
+      confidencePercent >= 30 ? 'bg-yellow-500/20 text-yellow-400' :
+      confidencePercent >= 15 ? 'bg-orange-500/20 text-orange-400' :
+      'bg-slate-600/40 text-slate-400';
+
+    return (
+      <div className="flex items-center gap-1.5 shrink-0">
+        {predictionBadge}
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${confidenceClass}`}>
+          {confidencePercent}%
+        </span>
+      </div>
+    );
   };
 
   if (loading) {
@@ -464,68 +445,55 @@ export default function MatchDetail() {
         <TeamFormSection matchId={Number(matchId)} />
 
         {/* Predicciones de Estadísticas Detalladas */}
-        <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-orange-500/20">
-          <h2 className="text-2xl font-bold text-orange-400 mb-6">📊 Predicciones de Estadísticas (Weinston)</h2>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="py-3 px-4 text-left text-slate-400 font-semibold">Estadística</th>
-                  <th className="py-3 px-4 text-right text-blue-400 font-semibold">{match.home_team}</th>
-                  <th className="py-3 px-4 text-right text-orange-400 font-semibold">{match.away_team}</th>
-                  <th className="py-3 px-4 text-center text-slate-400 font-semibold">Edge</th>
-                  <th className="py-3 px-4 text-center text-purple-400 font-semibold">🎯 Betting Line</th>
-                </tr>
-              </thead>
-              <tbody>
-                <StatPredictionRowWithBetting
-                  label="Shots"
-                  homeValue={safeNumber(match.weinston_shots_home)}
-                  awayValue={safeNumber(match.weinston_shots_away)}
-                  homeTeam={match.home_team}
-                  awayTeam={match.away_team}
-                  bettingLine={bettingLines?.shots}
-                  renderBettingLine={renderBettingLine}
-                />
-                <StatPredictionRowWithBetting
-                  label="Shots OT"
-                  homeValue={safeNumber(match.weinston_shots_on_target_home)}
-                  awayValue={safeNumber(match.weinston_shots_on_target_away)}
-                  homeTeam={match.home_team}
-                  awayTeam={match.away_team}
-                  bettingLine={bettingLines?.shots_on_target}
-                  renderBettingLine={renderBettingLine}
-                />
-                <StatPredictionRowWithBetting
-                  label="Fouls"
-                  homeValue={safeNumber(match.weinston_fouls_home)}
-                  awayValue={safeNumber(match.weinston_fouls_away)}
-                  homeTeam={match.home_team}
-                  awayTeam={match.away_team}
-                  bettingLine={bettingLines?.fouls}
-                  renderBettingLine={renderBettingLine}
-                />
-                <StatPredictionRowWithBetting
-                  label="Cards"
-                  homeValue={safeNumber(match.weinston_cards_home)}
-                  awayValue={safeNumber(match.weinston_cards_away)}
-                  homeTeam={match.home_team}
-                  awayTeam={match.away_team}
-                  bettingLine={bettingLines?.cards}
-                  renderBettingLine={renderBettingLine}
-                />
-                <StatPredictionRowWithBetting
-                  label="Corners"
-                  homeValue={safeNumber(match.weinston_corners_home)}
-                  awayValue={safeNumber(match.weinston_corners_away)}
-                  homeTeam={match.home_team}
-                  awayTeam={match.away_team}
-                  bettingLine={bettingLines?.corners}
-                  renderBettingLine={renderBettingLine}
-                />
-              </tbody>
-            </table>
+        <div className="bg-slate-800 rounded-lg p-4 sm:p-6 shadow-xl border border-orange-500/20">
+          <h2 className="text-xl sm:text-2xl font-bold text-orange-400 mb-4 sm:mb-6">📊 Predicciones de Estadísticas (Weinston)</h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            <StatPredictionCard
+              label="Shots"
+              homeValue={safeNumber(match.weinston_shots_home)}
+              awayValue={safeNumber(match.weinston_shots_away)}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              bettingLine={bettingLines?.shots}
+              renderBettingLine={renderBettingLine}
+            />
+            <StatPredictionCard
+              label="Shots OT"
+              homeValue={safeNumber(match.weinston_shots_on_target_home)}
+              awayValue={safeNumber(match.weinston_shots_on_target_away)}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              bettingLine={bettingLines?.shots_on_target}
+              renderBettingLine={renderBettingLine}
+            />
+            <StatPredictionCard
+              label="Fouls"
+              homeValue={safeNumber(match.weinston_fouls_home)}
+              awayValue={safeNumber(match.weinston_fouls_away)}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              bettingLine={bettingLines?.fouls}
+              renderBettingLine={renderBettingLine}
+            />
+            <StatPredictionCard
+              label="Cards"
+              homeValue={safeNumber(match.weinston_cards_home)}
+              awayValue={safeNumber(match.weinston_cards_away)}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              bettingLine={bettingLines?.cards}
+              renderBettingLine={renderBettingLine}
+            />
+            <StatPredictionCard
+              label="Corners"
+              homeValue={safeNumber(match.weinston_corners_home)}
+              awayValue={safeNumber(match.weinston_corners_away)}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              bettingLine={bettingLines?.corners}
+              renderBettingLine={renderBettingLine}
+            />
           </div>
 
           {/* Leyenda de Betting Lines */}
@@ -757,7 +725,7 @@ function StatRow({ label, homeValue, awayValue, color = 'blue' }: StatRowProps) 
 }
 
 // 🎯 COMPONENTE MEJORADO CON BETTING LINE
-interface StatPredictionRowWithBettingProps {
+interface StatPredictionCardProps {
   label: string;
   homeValue: number;
   awayValue: number;
@@ -767,49 +735,36 @@ interface StatPredictionRowWithBettingProps {
   renderBettingLine: (line: BettingLine | undefined) => JSX.Element;
 }
 
-function StatPredictionRowWithBetting({ 
-  label, 
-  homeValue, 
-  awayValue, 
-  homeTeam, 
+// Una tarjeta por estadística — mismo lenguaje visual que H2HScoring (badge
+// de predicción arriba, valores comparados abajo) en vez de una fila de
+// tabla de 5 columnas que obligaba a scrollear lateralmente en mobile.
+function StatPredictionCard({
+  label,
+  homeValue,
+  awayValue,
+  homeTeam,
   awayTeam,
   bettingLine,
   renderBettingLine
-}: StatPredictionRowWithBettingProps) {
-  const getEdge = () => {
-    if (homeValue > awayValue) return homeTeam;
-    if (awayValue > homeValue) return awayTeam;
-    return '-';
-  };
-
-  const edge = getEdge();
+}: StatPredictionCardProps) {
+  const higher = homeValue > awayValue ? 'home' : awayValue > homeValue ? 'away' : null;
 
   return (
-    <tr className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-      <td className="py-3 px-4 text-slate-300 font-medium">{label}</td>
-      <td className="py-3 px-4 text-right text-blue-300 font-mono">
-        {homeValue > 0 ? homeValue.toFixed(2) : '0.00'}
-      </td>
-      <td className="py-3 px-4 text-right text-orange-300 font-mono">
-        {awayValue > 0 ? awayValue.toFixed(2) : '0.00'}
-      </td>
-      <td className="py-3 px-4 text-right">
-        {edge !== '-' ? (
-          <span className={`px-3 py-1 rounded text-xs font-bold ${
-            edge === homeTeam 
-              ? 'bg-blue-500/20 text-blue-400' 
-              : 'bg-orange-500/20 text-orange-400'
-          }`}>
-            {edge}
-          </span>
-        ) : (
-          <span className="text-slate-500">-</span>
-        )}
-      </td>
-      {/* 🎯 NUEVA COLUMNA DE BETTING LINE */}
-      <td className="py-3 px-4 text-center">
+    <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <span className="text-white font-semibold text-sm">{label}</span>
         {renderBettingLine(bettingLine)}
-      </td>
-    </tr>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className={`rounded-lg px-3 py-2 min-w-0 ${higher === 'home' ? 'bg-blue-500/20 ring-1 ring-blue-500/40' : 'bg-slate-800/60'}`}>
+          <div className="text-[10px] text-blue-300 uppercase tracking-wide truncate">{homeTeam}</div>
+          <div className="text-blue-300 font-mono font-bold text-lg">{homeValue > 0 ? homeValue.toFixed(2) : '0.00'}</div>
+        </div>
+        <div className={`rounded-lg px-3 py-2 min-w-0 ${higher === 'away' ? 'bg-orange-500/20 ring-1 ring-orange-500/40' : 'bg-slate-800/60'}`}>
+          <div className="text-[10px] text-orange-300 uppercase tracking-wide truncate">{awayTeam}</div>
+          <div className="text-orange-300 font-mono font-bold text-lg">{awayValue > 0 ? awayValue.toFixed(2) : '0.00'}</div>
+        </div>
+      </div>
+    </div>
   );
 }

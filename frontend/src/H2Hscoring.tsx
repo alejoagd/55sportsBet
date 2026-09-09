@@ -159,8 +159,11 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
         <span>· de más reciente (izquierda) a más antiguo</span>
       </div>
 
-      {/* Tarjetas de scoring — una por estadística, sin scroll horizontal */}
-      <div className="p-4 sm:p-6 space-y-2.5">
+      {/* Tarjetas de scoring — una por estadística, sin scroll horizontal.
+          En desktop van de a 2 por fila: en una sola columna a ese ancho el
+          contenido de cada tarjeta (nombre corto + puntos + badge) quedaba
+          muy separado, con un montón de espacio vacío en el medio. */}
+      <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-2.5">
         {Object.entries(data.predictions).map(([statKey, statData]) => (
           <div key={statKey} className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50">
             <div className="flex items-start justify-between gap-2 mb-2.5">
