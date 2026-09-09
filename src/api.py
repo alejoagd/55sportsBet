@@ -4056,10 +4056,11 @@ def get_h2h_scoring(match_id: int):
             valid_matches = [m for m in h2h_matches if safe_float(m.get("total_shots")) > 0]
             if valid_matches:
                 if prediction == "OVER":
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots")) > line)
+                    hit_sequence = [safe_float(m.get("total_shots")) > line for m in valid_matches]
                 else:
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots")) < line)
-                
+                    hit_sequence = [safe_float(m.get("total_shots")) < line for m in valid_matches]
+                hits = sum(hit_sequence)
+
                 predictions["tiros"] = {
                     "prediction": prediction,
                     "predicted_total": pred_shots,
@@ -4067,7 +4068,8 @@ def get_h2h_scoring(match_id: int):
                     "hit_count": hits,
                     "valid_matches": len(valid_matches),
                     "score": hits,
-                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                    "hit_sequence": hit_sequence
                 }
         
         # TIROS AL ARCO
@@ -4079,10 +4081,11 @@ def get_h2h_scoring(match_id: int):
             valid_matches = [m for m in h2h_matches if safe_float(m.get("total_shots_on_target")) > 0]
             if valid_matches:
                 if prediction == "OVER":
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots_on_target")) > line)
+                    hit_sequence = [safe_float(m.get("total_shots_on_target")) > line for m in valid_matches]
                 else:
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_shots_on_target")) < line)
-                
+                    hit_sequence = [safe_float(m.get("total_shots_on_target")) < line for m in valid_matches]
+                hits = sum(hit_sequence)
+
                 predictions["tiros_al_arco"] = {
                     "prediction": prediction,
                     "predicted_total": pred_shots_ot,
@@ -4090,7 +4093,8 @@ def get_h2h_scoring(match_id: int):
                     "hit_count": hits,
                     "valid_matches": len(valid_matches),
                     "score": hits,
-                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                    "hit_sequence": hit_sequence
                 }
         
         # FALTAS TOTALES
@@ -4102,10 +4106,11 @@ def get_h2h_scoring(match_id: int):
             valid_matches = [m for m in h2h_matches if safe_float(m.get("total_fouls")) > 0]
             if valid_matches:
                 if prediction == "OVER":
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_fouls")) > line)
+                    hit_sequence = [safe_float(m.get("total_fouls")) > line for m in valid_matches]
                 else:
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_fouls")) < line)
-                
+                    hit_sequence = [safe_float(m.get("total_fouls")) < line for m in valid_matches]
+                hits = sum(hit_sequence)
+
                 predictions["faltas"] = {
                     "prediction": prediction,
                     "predicted_total": pred_fouls,
@@ -4113,7 +4118,8 @@ def get_h2h_scoring(match_id: int):
                     "hit_count": hits,
                     "valid_matches": len(valid_matches),
                     "score": hits,
-                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                    "hit_sequence": hit_sequence
                 }
         
         # TARJETAS TOTALES
@@ -4125,10 +4131,11 @@ def get_h2h_scoring(match_id: int):
             valid_matches = [m for m in h2h_matches if safe_float(m.get("total_cards")) >= 0]  # >=0 porque puede ser 0
             if valid_matches:
                 if prediction == "OVER":
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_cards")) > line)
+                    hit_sequence = [safe_float(m.get("total_cards")) > line for m in valid_matches]
                 else:
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_cards")) < line)
-                
+                    hit_sequence = [safe_float(m.get("total_cards")) < line for m in valid_matches]
+                hits = sum(hit_sequence)
+
                 predictions["tarjetas"] = {
                     "prediction": prediction,
                     "predicted_total": pred_cards,
@@ -4136,7 +4143,8 @@ def get_h2h_scoring(match_id: int):
                     "hit_count": hits,
                     "valid_matches": len(valid_matches),
                     "score": hits,
-                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                    "hit_sequence": hit_sequence
                 }
         
         # CORNERS TOTALES
@@ -4148,10 +4156,11 @@ def get_h2h_scoring(match_id: int):
             valid_matches = [m for m in h2h_matches if safe_float(m.get("total_corners")) > 0]
             if valid_matches:
                 if prediction == "OVER":
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_corners")) > line)
+                    hit_sequence = [safe_float(m.get("total_corners")) > line for m in valid_matches]
                 else:
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("total_corners")) < line)
-                
+                    hit_sequence = [safe_float(m.get("total_corners")) < line for m in valid_matches]
+                hits = sum(hit_sequence)
+
                 predictions["corners"] = {
                     "prediction": prediction,
                     "predicted_total": pred_corners,
@@ -4159,7 +4168,8 @@ def get_h2h_scoring(match_id: int):
                     "hit_count": hits,
                     "valid_matches": len(valid_matches),
                     "score": hits,
-                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                    "hit_sequence": hit_sequence
                 }
         
         # BTTS
@@ -4169,16 +4179,18 @@ def get_h2h_scoring(match_id: int):
         valid_matches = [m for m in h2h_matches if m.get("btts") is not None]
         if valid_matches:
             if prediction == "YES":
-                hits = sum(1 for m in valid_matches if safe_float(m.get("btts")) == 1)
+                hit_sequence = [safe_float(m.get("btts")) == 1 for m in valid_matches]
             else:
-                hits = sum(1 for m in valid_matches if safe_float(m.get("btts")) == 0)
-            
+                hit_sequence = [safe_float(m.get("btts")) == 0 for m in valid_matches]
+            hits = sum(hit_sequence)
+
             predictions["btts"] = {
                 "prediction": prediction,
                 "hit_count": hits,
                 "valid_matches": len(valid_matches),
                 "score": hits,
-                "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                "hit_sequence": hit_sequence
             }
         
         # OVER/UNDER 2.5 GOLES
@@ -4189,17 +4201,19 @@ def get_h2h_scoring(match_id: int):
             valid_matches = [m for m in h2h_matches if m.get("over25") is not None]
             if valid_matches:
                 if prediction == "OVER":
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("over25")) == 1)
+                    hit_sequence = [safe_float(m.get("over25")) == 1 for m in valid_matches]
                 else:
-                    hits = sum(1 for m in valid_matches if safe_float(m.get("over25")) == 0)
-                
+                    hit_sequence = [safe_float(m.get("over25")) == 0 for m in valid_matches]
+                hits = sum(hit_sequence)
+
                 predictions["goles"] = {
                     "prediction": f"{prediction} 2.5",
                     "line": 2.5,
                     "hit_count": hits,
                     "valid_matches": len(valid_matches),
                     "score": hits,
-                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None
+                    "percentage": round(hits / len(valid_matches) * 100, 1) if valid_matches else None,
+                    "hit_sequence": hit_sequence
                 }
         
         # 6. Calcular confianza general (promedio de todos los scores)

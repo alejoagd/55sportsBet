@@ -13,6 +13,7 @@ interface H2HScoringData {
       valid_matches: number;
       score: number | null;
       percentage: number | null;
+      hit_sequence?: boolean[];
     };
   };
   h2h_matches: any[];
@@ -59,30 +60,17 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
     }
   };
 
-  // Función para obtener el color del score basado en la confianza
+  // Color del badge de score/confianza — mismo criterio en toda la tarjeta
+  // (borde, número y "Confianza General") para que un vistazo alcance.
   const getScoreColor = (score: number | null): string => {
     if (score === null) return 'bg-slate-600 text-slate-400';
-    
-    // Colores basados en tu sistema Excel
-    if (score >= 10) return 'bg-green-500 text-white font-bold'; // Verde intenso 80%+
-    if (score >= 8) return 'bg-green-400 text-white font-bold';   // Verde 70%+
-    if (score >= 6) return 'bg-yellow-500 text-black font-bold'; // Amarillo 50%+
-    if (score >= 4) return 'bg-orange-500 text-white';           // Naranja 33%+
-    return 'bg-red-500 text-white';                              // Rojo menor a 33%
+    if (score >= 10) return 'bg-green-500 text-white';
+    if (score >= 8) return 'bg-green-400 text-white';
+    if (score >= 6) return 'bg-yellow-500 text-black';
+    if (score >= 4) return 'bg-orange-500 text-white';
+    return 'bg-red-500 text-white';
   };
 
-  // Función para obtener texto de confianza
-  const getConfidenceText = (score: number | null): string => {
-    if (score === null) return 'Sin datos';
-    
-    if (score >= 10) return 'MUY ALTA 🔥';
-    if (score >= 8) return 'ALTA 🟢';
-    if (score >= 6) return 'MEDIA 🟡';
-    if (score >= 4) return 'BAJA 🟠';
-    return 'MUY BAJA 🔴';
-  };
-
-  // Función para formatear el nombre de la estadística
   const formatStatName = (statKey: string): string => {
     const names: { [key: string]: string } = {
       'goles': 'Goles Totales',
@@ -138,7 +126,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                 🎯 H2H Scoring System
               </h3>
               <p className="text-slate-400 text-xs sm:text-sm">
-                Análisis basado en {data.total_h2h_matches} enfrentamientos directos
+                ¿Cómo le hubiera ido a cada pronóstico en los últimos {data.total_h2h_matches} enfrentamientos?
               </p>
             </div>
           </div>
@@ -158,198 +146,70 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
         </div>
       </div>
 
-      {/* Tabla de Scoring */}
-      <div className="p-3 sm:p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="py-3 px-4 text-left text-slate-400 font-medium text-sm">
-                  Estadística
-                </th>
-                <th className="py-3 px-4 text-center text-slate-400 font-medium text-sm">
-                  Predicción
-                </th>
-                <th className="py-3 px-4 text-center text-slate-400 font-medium text-sm">
-                  H2H Score
-                </th>
-                <th className="py-3 px-4 text-center text-slate-400 font-medium text-sm">
-                  Aciertos
-                </th>
-                <th className="py-3 px-4 text-center text-slate-400 font-medium text-sm">
-                  Confianza
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(data.predictions).map(([statKey, statData]) => (
-                <tr key={statKey} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                  {/* Nombre de la estadística */}
-                  <td className="py-4 px-4">
-                    <div className="font-medium text-slate-300">
-                      {formatStatName(statKey)}
-                    </div>
-                    {statData.line && (
-                      <div className="text-xs text-slate-500">
-                        Línea: {statData.line}
-                      </div>
-                    )}
-                  </td>
+      {/* Leyenda — una sola vez, corta, pegada a lo que explica en vez de un
+          bloque de texto aparte que el usuario tenía que ir a leer. */}
+      <div className="px-4 sm:px-6 pt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Habría acertado
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-sm bg-slate-600 inline-block" /> Habría fallado
+        </span>
+        <span>· de más reciente (izquierda) a más antiguo</span>
+      </div>
 
-                  {/* Predicción */}
-                  <td className="py-4 px-4 text-center">
-                    <span className={`px-3 py-1 rounded text-xs font-bold ${
-                      statData.prediction.includes('OVER') ? 'bg-green-500/20 text-green-400' :
-                      statData.prediction.includes('UNDER') ? 'bg-blue-500/20 text-blue-400' :
-                      statData.prediction === 'YES' ? 'bg-green-500/20 text-green-400' :
-                      'bg-red-500/20 text-red-400'
-                    }`}>
-                      {statData.prediction}
-                    </span>
-                    {statData.predicted_total && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Total: {statData.predicted_total.toFixed(1)}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Score Visual */}
-                  <td className="py-4 px-4 text-center">
-                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg text-lg font-bold ${getScoreColor(statData.score)}`}>
-                      {statData.score || '?'}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      de {data.total_h2h_matches}
-                    </div>
-                  </td>
-
-                  {/* Aciertos */}
-                  <td className="py-4 px-4 text-center">
-                    <div className="text-white font-mono font-bold">
-                      {statData.hit_count}/{statData.valid_matches}
-                    </div>
-                    {statData.percentage && (
-                      <div className="text-xs text-slate-400">
-                        {statData.percentage}%
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Confianza */}
-                  <td className="py-4 px-4 text-center">
-                    <div className="text-xs font-bold">
-                      {getConfidenceText(statData.score)}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Leyenda del sistema de scoring */}
-        <div className="mt-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-          <h4 className="text-slate-300 text-sm font-semibold mb-3">
-            📊 Leyenda del Sistema de Scoring:
-          </h4>
-
-          {/* Explicación del sistema */}
-          <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-            <h5 className="text-blue-300 font-semibold text-xs mb-2">🎯 ¿Cómo funciona el H2H Scoring?</h5>
-            <p className="text-slate-300 text-xs leading-relaxed">
-              El sistema analiza los <span className="font-bold text-white">últimos 12 enfrentamientos directos</span> entre
-              estos equipos y cuenta cuántas veces la predicción actual se ha acertado en el pasado.
-            </p>
-          </div>
-
-          {/* Niveles de confianza */}
-          <div className="mb-4">
-            <h5 className="text-slate-300 font-semibold text-xs mb-2">📈 Niveles de Confianza:</h5>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-green-500 rounded text-white flex items-center justify-center font-bold text-xs">
-                  10+
+      {/* Tarjetas de scoring — una por estadística, sin scroll horizontal */}
+      <div className="p-4 sm:p-6 space-y-2.5">
+        {Object.entries(data.predictions).map(([statKey, statData]) => (
+          <div key={statKey} className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/50">
+            <div className="flex items-start justify-between gap-2 mb-2.5">
+              <div className="min-w-0">
+                <div className="text-white font-semibold text-sm truncate">
+                  {formatStatName(statKey)}
                 </div>
-                <span className="text-slate-300">
-                  <span className="font-bold text-green-400">MUY ALTA</span><br/>
-                  <span className="text-slate-400">(80%+)</span>
-                </span>
+                {(statData.line !== undefined || statData.predicted_total !== undefined) && (
+                  <div className="text-slate-500 text-[11px] truncate">
+                    {statData.line !== undefined && `Línea ${statData.line}`}
+                    {statData.predicted_total !== undefined && ` · Predicho ${statData.predicted_total.toFixed(1)}`}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-green-400 rounded text-white flex items-center justify-center font-bold text-xs">
-                  8-9
+              <span className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold ${
+                statData.prediction.includes('OVER') ? 'bg-green-500/20 text-green-400' :
+                statData.prediction.includes('UNDER') ? 'bg-blue-500/20 text-blue-400' :
+                statData.prediction === 'YES' ? 'bg-green-500/20 text-green-400' :
+                'bg-red-500/20 text-red-400'
+              }`}>
+                {statData.prediction}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              {statData.hit_sequence && statData.hit_sequence.length > 0 ? (
+                <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                  {statData.hit_sequence.map((hit, i) => (
+                    <span
+                      key={i}
+                      className={`w-2.5 h-2.5 rounded-sm shrink-0 ${hit ? 'bg-green-500' : 'bg-slate-600'}`}
+                      title={hit ? 'Habría acertado' : 'Habría fallado'}
+                    />
+                  ))}
                 </div>
-                <span className="text-slate-300">
-                  <span className="font-bold text-green-300">ALTA</span><br/>
-                  <span className="text-slate-400">(65-79%)</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-yellow-500 rounded text-black flex items-center justify-center font-bold text-xs">
-                  6-7
-                </div>
-                <span className="text-slate-300">
-                  <span className="font-bold text-yellow-400">MEDIA</span><br/>
-                  <span className="text-slate-400">(50-64%)</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-orange-500 rounded text-white flex items-center justify-center font-bold text-xs">
-                  4-5
-                </div>
-                <span className="text-slate-300">
-                  <span className="font-bold text-orange-400">BAJA</span><br/>
-                  <span className="text-slate-400">(33-49%)</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-red-500 rounded text-white flex items-center justify-center font-bold text-xs">
-                  &lt;4
-                </div>
-                <span className="text-slate-300">
-                  <span className="font-bold text-red-400">MUY BAJA</span><br/>
-                  <span className="text-slate-400">(&lt;33%)</span>
-                </span>
-              </div>
+              ) : (
+                <span className="text-slate-500 text-[11px] italic flex-1">Sin historial suficiente</span>
+              )}
+              <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded ${getScoreColor(statData.score)}`}>
+                {statData.hit_count}/{statData.valid_matches}
+              </span>
             </div>
           </div>
+        ))}
+      </div>
 
-          {/* Ejemplo práctico */}
-          <div className="pt-3 border-t border-slate-700">
-            <h5 className="text-slate-300 font-semibold text-xs mb-2">💡 Ejemplo Práctico:</h5>
-            <div className="space-y-2 text-xs">
-              <p className="text-slate-300 leading-relaxed">
-                <span className="font-bold text-white">Predicción:</span> OVER 9.5 Corners Totales
-              </p>
-              <p className="text-slate-300 leading-relaxed">
-                <span className="font-bold text-white">Análisis H2H:</span> En los últimos 12 enfrentamientos directos,
-                hubo más de 9.5 corners en <span className="font-bold text-green-400">9 partidos</span>
-              </p>
-              <p className="text-slate-300 leading-relaxed">
-                <span className="font-bold text-white">Resultado:</span> Score = <span className="bg-green-500 px-2 py-0.5 rounded font-bold text-white">9</span>
-                {" "}→ Confianza <span className="font-bold text-green-400">ALTA (75%)</span>
-              </p>
-              <p className="text-slate-400 text-xs italic mt-2">
-                ⚠️ Nota: Un score alto indica que históricamente esta predicción ha acertado en enfrentamientos
-                directos anteriores, pero no garantiza el resultado futuro.
-              </p>
-            </div>
-          </div>
-
-          {/* Cálculo de confianza general */}
-          <div className="mt-4 pt-3 border-t border-slate-700">
-            <h5 className="text-slate-300 font-semibold text-xs mb-2">🔢 Confianza General:</h5>
-            <p className="text-slate-300 text-xs leading-relaxed">
-              La <span className="font-bold text-yellow-400">Confianza General</span> (mostrada arriba) es el promedio
-              de todas las estadísticas analizadas. Valores altos (7+) indican que múltiples predicciones tienen
-              un buen historial en enfrentamientos directos.
-            </p>
-          </div>
-        </div>
-
+      <div className="px-4 sm:px-6 pb-4 sm:pb-6 -mt-1">
         {/* Indicador de recomendación */}
         {data.overall_confidence >= 8 && (
-          <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
             <div className="flex items-center gap-3">
               <TrendingUp className="w-5 h-5 text-green-400" />
               <div>
@@ -365,7 +225,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
         )}
 
         {data.overall_confidence < 4 && (
-          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
             <div className="flex items-center gap-3">
               <Target className="w-5 h-5 text-red-400" />
               <div>
