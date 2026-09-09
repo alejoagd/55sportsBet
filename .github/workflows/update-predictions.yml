@@ -74,6 +74,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Fetch team logos from football-data.org (opt-in)
+        if: ${{ inputs.fetch_team_logos == true }}
+        env:
+          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+        run: |
+          python scripts/fetch_football_data_org_logos.py
+
+      - name: Upload team logos
+        if: ${{ inputs.fetch_team_logos == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: team-logos-${{ github.run_number }}
+          path: data/football_data_org_logos.json
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Download latest CSV data (Results)
         run: |
           # Sin --season: el script calcula la temporada actual solo a
@@ -95,22 +111,6 @@ jobs:
         with:
           name: raw-csv-data-${{ github.run_number }}
           path: data/raw/*.csv
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Fetch team logos from football-data.org (opt-in)
-        if: ${{ inputs.fetch_team_logos == true }}
-        env:
-          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
-        run: |
-          python scripts/fetch_football_data_org_logos.py
-
-      - name: Upload team logos
-        if: ${{ inputs.fetch_team_logos == true }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: team-logos-${{ github.run_number }}
-          path: data/football_data_org_logos.json
           retention-days: 7
           if-no-files-found: ignore
 
