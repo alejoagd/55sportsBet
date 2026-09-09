@@ -164,8 +164,9 @@ function DesktopTable({
   onMatchClick: (matchId: number) => void;
 }) {
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700/70 overflow-hidden shadow-lg shadow-black/10">
-      <table className="w-full text-sm border-collapse">
+    <div className="bg-slate-800 rounded-xl border border-slate-700/70 shadow-lg shadow-black/10 overflow-hidden">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] text-sm border-collapse">
         <thead>
           <tr className="text-slate-400 text-xs uppercase tracking-wide border-b border-slate-700 bg-slate-900/50">
             <th className="text-left font-semibold px-4 py-3">Partido</th>
@@ -226,6 +227,7 @@ function DesktopTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
