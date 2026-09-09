@@ -186,23 +186,39 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
         <div className="text-slate-500 text-center py-4 text-xs sm:text-base">No hay datos</div>
       ) : (
         <div className="space-y-1.5 sm:space-y-2">
-          {teams.map((team, idx) => (
-            <div
-              key={team.team_id}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0"
-            >
-              <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-                <span className="text-slate-400 font-bold w-4 sm:w-6 text-xs sm:text-base shrink-0">{idx + 1}</span>
-                <span className="text-white font-medium text-xs sm:text-base truncate">{team.team_name}</span>
+          {teams.map((team, idx) => {
+            // Cuántos partidos (de local o visitante, según qué lado mide
+            // valueKey) respaldan este promedio — con muy pocos partidos
+            // (ej. 1 en las primeras fechas) el número es real pero todavía
+            // no representa un promedio estable, así que se muestra para
+            // que se pueda juzgar con contexto en vez de leerse como dato
+            // definitivo.
+            const sideMatches = (valueKey as string).startsWith('home_') ? team.home_matches : team.away_matches;
+            const lowSample = sideMatches < 3;
+            return (
+              <div
+                key={team.team_id}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0"
+              >
+                <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                  <span className="text-slate-400 font-bold w-4 sm:w-6 text-xs sm:text-base shrink-0">{idx + 1}</span>
+                  <span className="text-white font-medium text-xs sm:text-base truncate">{team.team_name}</span>
+                </div>
+                <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
+                  <span className={`font-bold text-xs sm:text-base ${color}`}>
+                    {typeof team[valueKey] === 'number' ? team[valueKey].toFixed(2) : team[valueKey]}
+                  </span>
+                  <span className="text-slate-400 text-[10px] sm:text-sm">{label}</span>
+                  <span
+                    className={`text-[9px] sm:text-[11px] font-medium px-1 rounded ${lowSample ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
+                    title="Partidos jugados que respaldan este promedio"
+                  >
+                    {sideMatches} PJ
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
-                <span className={`font-bold text-xs sm:text-base ${color}`}>
-                  {typeof team[valueKey] === 'number' ? team[valueKey].toFixed(2) : team[valueKey]}
-                </span>
-                <span className="text-slate-400 text-[10px] sm:text-sm">{label}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
