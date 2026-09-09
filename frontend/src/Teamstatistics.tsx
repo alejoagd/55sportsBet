@@ -204,13 +204,13 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
                   <span className="text-slate-400 font-bold w-4 sm:w-6 text-xs sm:text-base shrink-0">{idx + 1}</span>
                   <span className="text-white font-medium text-xs sm:text-base truncate">{team.team_name}</span>
                 </div>
-                <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0">
-                  <span className={`font-bold text-xs sm:text-base ${color}`}>
+                <div className="flex items-center gap-1 sm:gap-2 pl-[22px] sm:pl-0 shrink-0 flex-wrap sm:flex-nowrap">
+                  <span className={`font-bold text-xs sm:text-base whitespace-nowrap ${color}`}>
                     {typeof team[valueKey] === 'number' ? team[valueKey].toFixed(2) : team[valueKey]}
                   </span>
-                  <span className="text-slate-400 text-[10px] sm:text-sm">{label}</span>
+                  <span className="hidden sm:inline text-slate-400 text-sm whitespace-nowrap">{label}</span>
                   <span
-                    className={`text-[9px] sm:text-[11px] font-medium px-1 rounded ${lowSample ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
+                    className={`text-[9px] sm:text-[11px] font-medium px-1 rounded shrink-0 whitespace-nowrap ${lowSample ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
                     title="Partidos jugados que respaldan este promedio"
                   >
                     {sideMatches} PJ
