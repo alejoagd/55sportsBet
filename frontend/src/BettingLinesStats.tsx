@@ -149,6 +149,18 @@ export default function BettingLinesStats() {
   }
 
   const betTypes = ['TIROS', 'TIROS AL ARCO', 'CORNERS', 'TARJETAS', 'FALTAS'] as const;
+  const betTypeLabels: Record<(typeof betTypes)[number], string> = {
+    'TIROS': 'Tiros',
+    'TIROS AL ARCO': 'T. Arco',
+    'CORNERS': 'Corners',
+    'TARJETAS': 'Tarjetas',
+    'FALTAS': 'Faltas',
+  };
+
+  // El tipo de apuesta con mejor precisión dentro de una liga — no filtra ni
+  // esconde el resto, solo marca cuál conviene más mirar en esa liga.
+  const getBestBetType = (league: LeagueStats) =>
+    betTypes.reduce((best, bt) => (league.stats[bt].accuracy > league.stats[best].accuracy ? bt : best), betTypes[0]);
 
   return (
     <div className="space-y-6">
@@ -168,6 +180,72 @@ export default function BettingLinesStats() {
             <span className="text-slate-400">Total Ligas: </span>
             <span className="text-white font-bold">{data.total_leagues}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Matriz resumen: liga × tipo de apuesta, en una sola vista para
+          comparar entre ligas sin scrollear página abajo por cada una. La
+          celda con el 🏆 es el tipo de apuesta más acertado de esa liga —
+          se mantienen todos los demás visibles, ninguno se oculta. */}
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        <div className="p-3 sm:p-4 border-b border-slate-700">
+          <h4 className="text-white font-bold text-sm sm:text-base">🏆 Mejor apuesta por liga</h4>
+          <p className="text-slate-400 text-[11px] sm:text-xs mt-0.5">
+            La celda marcada es el tipo de apuesta con más precisión en esa liga
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-900/50">
+                <th className="px-2 sm:px-3 py-2 text-left text-slate-400 font-semibold text-[11px] sm:text-sm">Liga</th>
+                {betTypes.map((bt) => (
+                  <th key={bt} className="px-0.5 sm:px-2 py-2 text-center text-slate-400 font-semibold text-[10px] sm:text-sm whitespace-nowrap">
+                    {betTypeLabels[bt]}
+                  </th>
+                ))}
+                <th className="px-0.5 sm:px-2 py-2 text-center text-slate-400 font-semibold text-[10px] sm:text-sm">General</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.stats_by_league.map((league) => {
+                const best = getBestBetType(league);
+                return (
+                  <tr key={league.league_code} className="border-t border-slate-700/50">
+                    <td className="px-2 sm:px-3 py-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-base sm:text-lg shrink-0">{league.league_emoji}</span>
+                        <span className="text-white font-medium text-xs sm:text-sm truncate hidden sm:inline">{league.league_name}</span>
+                        <span className="text-white font-medium text-xs sm:hidden">{league.league_code}</span>
+                      </div>
+                    </td>
+                    {betTypes.map((bt) => {
+                      const stats = league.stats[bt];
+                      const isBest = bt === best;
+                      return (
+                        <td key={bt} className="px-0.5 sm:px-2 py-2 text-center">
+                          <div
+                            className={`inline-flex items-center justify-center gap-0.5 rounded px-1 sm:px-2 py-1 ${getAccuracyBgColor(stats.accuracy)} ${isBest ? 'ring-2 ring-yellow-400' : ''}`}
+                            title={`${betTypeLabels[bt]}: ${stats.hit}/${stats.total} aciertos`}
+                          >
+                            {isBest && <span className="text-[9px] sm:text-[10px] shrink-0">🏆</span>}
+                            <span className={`font-bold text-[10px] sm:text-sm whitespace-nowrap ${getAccuracyColor(stats.accuracy)}`}>
+                              {stats.accuracy.toFixed(0)}%
+                            </span>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="px-0.5 sm:px-2 py-2 text-center">
+                      <span className={`font-bold text-[10px] sm:text-sm ${getAccuracyColor(league.overall_accuracy)}`}>
+                        {league.overall_accuracy.toFixed(0)}%
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -223,14 +301,18 @@ export default function BettingLinesStats() {
               <tbody>
                 {betTypes.map((betType, index) => {
                   const stats = league.stats[betType];
+                  const isBest = betType === getBestBetType(league);
                   return (
                     <tr
                       key={betType}
                       className={`border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors ${
                         index % 2 === 0 ? 'bg-slate-800/30' : ''
-                      }`}
+                      } ${isBest ? 'ring-1 ring-inset ring-yellow-400/50' : ''}`}
                     >
-                      <td className="px-4 py-3 text-white font-medium">{betType}</td>
+                      <td className="px-4 py-3 text-white font-medium">
+                        {isBest && <span className="mr-1.5" title="Mejor apuesta de esta liga">🏆</span>}
+                        {betType}
+                      </td>
                       <td className="px-4 py-3 text-center text-green-400 font-semibold">
                         {stats.hit}
                       </td>
