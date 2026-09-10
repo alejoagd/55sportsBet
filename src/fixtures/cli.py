@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 from datetime import date as Datetype
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import typer
 from sqlalchemy import select
@@ -163,7 +163,30 @@ def _upsert_match(s, date_: datetime, home_id: int, away_id: int, season_id: int
             )
         ).scalar_one_or_none()
     )
+    if existing is None:
+        # Fallback: el mismo enfrentamiento puede ya existir bajo una fecha
+        # "por confirmar" (placeholder) que no coincide con la fecha real una
+        # vez la liga confirma el calendario — sin esto, cada confirmación
+        # de fecha/hora insertaba un partido duplicado en vez de actualizar
+        # el que ya estaba (visto repetido en las 4 ligas europeas). Se
+        # busca entre partidos NO jugados del mismo local/visitante dentro
+        # de una ventana de fechas razonable — no más amplia porque el mismo
+        # par de equipos puede enfrentarse de nuevo (ida/vuelta) meses después.
+        window_start = date_.date() - timedelta(days=21)
+        window_end = date_.date() + timedelta(days=21)
+        existing = (
+            s.execute(
+                select(Match).where(
+                    Match.home_team_id == home_id,
+                    Match.away_team_id == away_id,
+                    Match.home_goals.is_(None),
+                    Match.date >= window_start,
+                    Match.date <= window_end,
+                )
+            ).scalars().first()
+        )
     if existing:
+        existing.date = date_.date()
         if season_id is not None:
             existing.season_id = season_id
         # Solo se pisa si llega una hora nueva — así un partido que ya tenía

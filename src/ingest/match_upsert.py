@@ -8,7 +8,7 @@ clave, cae a (season_id, home_id, away_id, date) para evitar duplicar si el
 mismo partido ya existe por otra vía.
 """
 from __future__ import annotations
-from datetime import date as DateType, datetime
+from datetime import date as DateType, datetime, timedelta
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -59,6 +59,31 @@ def upsert_match(
             """),
             {"sid": season_id, "hid": home_id, "aid": away_id, "d": match_date},
         ).fetchone()
+    if existing is None:
+        # Fallback final: sin api_football_fixture_id/espn_event_id (ej.
+        # fuente football-data.org) y sin coincidencia de fecha exacta, el
+        # mismo partido puede ya existir bajo una fecha "por confirmar" que
+        # no coincide con la fecha real una vez se confirma el calendario —
+        # sin esto, cada confirmación insertaba un duplicado en vez de
+        # actualizar el que ya estaba (visto en Brasileirao). Se busca entre
+        # partidos NO jugados del mismo local/visitante en una ventana de
+        # fechas acotada, no más amplia porque el mismo par puede repetirse
+        # (ida/vuelta) meses después.
+        existing = conn.execute(
+            text("""
+                SELECT id, home_goals FROM matches
+                WHERE season_id = :sid AND home_team_id = :hid AND away_team_id = :aid
+                  AND home_goals IS NULL
+                  AND date BETWEEN :start AND :end
+                ORDER BY date
+                LIMIT 1
+            """),
+            {
+                "sid": season_id, "hid": home_id, "aid": away_id,
+                "start": match_date - timedelta(days=21),
+                "end": match_date + timedelta(days=21),
+            },
+        ).fetchone()
 
     ft = fulltime_result(home_goals, away_goals)
     params = {
@@ -83,6 +108,7 @@ def upsert_match(
         conn.execute(
             text("""
                 UPDATE matches SET
+                    date = :d,
                     home_goals = COALESCE(:hg, home_goals),
                     away_goals = COALESCE(:ag, away_goals),
                     fulltime_result = COALESCE(:ft, fulltime_result),
