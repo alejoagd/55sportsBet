@@ -185,26 +185,31 @@ export default function BettingLinesStats() {
 
       {/* Matriz resumen: liga × tipo de apuesta, en una sola vista para
           comparar entre ligas sin scrollear página abajo por cada una. La
-          celda con el 🏆 es el tipo de apuesta más acertado de esa liga —
-          se mantienen todos los demás visibles, ninguno se oculta. */}
+          celda/badge con el 🏆 es el tipo de apuesta más acertado de esa
+          liga — se mantienen todos los demás visibles, ninguno se oculta.
+          En mobile una tabla de 7 columnas no entra sin scroll lateral, así
+          que ahí cada liga se ve como una tarjeta con los badges en fila
+          que se acomodan solos en más de una línea en vez de desbordar. */}
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         <div className="p-3 sm:p-4 border-b border-slate-700">
           <h4 className="text-white font-bold text-sm sm:text-base">🏆 Mejor apuesta por liga</h4>
           <p className="text-slate-400 text-[11px] sm:text-xs mt-0.5">
-            La celda marcada es el tipo de apuesta con más precisión en esa liga
+            El badge marcado es el tipo de apuesta con más precisión en esa liga
           </p>
         </div>
-        <div className="overflow-x-auto">
+
+        {/* Desktop: tabla liga × tipo de apuesta */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-900/50">
-                <th className="px-2 sm:px-3 py-2 text-left text-slate-400 font-semibold text-[11px] sm:text-sm">Liga</th>
+                <th className="px-3 py-2 text-left text-slate-400 font-semibold text-sm">Liga</th>
                 {betTypes.map((bt) => (
-                  <th key={bt} className="px-0.5 sm:px-2 py-2 text-center text-slate-400 font-semibold text-[10px] sm:text-sm whitespace-nowrap">
+                  <th key={bt} className="px-2 py-2 text-center text-slate-400 font-semibold text-sm whitespace-nowrap">
                     {betTypeLabels[bt]}
                   </th>
                 ))}
-                <th className="px-0.5 sm:px-2 py-2 text-center text-slate-400 font-semibold text-[10px] sm:text-sm">General</th>
+                <th className="px-2 py-2 text-center text-slate-400 font-semibold text-sm">General</th>
               </tr>
             </thead>
             <tbody>
@@ -212,32 +217,31 @@ export default function BettingLinesStats() {
                 const best = getBestBetType(league);
                 return (
                   <tr key={league.league_code} className="border-t border-slate-700/50">
-                    <td className="px-2 sm:px-3 py-2">
+                    <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-base sm:text-lg shrink-0">{league.league_emoji}</span>
-                        <span className="text-white font-medium text-xs sm:text-sm truncate hidden sm:inline">{league.league_name}</span>
-                        <span className="text-white font-medium text-xs sm:hidden">{league.league_code}</span>
+                        <span className="text-lg shrink-0">{league.league_emoji}</span>
+                        <span className="text-white font-medium text-sm truncate">{league.league_name}</span>
                       </div>
                     </td>
                     {betTypes.map((bt) => {
                       const stats = league.stats[bt];
                       const isBest = bt === best;
                       return (
-                        <td key={bt} className="px-0.5 sm:px-2 py-2 text-center">
+                        <td key={bt} className="px-2 py-2 text-center">
                           <div
-                            className={`inline-flex items-center justify-center gap-0.5 rounded px-1 sm:px-2 py-1 ${getAccuracyBgColor(stats.accuracy)} ${isBest ? 'ring-2 ring-yellow-400' : ''}`}
+                            className={`inline-flex items-center justify-center gap-0.5 rounded px-2 py-1 ${getAccuracyBgColor(stats.accuracy)} ${isBest ? 'ring-2 ring-yellow-400' : ''}`}
                             title={`${betTypeLabels[bt]}: ${stats.hit}/${stats.total} aciertos`}
                           >
-                            {isBest && <span className="text-[9px] sm:text-[10px] shrink-0">🏆</span>}
-                            <span className={`font-bold text-[10px] sm:text-sm whitespace-nowrap ${getAccuracyColor(stats.accuracy)}`}>
+                            {isBest && <span className="text-[10px] shrink-0">🏆</span>}
+                            <span className={`font-bold text-sm whitespace-nowrap ${getAccuracyColor(stats.accuracy)}`}>
                               {stats.accuracy.toFixed(0)}%
                             </span>
                           </div>
                         </td>
                       );
                     })}
-                    <td className="px-0.5 sm:px-2 py-2 text-center">
-                      <span className={`font-bold text-[10px] sm:text-sm ${getAccuracyColor(league.overall_accuracy)}`}>
+                    <td className="px-2 py-2 text-center">
+                      <span className={`font-bold text-sm ${getAccuracyColor(league.overall_accuracy)}`}>
                         {league.overall_accuracy.toFixed(0)}%
                       </span>
                     </td>
@@ -246,6 +250,45 @@ export default function BettingLinesStats() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile: una tarjeta por liga, badges en fila que se acomodan
+            solos (flex-wrap) — nunca fuerza scroll lateral. */}
+        <div className="sm:hidden divide-y divide-slate-700/50">
+          {data.stats_by_league.map((league) => {
+            const best = getBestBetType(league);
+            return (
+              <div key={league.league_code} className="p-3">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-base shrink-0">{league.league_emoji}</span>
+                    <span className="text-white font-medium text-xs truncate">{league.league_name}</span>
+                  </div>
+                  <span className={`shrink-0 font-bold text-xs px-1.5 py-0.5 rounded ${getAccuracyBgColor(league.overall_accuracy)} ${getAccuracyColor(league.overall_accuracy)}`}>
+                    Gral {league.overall_accuracy.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {betTypes.map((bt) => {
+                    const stats = league.stats[bt];
+                    const isBest = bt === best;
+                    return (
+                      <div
+                        key={bt}
+                        className={`flex items-center gap-1 rounded px-1.5 py-1 ${getAccuracyBgColor(stats.accuracy)} ${isBest ? 'ring-2 ring-yellow-400' : ''}`}
+                      >
+                        {isBest && <span className="text-[9px]">🏆</span>}
+                        <span className="text-slate-300 text-[10px]">{betTypeLabels[bt]}</span>
+                        <span className={`font-bold text-[10px] ${getAccuracyColor(stats.accuracy)}`}>
+                          {stats.accuracy.toFixed(0)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
