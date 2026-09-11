@@ -91,6 +91,15 @@ jobs:
           if-no-files-found: ignore
 
       - name: Download latest CSV data (Results)
+        # continue-on-error: football-data.co.uk puede estar caído (503 o
+        # timeout, visto desde 2026-09-05) sin que eso deba frenar el resto
+        # del workflow — antes, al fallar este paso, TODOS los pasos
+        # siguientes se saltaban por defecto (fixtures, predicciones y best
+        # bets de las 5 competencias que no dependen de este CSV incluidas),
+        # dejando el pipeline completo congelado mientras el sitio no
+        # respondía. El paso de football-data.org de más abajo cubre estas
+        # 4 ligas como respaldo cuando esto falla.
+        continue-on-error: true
         run: |
           # Sin --season: el script calcula la temporada actual solo a
           # partir de la fecha de hoy (ver current_season_code() en
@@ -121,6 +130,7 @@ jobs:
           python scripts/download-fixtures-final.py --leagues all --output data
 
       - name: Create .env.production file
+        if: always()
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
@@ -147,6 +157,19 @@ jobs:
             exit 1
           fi
           echo "✓ Password verified"
+
+      - name: Sync Premier League/La Liga/Serie A/Bundesliga (football-data.org, respaldo)
+        # Corre siempre, no solo cuando el CSV falla: sirve tanto de único
+        # respaldo mientras football-data.co.uk está caído como de
+        # redundancia normal en adelante (upsert_match matchea por
+        # equipos/fecha, así que recibir el mismo partido por dos fuentes
+        # no genera duplicados).
+        if: always()
+        env:
+          FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+          ENV_FILE: .env.production
+        run: |
+          python sync_european_leagues_football_data.py --apply
 
       - name: Determine operation parameters
         id: params
