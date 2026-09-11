@@ -159,12 +159,12 @@ jobs:
           echo "✓ Password verified"
 
       - name: Sync Premier League/La Liga/Serie A/Bundesliga (football-data.org, respaldo)
-        # Corre siempre, no solo cuando el CSV falla: sirve tanto de único
-        # respaldo mientras football-data.co.uk está caído como de
-        # redundancia normal en adelante (upsert_match matchea por
-        # equipos/fecha, así que recibir el mismo partido por dos fuentes
-        # no genera duplicados).
-        if: always()
+        # DESACTIVADO 2026-09-11: la primera corrida creó ~1444 partidos y 74
+        # equipos duplicados porque football-data.org usa nombres oficiales
+        # completos ("Manchester United FC") que no matchean con los nombres
+        # cortos ya usados en la BD ("Man United"). Reactivar solo después de
+        # agregar un mapeo de nombres correcto en TeamResolver/el script.
+        if: false
         env:
           FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
           ENV_FILE: .env.production
