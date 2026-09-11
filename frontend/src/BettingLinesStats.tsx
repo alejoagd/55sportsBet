@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useIsMobile } from './Hooks/useIsMobile';
 
 interface BetTypeStats {
   hit: number;
@@ -49,6 +50,11 @@ interface H2HEffectivenessResponse {
 }
 
 export default function BettingLinesStats() {
+  // Mismo breakpoint (768px) que usa el resto de la app para decidir
+  // mobile/desktop (LeagueSidebar, MatchDetail, etc.) — usar el sm: de
+  // Tailwind (640px) acá dejaba una franja de ancho donde el resto de la
+  // página ya se veía en modo mobile pero esta tabla seguía en desktop.
+  const isMobile = useIsMobile();
   const [data, setData] = useState<BettingLinesStatsResponse | null>(null);
   const [h2hData, setH2hData] = useState<H2HEffectivenessResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -199,7 +205,8 @@ export default function BettingLinesStats() {
         </div>
 
         {/* Desktop: tabla liga × tipo de apuesta */}
-        <div className="hidden sm:block overflow-x-auto">
+        {!isMobile && (
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-900/50">
@@ -251,10 +258,12 @@ export default function BettingLinesStats() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Mobile: una tarjeta por liga, badges en fila que se acomodan
             solos (flex-wrap) — nunca fuerza scroll lateral. */}
-        <div className="sm:hidden divide-y divide-slate-700/50">
+        {isMobile && (
+        <div className="divide-y divide-slate-700/50">
           {data.stats_by_league.map((league) => {
             const best = getBestBetType(league);
             return (
@@ -290,6 +299,7 @@ export default function BettingLinesStats() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Stats by League */}
