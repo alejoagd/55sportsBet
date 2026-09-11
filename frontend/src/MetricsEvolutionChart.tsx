@@ -249,9 +249,43 @@ interface Trend {
   isUp: boolean;
 }
 
+type EvolutionTab = 'metrics' | 'best-bets' | 'betting-lines' | 'wc2026';
+
+// Una sola barra de tabs reusada por las 4 vistas de esta pantalla — antes
+// cada una tenía su propia copia pegada a mano, y dos de ellas (Best Bets y
+// Betting Lines) habían quedado con un estilo fijo más grande mientras las
+// otras dos ya usaban el compacto responsivo, así que la barra "saltaba" de
+// tamaño al cambiar de tab. Con un solo componente esto no puede volver a
+// desalinearse entre pestañas.
+const EVOLUTION_TABS: { id: EvolutionTab; icon: string; full?: string; short: string; activeBorder: string }[] = [
+  { id: 'metrics', icon: '📈', full: 'Evolución de ', short: 'Métricas', activeBorder: 'border-blue-500' },
+  { id: 'best-bets', icon: '🎯', full: 'Análisis de ', short: 'Best Bets', activeBorder: 'border-green-500' },
+  { id: 'betting-lines', icon: '📊', full: 'Estadísticas ', short: 'Betting Lines', activeBorder: 'border-blue-500' },
+  { id: 'wc2026', icon: '🏆', short: 'Mundial 2026', activeBorder: 'border-yellow-500' },
+];
+
+function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab; setActiveTab: (t: EvolutionTab) => void }) {
+  return (
+    <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
+      {EVOLUTION_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => setActiveTab(tab.id)}
+          className={`px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors whitespace-nowrap text-sm sm:text-base ${
+            activeTab === tab.id ? `text-white border-b-2 ${tab.activeBorder}` : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          {tab.icon} {tab.full && <span className="hidden sm:inline">{tab.full}</span>}
+          {tab.short}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function MetricsEvolutionChart() {
   // 🎯 NUEVO: State para tabs
-  const [activeTab, setActiveTab] = useState<'metrics' | 'best-bets' | 'betting-lines' | 'wc2026'>('metrics');
+  const [activeTab, setActiveTab] = useState<EvolutionTab>('metrics');
   
   const [data, setData] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -298,14 +332,9 @@ export default function MetricsEvolutionChart() {
   // 🎯 Si estamos en tab de Best Bets, renderizar solo ese componente
   if (activeTab === 'best-bets') {
     return (
-      <div className="min-h-screen bg-slate-900 p-6">
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex gap-4 border-b border-slate-700 overflow-x-auto">
-            <button onClick={() => setActiveTab('metrics')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">📈 Evolución de Métricas</button>
-            <button onClick={() => setActiveTab('best-bets')} className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-green-500 whitespace-nowrap">🎯 Análisis de Best Bets</button>
-            <button onClick={() => setActiveTab('betting-lines')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">📊 Estadísticas Betting Lines</button>
-            <button onClick={() => setActiveTab('wc2026')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">🏆 Mundial 2026</button>
-          </div>
+      <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
+        <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
+          <EvolutionTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
         <BestBetsAnalysis />
       </div>
@@ -315,14 +344,9 @@ export default function MetricsEvolutionChart() {
   // 🎯 Si estamos en tab de Betting Lines, renderizar ese componente
   if (activeTab === 'betting-lines') {
     return (
-      <div className="min-h-screen bg-slate-900 p-6">
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex gap-4 border-b border-slate-700 overflow-x-auto">
-            <button onClick={() => setActiveTab('metrics')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">📈 Evolución de Métricas</button>
-            <button onClick={() => setActiveTab('best-bets')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">🎯 Análisis de Best Bets</button>
-            <button onClick={() => setActiveTab('betting-lines')} className="px-6 py-3 font-semibold transition-colors text-white border-b-2 border-blue-500 whitespace-nowrap">📊 Estadísticas Betting Lines</button>
-            <button onClick={() => setActiveTab('wc2026')} className="px-6 py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap">🏆 Mundial 2026</button>
-          </div>
+      <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
+        <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
+          <EvolutionTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
         <BettingLinesStats />
       </div>
@@ -334,12 +358,7 @@ export default function MetricsEvolutionChart() {
     return (
       <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
         <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
-          <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
-            <button onClick={() => setActiveTab('metrics')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">📈 <span className="hidden sm:inline">Evolución de </span>Métricas</button>
-            <button onClick={() => setActiveTab('best-bets')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">🎯 <span className="hidden sm:inline">Análisis de </span>Best Bets</button>
-            <button onClick={() => setActiveTab('betting-lines')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">📊 Betting Lines</button>
-            <button onClick={() => setActiveTab('wc2026')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-white border-b-2 border-yellow-500 whitespace-nowrap text-sm sm:text-base">🏆 Mundial 2026</button>
-          </div>
+          <EvolutionTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
         <div className="w-full max-w-7xl mx-auto">
           <WC2026AccuracyView />
@@ -422,20 +441,7 @@ export default function MetricsEvolutionChart() {
     <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
       {/* 🎯 Header con tabs */}
       <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
-        <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
-          <button onClick={() => setActiveTab('metrics')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-white border-b-2 border-blue-500 whitespace-nowrap text-sm sm:text-base">
-            📈 <span className="hidden sm:inline">Evolución de </span>Métricas
-          </button>
-          <button onClick={() => setActiveTab('best-bets')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">
-            🎯 <span className="hidden sm:inline">Análisis de </span>Best Bets
-          </button>
-          <button onClick={() => setActiveTab('betting-lines')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">
-            📊 Betting Lines
-          </button>
-          <button onClick={() => setActiveTab('wc2026')} className="px-4 sm:px-6 py-2 sm:py-3 font-semibold transition-colors text-slate-400 hover:text-white whitespace-nowrap text-sm sm:text-base">
-            🏆 Mundial 2026
-          </button>
-        </div>
+        <EvolutionTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
       {/* Contenido de Métricas */}
