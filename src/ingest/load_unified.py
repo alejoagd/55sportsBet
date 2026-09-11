@@ -19,7 +19,7 @@ Uso:
 from __future__ import annotations
 import pandas as pd
 import typer
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -96,6 +96,26 @@ def _upsert_match(s: Session, date: datetime, home_id: int, away_id: int, row: d
             )
         ).scalars().first()
     )
+    if existing is None:
+        # Fallback: el mismo partido puede existir con una fecha "por
+        # confirmar" que no coincide con la fecha real una vez el CSV trae
+        # el resultado confirmado — sin esto, cada actualización insertaba
+        # un duplicado en vez de completar el que ya estaba (visto en las
+        # 4 ligas europeas cargadas por CSV). Ventana acotada porque el
+        # mismo par de equipos puede repetirse (ida/vuelta) meses después.
+        window_start = date.date() - timedelta(days=21)
+        window_end = date.date() + timedelta(days=21)
+        existing = (
+            s.execute(
+                select(Match).where(
+                    Match.home_team_id == home_id,
+                    Match.away_team_id == away_id,
+                    Match.home_goals.is_(None),
+                    Match.date >= window_start,
+                    Match.date <= window_end,
+                )
+            ).scalars().first()
+        )
 
     # ═══════════════════════════════════════════════════════════════════
     # MANEJO DEL CAMPO REFEREE
