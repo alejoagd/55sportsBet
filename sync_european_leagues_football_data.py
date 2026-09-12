@@ -42,11 +42,95 @@ LEAGUES = {
 
 # Mapeo explícito y fijo: id numérico de equipo en football-data.org -> id de
 # equipo YA EXISTENTE en nuestra BD (con el nombre corto de football-data.co.uk).
-# Se completa una sola vez con --dump-teams + los ids reales de la BD.
-# Vacío a propósito hasta completarlo: con el mapeo vacío, sync_league salta
-# TODOS los partidos (unmapped) sin escribir nada — seguro por diseño, nunca
-# usar una heurística de nombre acá otra vez (ver incidente 2026-09-11 arriba).
-TEAM_ID_MAP: dict[int, int] = {}
+# Construido a mano el 2026-09-11 cruzando --dump-teams contra la BD real —
+# un equipo que no esté acá se SALTA (nunca se crea uno nuevo, ver docstring).
+TEAM_ID_MAP: dict[int, int] = {
+    # Premier League
+    1044: 3,   # AFC Bournemouth -> Bournemouth
+    57: 1,     # Arsenal FC -> Arsenal
+    58: 2,     # Aston Villa FC -> Aston Villa
+    402: 4,    # Brentford FC -> Brentford
+    397: 5,    # Brighton & Hove Albion FC -> Brighton
+    61: 6,     # Chelsea FC -> Chelsea
+    1076: 470, # Coventry City FC -> Coventry City FC
+    354: 7,    # Crystal Palace FC -> Crystal Palace
+    62: 8,     # Everton FC -> Everton
+    63: 9,     # Fulham FC -> Fulham
+    322: 34,   # Hull City AFC -> Hull
+    349: 10,   # Ipswich Town FC -> Ipswich
+    341: 11,   # Leeds United FC -> Leeds
+    64: 13,    # Liverpool FC -> Liverpool
+    65: 14,    # Manchester City FC -> Man City
+    66: 15,    # Manchester United FC -> Man United
+    67: 16,    # Newcastle United FC -> Newcastle
+    351: 17,   # Nottingham Forest FC -> Nott'm Forest
+    71: 22,    # Sunderland AFC -> Sunderland
+    73: 19,    # Tottenham Hotspur FC -> Tottenham
+
+    # La Liga
+    77: 39,    # Athletic Club -> Ath Bilbao
+    79: 52,    # CA Osasuna -> Osasuna
+    78: 53,    # Club Atlético de Madrid -> Ath Madrid
+    263: 50,   # Deportivo Alavés -> Alaves
+    285: 57,   # Elche CF -> Elche
+    81: 48,    # FC Barcelona -> Barcelona
+    82: 44,    # Getafe CF -> Getafe
+    88: 54,    # Levante UD -> Levante
+    84: 68,    # Málaga CF -> Malaga
+    558: 47,   # RC Celta de Vigo -> Celta
+    560: 67,   # RC Deportivo La Coruña -> La Coruna
+    80: 55,    # RCD Espanyol de Barcelona -> Espanol
+    87: 41,    # Rayo Vallecano de Madrid -> Vallecano
+    90: 46,    # Real Betis Balompié -> Betis
+    86: 42,    # Real Madrid CF -> Real Madrid
+    5335: 467, # Real Racing Club de Santander -> Real Racing Club de Santander
+    92: 58,    # Real Sociedad de Fútbol -> Sociedad
+    559: 51,   # Sevilla FC -> Sevilla
+    95: 45,    # Valencia CF -> Valencia
+    94: 56,    # Villarreal CF -> Villarreal
+
+    # Serie A
+    98: 74,    # AC Milan -> Milan
+    5911: 94,  # AC Monza -> Monza
+    99: 83,    # ACF Fiorentina -> Fiorentina
+    100: 72,   # AS Roma -> Roma
+    102: 80,   # Atalanta BC -> Atalanta
+    103: 78,   # Bologna FC 1909 -> Bologna
+    104: 87,   # Cagliari Calcio -> Cagliari
+    7397: 85,  # Como 1907 -> Como
+    108: 81,   # FC Internazionale Milano -> Inter
+    470: 95,   # Frosinone Calcio -> Frosinone
+    107: 73,   # Genoa CFC -> Genoa
+    109: 91,   # Juventus FC -> Juventus
+    112: 82,   # Parma Calcio 1913 -> Parma
+    110: 89,   # SS Lazio -> Lazio
+    113: 77,   # SSC Napoli -> Napoli
+    586: 86,   # Torino FC -> Torino
+    5890: 84,  # US Lecce -> Lecce
+    471: 79,   # US Sassuolo Calcio -> Sassuolo
+    115: 88,   # Udinese Calcio -> Udinese
+    454: 93,   # Venezia FC -> Venezia
+
+    # Bundesliga
+    1: 117,    # 1. FC Köln -> FC Koln
+    28: 118,   # 1. FC Union Berlin -> Union Berlin
+    15: 111,   # 1. FSV Mainz 05 -> Mainz
+    3: 126,    # Bayer 04 Leverkusen -> Leverkusen
+    4: 127,    # Borussia Dortmund -> Dortmund
+    18: 128,   # Borussia Mönchengladbach -> M'gladbach
+    19: 120,   # Eintracht Frankfurt -> Ein Frankfurt
+    16: 115,   # FC Augsburg -> Augsburg
+    5: 114,    # FC Bayern München -> Bayern Munich
+    6: 132,    # FC Schalke 04 -> Schalke 04
+    7: 119,    # Hamburger SV -> Hamburg
+    721: 125,  # RB Leipzig -> RB Leipzig
+    17: 124,   # SC Freiburg -> Freiburg
+    29: 136,   # SC Paderborn 07 -> SC Paderborn
+    719: 465,  # SV 07 Elversberg -> SV 07 Elversberg
+    12: 116,   # SV Werder Bremen -> Werder Bremen
+    2: 122,    # TSG 1899 Hoffenheim -> Hoffenheim
+    10: 121,   # VfB Stuttgart -> Stuttgart
+}
 
 
 def current_season_year_start() -> int:

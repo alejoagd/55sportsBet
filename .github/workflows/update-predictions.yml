@@ -159,14 +159,18 @@ jobs:
           echo "✓ Password verified"
 
       - name: Sync Premier League/La Liga/Serie A/Bundesliga (football-data.org, respaldo)
-        # TEMPORAL 2026-09-11: solo --dump-teams (lectura pura de la API, no
-        # escribe nada en la BD) para construir TEAM_ID_MAP a mano. Volver a
-        # "if: false" con "--apply" en cuanto el mapeo esté completo.
-        if: true
+        # Corre siempre, no solo cuando el CSV falla: sirve tanto de único
+        # respaldo mientras football-data.co.uk está caído como de
+        # redundancia normal en adelante. Los equipos se resuelven por
+        # TEAM_ID_MAP (id fijo, nunca por nombre — ver incidente 2026-09-11
+        # en el docstring del script), así que nunca puede crear un equipo
+        # nuevo ni duplicar un partido.
+        if: always()
         env:
           FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+          ENV_FILE: .env.production
         run: |
-          python sync_european_leagues_football_data.py --dump-teams
+          python sync_european_leagues_football_data.py --apply
 
       - name: Determine operation parameters
         id: params
