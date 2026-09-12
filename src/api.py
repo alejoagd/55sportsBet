@@ -3574,30 +3574,31 @@ def get_best_bets_stats(
         # 1. GENERAL STATS
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         general_query = text("""
-            SELECT 
+            SELECT
                 COUNT(*) as total_bets,
                 COUNT(*) FILTER (WHERE hit = true) as hits,
                 ROUND(
-                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) /
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
                     2
                 ) as accuracy_pct,
                 ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
                 ROUND(AVG(combined_score)::numeric, 3) as avg_score,
                 COALESCE(SUM(profit_loss), 0) as total_profit_loss,
+                COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
-                    100.0 * COALESCE(SUM(profit_loss), 0) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    100.0 * COALESCE(SUM(profit_loss), 0) /
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
             JOIN matches m ON m.id = bbh.match_id
-            WHERE (:season_id IS NULL OR m.season_id = :season_id) 
+            WHERE (:season_id IS NULL OR m.season_id = :season_id)
                              AND validated_at is not null
         """)
-        
+
         general_row = conn.execute(general_query, {"season_id": season_id}).one()
-        
+
         general = {
             "total_bets": general_row.total_bets or 0,
             "hits": general_row.hits or 0,
@@ -3605,6 +3606,7 @@ def get_best_bets_stats(
             "avg_confidence": float(general_row.avg_confidence or 0),
             "avg_score": float(general_row.avg_score or 0),
             "total_profit_loss": float(general_row.total_profit_loss or 0),
+            "with_odds": general_row.with_odds or 0,
             "roi_pct": float(general_row.roi_pct or 0)
         }
         
@@ -3612,20 +3614,21 @@ def get_best_bets_stats(
         # 2. STATS BY TYPE (1X2, Over/Under, BTTS)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         by_type_query = text("""
-            SELECT 
+            SELECT
                 bbh.bet_type,
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE hit = true) as hits,
                 ROUND(
-                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) /
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
                     2
                 ) as accuracy_pct,
                 ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
                 COALESCE(SUM(profit_loss), 0) as profit_loss,
+                COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
-                    100.0 * COALESCE(SUM(profit_loss), 0) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    100.0 * COALESCE(SUM(profit_loss), 0) /
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3634,9 +3637,9 @@ def get_best_bets_stats(
             GROUP BY bbh.bet_type
             ORDER BY total DESC
         """)
-        
+
         by_type_rows = conn.execute(by_type_query, {"season_id": season_id}).fetchall()
-        
+
         by_type = [
             {
                 "bet_type": row.bet_type,
@@ -3644,8 +3647,9 @@ def get_best_bets_stats(
                 "hits": row.hits,
                 "accuracy_pct": float(row.accuracy_pct or 0),
                 "avg_confidence": float(row.avg_confidence or 0),
-                "profit_loss": float(row.profit_loss or 0),
-                "roi_pct": float(row.roi_pct or 0)
+                "profit_loss": float(row.profit_loss or 0) if row.with_odds else None,
+                "with_odds": row.with_odds or 0,
+                "roi_pct": float(row.roi_pct or 0) if row.with_odds else None
             }
             for row in by_type_rows
         ]
@@ -3654,20 +3658,21 @@ def get_best_bets_stats(
         # 3. STATS BY MODEL (poisson, weinston)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         by_model_query = text("""
-            SELECT 
+            SELECT
                 bbh.model,
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE hit = true) as hits,
                 ROUND(
-                    100.0 * COUNT(*) FILTER (WHERE hit = true) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0), 
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) /
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
                     2
                 ) as accuracy_pct,
                 ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
                 COALESCE(SUM(profit_loss), 0) as profit_loss,
+                COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
-                    100.0 * COALESCE(SUM(profit_loss), 0) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    100.0 * COALESCE(SUM(profit_loss), 0) /
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3676,9 +3681,9 @@ def get_best_bets_stats(
             GROUP BY bbh.model
             ORDER BY total DESC
         """)
-        
+
         by_model_rows = conn.execute(by_model_query, {"season_id": season_id}).fetchall()
-        
+
         by_model = [
             {
                 "model": row.model,
@@ -3686,12 +3691,56 @@ def get_best_bets_stats(
                 "hits": row.hits,
                 "accuracy_pct": float(row.accuracy_pct or 0),
                 "avg_confidence": float(row.avg_confidence or 0),
-                "profit_loss": float(row.profit_loss or 0),
-                "roi_pct": float(row.roi_pct or 0)
+                "profit_loss": float(row.profit_loss or 0) if row.with_odds else None,
+                "with_odds": row.with_odds or 0,
+                "roi_pct": float(row.roi_pct or 0) if row.with_odds else None
             }
             for row in by_model_rows
         ]
-        
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 3b. STATS BY MODEL × BET TYPE (para la matriz de acierto)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        by_model_type_query = text("""
+            SELECT
+                bbh.model,
+                bbh.bet_type,
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE hit = true) as hits,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE hit = true) /
+                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    2
+                ) as accuracy_pct,
+                COALESCE(SUM(profit_loss), 0) as profit_loss,
+                COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
+                ROUND(
+                    100.0 * COALESCE(SUM(profit_loss), 0) /
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
+                    2
+                ) as roi_pct
+            FROM best_bets_history bbh
+            JOIN matches m ON m.id = bbh.match_id
+            WHERE (:season_id IS NULL OR m.season_id = :season_id) AND validated_at is not null
+            GROUP BY bbh.model, bbh.bet_type
+        """)
+
+        by_model_type_rows = conn.execute(by_model_type_query, {"season_id": season_id}).fetchall()
+
+        by_model_type = [
+            {
+                "model": row.model,
+                "bet_type": row.bet_type,
+                "total": row.total,
+                "hits": row.hits,
+                "accuracy_pct": float(row.accuracy_pct or 0),
+                "profit_loss": float(row.profit_loss or 0) if row.with_odds else None,
+                "with_odds": row.with_odds or 0,
+                "roi_pct": float(row.roi_pct or 0) if row.with_odds else None
+            }
+            for row in by_model_type_rows
+        ]
+
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # 4. STATS BY RANK (1, 2, 3, 4)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3708,9 +3757,10 @@ def get_best_bets_stats(
                 ROUND(AVG(confidence)::numeric, 3) as avg_confidence,
                 ROUND(AVG(combined_score)::numeric, 3) as avg_score,
                 COALESCE(SUM(profit_loss), 0) as profit_loss,
+                COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
-                    100.0 * COALESCE(SUM(profit_loss), 0) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    100.0 * COALESCE(SUM(profit_loss), 0) /
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3719,9 +3769,9 @@ def get_best_bets_stats(
             GROUP BY bbh.rank
             ORDER BY bbh.rank
         """)
-        
+
         by_rank_rows = conn.execute(by_rank_query, {"season_id": season_id}).fetchall()
-        
+
         by_rank = [
             {
                 "rank": row.rank,
@@ -3730,8 +3780,9 @@ def get_best_bets_stats(
                 "accuracy_pct": float(row.accuracy_pct or 0),
                 "avg_confidence": float(row.avg_confidence or 0),
                 "avg_score": float(row.avg_score or 0),
-                "profit_loss": float(row.profit_loss or 0),
-                "roi_pct": float(row.roi_pct or 0)
+                "profit_loss": float(row.profit_loss or 0) if row.with_odds else None,
+                "with_odds": row.with_odds or 0,
+                "roi_pct": float(row.roi_pct or 0) if row.with_odds else None
             }
             for row in by_rank_rows
         ]
@@ -3784,6 +3835,7 @@ def get_best_bets_stats(
         "general": general,
         "by_type": by_type,
         "by_model": by_model,
+        "by_model_type": by_model_type,
         "by_rank": by_rank,
         "evolution": evolution
     }

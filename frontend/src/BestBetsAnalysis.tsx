@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Target, Award, CheckCircle, XCircle } from 'lucide-react';
 import { AdminOnly } from './AdminButton';
 
@@ -16,7 +16,8 @@ interface GeneralStats {
   avg_confidence: number;
   avg_score: number;
   total_profit_loss: number;
-  roi_pct: number;
+  with_odds: number;
+  roi_pct: number | null;
 }
 
 interface TypeStats {
@@ -25,8 +26,9 @@ interface TypeStats {
   hits: number;
   accuracy_pct: number;
   avg_confidence: number;
-  profit_loss: number;
-  roi_pct: number;
+  profit_loss: number | null;
+  with_odds: number;
+  roi_pct: number | null;
 }
 
 interface ModelStats {
@@ -35,8 +37,20 @@ interface ModelStats {
   hits: number;
   accuracy_pct: number;
   avg_confidence: number;
-  profit_loss: number;
-  roi_pct: number;
+  profit_loss: number | null;
+  with_odds: number;
+  roi_pct: number | null;
+}
+
+interface ModelTypeStats {
+  model: string;
+  bet_type: string;
+  total: number;
+  hits: number;
+  accuracy_pct: number;
+  profit_loss: number | null;
+  with_odds: number;
+  roi_pct: number | null;
 }
 
 interface RankStats {
@@ -46,8 +60,9 @@ interface RankStats {
   accuracy_pct: number;
   avg_confidence: number;
   avg_score: number;
-  profit_loss: number;
-  roi_pct: number;
+  profit_loss: number | null;
+  with_odds: number;
+  roi_pct: number | null;
 }
 
 interface EvolutionPoint {
@@ -63,6 +78,7 @@ interface BestBetsStats {
   general: GeneralStats;
   by_type: TypeStats[];
   by_model: ModelStats[];
+  by_model_type: ModelTypeStats[];
   by_rank: RankStats[];
   evolution: EvolutionPoint[];
 }
@@ -183,10 +199,30 @@ export default function BestBetsAnalysis() {
   const getBetTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       'OVER_25': 'Over/Under 2.5',
+      'OVER_UNDER': 'Over/Under (líneas)',
       'BTTS': 'BTTS',
-      '1X2': '1X2'
+      '1X2': '1X2',
+      'CORNERS': 'Corners',
+      'SHOTS': 'Tiros',
+      'SHOTS_ON_TARGET': 'Tiros a puerta',
+      'CARDS': 'Tarjetas',
+      'FOULS': 'Faltas'
     };
     return labels[type] || type;
+  };
+
+  const getAccuracyColor = (accuracy: number): string => {
+    if (accuracy >= 70) return 'text-green-400';
+    if (accuracy >= 60) return 'text-yellow-400';
+    if (accuracy >= 50) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  const getAccuracyBgColor = (accuracy: number): string => {
+    if (accuracy >= 70) return 'bg-green-500/20';
+    if (accuracy >= 60) return 'bg-yellow-500/20';
+    if (accuracy >= 50) return 'bg-orange-500/20';
+    return 'bg-red-500/20';
   };
 
   // 🎯 LOADING STATE
@@ -284,7 +320,8 @@ export default function BestBetsAnalysis() {
     );
   }
 
-  const { general, by_type, by_model, by_rank, evolution } = stats;
+  const { general, by_type, by_model, by_model_type, by_rank, evolution } = stats;
+  const generalRoi = general.roi_pct;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -344,8 +381,8 @@ export default function BestBetsAnalysis() {
 
         {/* Ganancia/Pérdida */}
         <div className={`rounded-lg p-6 border ${
-          general.total_profit_loss >= 0 
-            ? 'bg-green-900/20 border-green-500/30' 
+          general.total_profit_loss >= 0
+            ? 'bg-green-900/20 border-green-500/30'
             : 'bg-red-900/20 border-red-500/30'
         }`}>
           <div className="flex items-center justify-between mb-2">
@@ -356,99 +393,218 @@ export default function BestBetsAnalysis() {
             {formatCurrency(general.total_profit_loss)}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Stake: $10 por apuesta
+            Sobre {general.with_odds} de {general.total_bets} apuestas con cuota registrada
           </div>
         </div>
 
         {/* ROI */}
         <div className={`rounded-lg p-6 border ${
-          general.roi_pct >= 0 
-            ? 'bg-green-900/20 border-green-500/30' 
+          generalRoi === null ? 'bg-slate-800 border-slate-700' :
+          generalRoi >= 0
+            ? 'bg-green-900/20 border-green-500/30'
             : 'bg-red-900/20 border-red-500/30'
         }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-slate-400 text-sm">ROI</span>
-            {general.roi_pct >= 0 ? (
+            {generalRoi === null ? null : generalRoi >= 0 ? (
               <TrendingUp className="w-5 h-5 text-green-400" />
             ) : (
               <TrendingDown className="w-5 h-5 text-red-400" />
             )}
           </div>
-          <div className={`text-3xl font-bold ${general.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {general.roi_pct >= 0 ? '+' : ''}{general.roi_pct.toFixed(1)}%
+          <div className={`text-3xl font-bold ${
+            generalRoi === null ? 'text-slate-500' : generalRoi >= 0 ? 'text-green-400' : 'text-red-400'
+          }`}>
+            {generalRoi === null ? 'N/D' : `${generalRoi >= 0 ? '+' : ''}${generalRoi.toFixed(1)}%`}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Inversión total: ${(general.total_bets * 10).toFixed(0)}
+            Inversión con cuota: ${(general.with_odds * 10).toFixed(0)}
           </div>
         </div>
       </div>
 
-      {/* Por Tipo de Apuesta */}
-      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-        <h2 className="text-xl font-bold text-white mb-4">📊 Rendimiento por Tipo de Apuesta</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left text-slate-400 p-3">Tipo</th>
-                <th className="text-right text-slate-400 p-3">Total</th>
-                <th className="text-right text-slate-400 p-3">Aciertos</th>
-                <th className="text-right text-slate-400 p-3">Accuracy</th>
-                <th className="text-right text-slate-400 p-3">Ganancia</th>
-                <th className="text-right text-slate-400 p-3">ROI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {by_type.map((type) => (
-                <tr key={type.bet_type} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                  <td className="text-white p-3 font-medium">{getBetTypeLabel(type.bet_type)}</td>
-                  <td className="text-slate-300 text-right p-3">{type.total}</td>
-                  <td className="text-green-300 text-right p-3">{type.hits}</td>
-                  <td className="text-right p-3">
-                    <span className={`font-bold ${
-                      type.accuracy_pct >= 70 ? 'text-green-400' :
-                      type.accuracy_pct >= 60 ? 'text-yellow-400' :
-                      'text-orange-400'
-                    }`}>
-                      {type.accuracy_pct.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className={`text-right p-3 font-bold ${type.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(type.profit_loss)}
-                  </td>
-                  <td className={`text-right p-3 font-bold ${type.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {type.roi_pct >= 0 ? '+' : ''}{type.roi_pct.toFixed(1)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Rentabilidad por Tipo de Apuesta */}
+      {(() => {
+        const withRoi = by_type.filter(t => t.roi_pct !== null) as (TypeStats & { roi_pct: number; profit_loss: number })[];
+        const withoutRoi = by_type.filter(t => t.roi_pct === null);
+        const ranked = [...withRoi].sort((a, b) => b.roi_pct - a.roi_pct);
+        const maxAbsRoi = Math.max(1, ...ranked.map(t => Math.abs(t.roi_pct)));
+        const best = ranked[0];
+        const worst = ranked[ranked.length - 1];
+
+        return (
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-xl font-bold text-white">💰 Rentabilidad por Tipo de Apuesta</h2>
+            </div>
+            <p className="text-slate-400 text-xs mb-4">
+              Ordenado de mejor a peor ROI. Solo se calcula sobre apuestas con cuota registrada.
+            </p>
+
+            {best && worst && best.bet_type !== worst.bet_type && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 flex items-center gap-3">
+                  <span className="text-2xl">🏆</span>
+                  <div>
+                    <div className="text-green-400 text-xs font-semibold">Más rentable</div>
+                    <div className="text-white font-bold">{getBetTypeLabel(best.bet_type)}</div>
+                  </div>
+                  <div className="ml-auto text-green-400 font-bold text-lg">+{best.roi_pct.toFixed(1)}%</div>
+                </div>
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 flex items-center gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <div className="text-red-400 text-xs font-semibold">Evitar</div>
+                    <div className="text-white font-bold">{getBetTypeLabel(worst.bet_type)}</div>
+                  </div>
+                  <div className="ml-auto text-red-400 font-bold text-lg">{worst.roi_pct.toFixed(1)}%</div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2.5">
+              {ranked.map((type) => {
+                const barPct = (Math.abs(type.roi_pct) / maxAbsRoi) * 50;
+                const isPositive = type.roi_pct >= 0;
+                return (
+                  <div key={type.bet_type} className="flex items-center gap-3 text-sm">
+                    <div className="w-32 sm:w-40 shrink-0 text-white font-medium truncate">{getBetTypeLabel(type.bet_type)}</div>
+                    <div className="flex-1 h-6 relative bg-slate-900/50 rounded overflow-hidden">
+                      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-600" />
+                      <div
+                        className={`absolute top-0 bottom-0 ${isPositive ? 'bg-green-500/70 left-1/2' : 'bg-red-500/70 right-1/2'}`}
+                        style={{ width: `${barPct}%` }}
+                      />
+                    </div>
+                    <div className={`w-20 shrink-0 text-right font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                      {isPositive ? '+' : ''}{type.roi_pct.toFixed(1)}%
+                    </div>
+                    <div className={`w-14 shrink-0 text-right text-xs px-1.5 py-0.5 rounded ${getAccuracyBgColor(type.accuracy_pct)} ${getAccuracyColor(type.accuracy_pct)}`}>
+                      {type.accuracy_pct.toFixed(0)}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {withoutRoi.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-slate-700">
+                <div className="text-slate-400 text-xs font-semibold mb-2">Sin datos suficientes de cuota (se muestra solo accuracy):</div>
+                <div className="flex flex-wrap gap-2">
+                  {withoutRoi.map((type) => (
+                    <div key={type.bet_type} className="bg-slate-900/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
+                      <span className="text-slate-300">{getBetTypeLabel(type.bet_type)}</span>
+                      <span className={`font-bold px-1.5 py-0.5 rounded ${getAccuracyBgColor(type.accuracy_pct)} ${getAccuracyColor(type.accuracy_pct)}`}>
+                        {type.accuracy_pct.toFixed(0)}%
+                      </span>
+                      <span className="text-slate-500">({type.total})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Matriz Modelo x Tipo de Apuesta */}
+      {(() => {
+        const models = Array.from(new Set(by_model_type.map(r => r.model))).sort();
+        const betTypes = Array.from(new Set(by_model_type.map(r => r.bet_type)));
+        const cell = (model: string, betType: string) =>
+          by_model_type.find(r => r.model === model && r.bet_type === betType);
+
+        return (
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 className="text-xl font-bold text-white mb-1">🧩 Matriz Modelo × Tipo de Apuesta</h2>
+            <p className="text-slate-400 text-xs mb-4">Accuracy de cada modelo por tipo de apuesta — el marco dorado es el modelo más acertivo en esa fila.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left text-slate-400 p-2">Tipo</th>
+                    {models.map(m => (
+                      <th key={m} className="text-center text-slate-400 p-2 capitalize">{m}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {betTypes.map((bt) => {
+                    const cells = models.map(m => ({ model: m, data: cell(m, bt) }));
+                    const bestAcc = Math.max(...cells.filter(c => c.data).map(c => c.data!.accuracy_pct));
+                    return (
+                      <tr key={bt} className="border-b border-slate-700/50">
+                        <td className="text-white p-2 font-medium whitespace-nowrap">{getBetTypeLabel(bt)}</td>
+                        {cells.map(({ model, data }) => (
+                          <td key={model} className="p-2 text-center">
+                            {!data ? (
+                              <span className="text-slate-600 text-xs">—</span>
+                            ) : (
+                              <div className={`inline-flex flex-col items-center rounded-lg px-2.5 py-1.5 ${getAccuracyBgColor(data.accuracy_pct)} ${data.accuracy_pct === bestAcc ? 'ring-2 ring-yellow-400' : ''}`}>
+                                <span className={`font-bold ${getAccuracyColor(data.accuracy_pct)}`}>
+                                  {data.accuracy_pct.toFixed(0)}%
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {data.total} ap. {data.roi_pct !== null && (
+                                    <span className={data.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                      · {data.roi_pct >= 0 ? '+' : ''}{data.roi_pct.toFixed(0)}%
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Grid: Por Modelo + Por Ranking */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Por Modelo */}
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <h2 className="text-xl font-bold text-white mb-4">🎯 Por Modelo</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={by_model}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="model" 
-                stroke="#9CA3AF" 
-                style={{ fontSize: '12px', textTransform: 'capitalize' }} 
-              />
-              <YAxis stroke="#9CA3AF" style={{ fontSize: '12px' }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                labelStyle={{ color: '#e2e8f0', textTransform: 'capitalize' }}
-              />
-              <Legend />
-              <Bar dataKey="accuracy_pct" name="Accuracy (%)" fill="#10b981" />
-              <Bar dataKey="roi_pct" name="ROI (%)" fill="#3b82f6" />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="space-y-3">
+            {(() => {
+              const withRoi = by_model.filter(m => m.roi_pct !== null);
+              const bestRoi = withRoi.length ? Math.max(...withRoi.map(m => m.roi_pct as number)) : null;
+              return by_model.map((model) => (
+                <div key={model.model} className="bg-slate-900/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-semibold capitalize">{model.model}</span>
+                      {bestRoi !== null && model.roi_pct === bestRoi && (
+                        <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-bold">🏆 Más rentable</span>
+                      )}
+                    </div>
+                    <span className="text-slate-400 text-xs">{model.total} apuestas</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`rounded-lg px-3 py-2 ${getAccuracyBgColor(model.accuracy_pct)}`}>
+                      <div className="text-slate-400 text-xs mb-0.5">Accuracy</div>
+                      <div className={`text-xl font-bold ${getAccuracyColor(model.accuracy_pct)}`}>{model.accuracy_pct.toFixed(1)}%</div>
+                    </div>
+                    <div className={`rounded-lg px-3 py-2 ${
+                      model.roi_pct === null ? 'bg-slate-800' : model.roi_pct >= 0 ? 'bg-green-500/20' : 'bg-red-500/20'
+                    }`}>
+                      <div className="text-slate-400 text-xs mb-0.5">ROI ({model.with_odds} c/cuota)</div>
+                      <div className={`text-xl font-bold ${
+                        model.roi_pct === null ? 'text-slate-500' : model.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {model.roi_pct === null ? 'N/D' : `${model.roi_pct >= 0 ? '+' : ''}${model.roi_pct.toFixed(1)}%`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
         </div>
 
         {/* Por Ranking */}
@@ -468,15 +624,13 @@ export default function BestBetsAnalysis() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`text-2xl font-bold ${
-                      rank.accuracy_pct >= 70 ? 'text-green-400' :
-                      rank.accuracy_pct >= 60 ? 'text-yellow-400' :
-                      'text-orange-400'
-                    }`}>
+                    <div className={`text-2xl font-bold ${getAccuracyColor(rank.accuracy_pct)}`}>
                       {rank.accuracy_pct.toFixed(1)}%
                     </div>
-                    <div className={`text-xs font-bold ${rank.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      ROI: {rank.roi_pct >= 0 ? '+' : ''}{rank.roi_pct.toFixed(1)}%
+                    <div className={`text-xs font-bold ${
+                      rank.roi_pct === null ? 'text-slate-500' : rank.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      ROI: {rank.roi_pct === null ? 'N/D' : `${rank.roi_pct >= 0 ? '+' : ''}${rank.roi_pct.toFixed(1)}%`}
                     </div>
                   </div>
                 </div>
@@ -595,14 +749,14 @@ export default function BestBetsAnalysis() {
                       <div>
                         <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-1" />
                         <div className="text-green-400 font-bold text-lg">
-                          {formatCurrency(bet.profit_loss || 0)}
+                          {bet.profit_loss !== null ? formatCurrency(bet.profit_loss) : 'N/D'}
                         </div>
                       </div>
                     ) : (
                       <div>
                         <XCircle className="w-8 h-8 text-red-400 mx-auto mb-1" />
-                        <div className="text-red-400 font-bold text-lg">
-                          {formatCurrency(bet.profit_loss || 0)}
+                        <div className={`font-bold text-lg ${bet.profit_loss !== null ? 'text-red-400' : 'text-slate-500'}`}>
+                          {bet.profit_loss !== null ? formatCurrency(bet.profit_loss) : 'N/D'}
                         </div>
                       </div>
                     )}
@@ -628,6 +782,7 @@ export default function BestBetsAnalysis() {
             <li><strong>Si acierta:</strong> Ganancia = (Odds - 1) × $10</li>
             <li><strong>Si falla:</strong> Pérdida = -$10</li>
             <li><strong>ROI:</strong> (Ganancia Total / Inversión Total) × 100</li>
+            <li><strong className="text-yellow-400">N/D:</strong> esa apuesta no tiene una cuota registrada, así que no se puede calcular ganancia/pérdida real — el accuracy sigue siendo válido, solo falta el dato de cuota</li>
           </ul>
           <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded">
             <div className="text-blue-300 text-xs">
