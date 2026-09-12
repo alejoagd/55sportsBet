@@ -159,17 +159,14 @@ jobs:
           echo "✓ Password verified"
 
       - name: Sync Premier League/La Liga/Serie A/Bundesliga (football-data.org, respaldo)
-        # DESACTIVADO 2026-09-11: la primera corrida creó ~1444 partidos y 74
-        # equipos duplicados porque football-data.org usa nombres oficiales
-        # completos ("Manchester United FC") que no matchean con los nombres
-        # cortos ya usados en la BD ("Man United"). Reactivar solo después de
-        # agregar un mapeo de nombres correcto en TeamResolver/el script.
-        if: false
+        # TEMPORAL 2026-09-11: solo --dump-teams (lectura pura de la API, no
+        # escribe nada en la BD) para construir TEAM_ID_MAP a mano. Volver a
+        # "if: false" con "--apply" en cuanto el mapeo esté completo.
+        if: true
         env:
           FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
-          ENV_FILE: .env.production
         run: |
-          python sync_european_leagues_football_data.py --apply
+          python sync_european_leagues_football_data.py --dump-teams
 
       - name: Determine operation parameters
         id: params
