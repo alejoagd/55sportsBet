@@ -52,7 +52,8 @@ TEAM_NAME_MAPPING = {
     'FC St. Pauli 1910': 'St Pauli',
     '1. FC Heidenheim 1846': 'Heidenheim',
     'FC Schalke 04': 'Schalke 04',
-    'SC Paderborn 07': 'SC Paderborn',
+    'SC Paderborn 07': 'Paderborn',
+    'SV 07 Elversberg': 'Elversberg',
 
     # Premier League (E0) - Based on your database
     'Manchester City FC': 'Man City',
@@ -80,6 +81,7 @@ TEAM_NAME_MAPPING = {
     'Sunderland AFC': 'Sunderland',
     'Luton Town FC': 'Luton',
     'Hull City AFC': 'Hull',
+    'Coventry City FC': 'Coventry',
 
     # La Liga (SP1) - Based on your database
     'Real Madrid CF': 'Real Madrid',
@@ -112,6 +114,7 @@ TEAM_NAME_MAPPING = {
     'SD Eibar': 'Eibar',
     'RC Deportivo La Coruña': 'La Coruna',
     'Málaga CF': 'Malaga',
+    'Real Racing Club de Santander': 'Santander',
 
     # Serie A (I1) - Based on your database
     'SSC Napoli': 'Napoli',
