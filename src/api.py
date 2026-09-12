@@ -3825,15 +3825,15 @@ def get_best_bets_history(
         
         # ✅ CAMBIO 1: season_id es OPCIONAL
         if season_id is not None:
-            where_clauses.append("season_id = :season_id")
+            where_clauses.append("bbh.season_id = :season_id")
             params["season_id"] = season_id
-        
+
         # ✅ CAMBIO 2: Filtro de validación
         if validated is not None:
             if validated:
-                where_clauses.append("validated_at IS NOT NULL")
+                where_clauses.append("bbh.validated_at IS NOT NULL")
             else:
-                where_clauses.append("validated_at IS NULL")
+                where_clauses.append("bbh.validated_at IS NULL")
         
         # ✅ CAMBIO 3: Si no hay filtros, usar "1=1"
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
@@ -3858,11 +3858,16 @@ def get_best_bets_history(
                 bbh.validated_at,
                 bbh.hit,
                 bbh.profit_loss,
-                bbh.actual_result
-                
+                bbh.actual_result,
+                ht.logo_url as home_team_logo,
+                at.logo_url as away_team_logo
+
             FROM best_bets_history bbh
             LEFT JOIN seasons s ON s.id = bbh.season_id
             LEFT JOIN leagues l ON l.id = s.league_id
+            LEFT JOIN matches m ON m.id = bbh.match_id
+            LEFT JOIN teams ht ON ht.id = m.home_team_id
+            LEFT JOIN teams at ON at.id = m.away_team_id
             WHERE {where_sql}
             ORDER BY bbh.combined_score DESC, bbh.date DESC
             LIMIT :limit
@@ -3891,7 +3896,9 @@ def get_best_bets_history(
                 "validated_at": row["validated_at"].isoformat() if row["validated_at"] else None,
                 "hit": row.get("hit"),
                 "profit_loss": float(row["profit_loss"]) if row.get("profit_loss") else None,
-                "actual_result": row.get("actual_result")
+                "actual_result": row.get("actual_result"),
+                "home_team_logo": row.get("home_team_logo"),
+                "away_team_logo": row.get("away_team_logo")
             }
             for row in results
         ]

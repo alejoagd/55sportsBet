@@ -25,6 +25,8 @@ interface BestBet {
   date: string;
   home_team: string;
   away_team: string;
+  home_team_logo?: string | null;
+  away_team_logo?: string | null;
   league?: string;           // Opcional (puede no venir del backend)
   league_emoji?: string;     // Opcional
   country?: string;          // Opcional
@@ -38,6 +40,25 @@ interface BestBet {
   odds?: number | null;
   hit?: boolean | null;
   profit_loss?: number | null;
+}
+
+function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) {
+    return (
+      <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 text-xs">
+        ⚽
+      </span>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export default function BestBetsSection() {
@@ -278,9 +299,15 @@ export default function BestBetsSection() {
             </div>
 
             {/* Equipos */}
-            <div className="text-center mb-4">
-              <div className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-1 leading-tight">
-                {bet.home_team} <span className="text-slate-500 text-base sm:text-lg">vs</span> {bet.away_team}
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <TeamLogo url={bet.home_team_logo} alt={bet.home_team} />
+                <span className="text-base sm:text-lg md:text-xl font-bold text-white truncate">{bet.home_team}</span>
+              </div>
+              <span className="text-slate-500 text-sm sm:text-base shrink-0">vs</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <TeamLogo url={bet.away_team_logo} alt={bet.away_team} />
+                <span className="text-base sm:text-lg md:text-xl font-bold text-white truncate">{bet.away_team}</span>
               </div>
             </div>
 
