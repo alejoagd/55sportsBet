@@ -1,15 +1,16 @@
 // ============================================================================
 // COMPONENTE: BestBetsAnalysis.tsx
-// Análisis completo de las "Mejores Apuestas" con ROI
-// Versión unificada con mejor manejo de errores
+// Efectividad histórica de las "Mejores Apuestas" — por modelo, tipo y liga
+// Sin ROI: se enfoca en qué tan acertivo es cada corte, no en una
+// simulación de ganancia en dinero (ver conversación 2026-09-12).
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, Award, CheckCircle, XCircle } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Target, Award, CheckCircle, XCircle } from 'lucide-react';
 import { AdminOnly } from './AdminButton';
 
-// Por debajo de esto, un % (accuracy o ROI) se marca visualmente como poco confiable —
+// Por debajo de esto, un accuracy% se marca visualmente como poco confiable —
 // una sola apuesta acertada mostrando "100%" no es una tendencia.
 const LOW_SAMPLE_THRESHOLD = 10;
 
@@ -19,9 +20,6 @@ interface GeneralStats {
   accuracy_pct: number;
   avg_confidence: number;
   avg_score: number;
-  total_profit_loss: number;
-  with_odds: number;
-  roi_pct: number | null;
 }
 
 interface TypeStats {
@@ -30,9 +28,6 @@ interface TypeStats {
   hits: number;
   accuracy_pct: number;
   avg_confidence: number;
-  profit_loss: number | null;
-  with_odds: number;
-  roi_pct: number | null;
 }
 
 interface ModelStats {
@@ -41,9 +36,6 @@ interface ModelStats {
   hits: number;
   accuracy_pct: number;
   avg_confidence: number;
-  profit_loss: number | null;
-  with_odds: number;
-  roi_pct: number | null;
 }
 
 interface ModelTypeStats {
@@ -52,9 +44,13 @@ interface ModelTypeStats {
   total: number;
   hits: number;
   accuracy_pct: number;
-  profit_loss: number | null;
-  with_odds: number;
-  roi_pct: number | null;
+}
+
+interface LeagueStats {
+  league: string;
+  total: number;
+  hits: number;
+  accuracy_pct: number;
 }
 
 interface RankStats {
@@ -64,9 +60,6 @@ interface RankStats {
   accuracy_pct: number;
   avg_confidence: number;
   avg_score: number;
-  profit_loss: number | null;
-  with_odds: number;
-  roi_pct: number | null;
 }
 
 interface EvolutionPoint {
@@ -74,9 +67,6 @@ interface EvolutionPoint {
   total: number;
   hits: number;
   accuracy_pct: number;
-  profit_loss: number | null;
-  with_odds: number;
-  roi_pct: number | null;
 }
 
 interface BestBetsStats {
@@ -84,6 +74,7 @@ interface BestBetsStats {
   by_type: TypeStats[];
   by_model: ModelStats[];
   by_model_type: ModelTypeStats[];
+  by_league: LeagueStats[];
   by_rank: RankStats[];
   evolution: EvolutionPoint[];
 }
@@ -106,7 +97,6 @@ interface HistoryBet {
   hit: boolean | null;
   home_goals: number | null;
   away_goals: number | null;
-  profit_loss: number | null;
 }
 
 export default function BestBetsAnalysis() {
@@ -115,11 +105,9 @@ export default function BestBetsAnalysis() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
-  // ✅ REMOVIDO: const [seasonId] = useState(2); - Ahora es MULTILIGA
   const [showHistory, setShowHistory] = useState<'all' | 'validated' | 'pending'>('validated');
 
   useEffect(() => {
-    console.log('🎯 BestBetsAnalysis montado');
     fetchStats();
     fetchHistory();
   }, [showHistory]);
@@ -128,20 +116,15 @@ export default function BestBetsAnalysis() {
     setLoading(true);
     setError(null);
     try {
-      console.log('📊 Fetching stats (MULTILIGA)...');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      // ✅ CORREGIDO: Sin season_id para obtener datos de TODAS las ligas
-      const response = await fetch(
-        `${API_URL}/api/best-bets/stats`
-      );
-      
+      const response = await fetch(`${API_URL}/api/best-bets/stats`);
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Error ${response.status}: ${errorText}`);
       }
-      
+
       const data = await response.json();
-      console.log('✅ Stats recibidas:', data);
       setStats(data);
     } catch (error) {
       console.error('❌ Error fetching stats:', error);
@@ -153,20 +136,15 @@ export default function BestBetsAnalysis() {
 
   const fetchHistory = async () => {
     try {
-      const validatedParam = showHistory === 'all' ? '' : 
-                            showHistory === 'validated' ? '&validated=true' : 
+      const validatedParam = showHistory === 'all' ? '' :
+                            showHistory === 'validated' ? '&validated=true' :
                             '&validated=false';
-      
-      console.log('📋 Fetching history (MULTILIGA)...');
+
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      // ✅ CORREGIDO: Sin season_id para obtener datos de TODAS las ligas
-      const response = await fetch(
-        `${API_URL}/api/best-bets/history?limit=50${validatedParam}`
-      );
-      
+      const response = await fetch(`${API_URL}/api/best-bets/history?limit=50${validatedParam}`);
+
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ History:', data.length, 'registros (multiliga)');
         setHistory(data);
       }
     } catch (error) {
@@ -178,15 +156,11 @@ export default function BestBetsAnalysis() {
     setValidating(true);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      // ✅ CORREGIDO: Sin season_id para validar TODAS las ligas
-      const response = await fetch(
-        `${API_URL}/api/best-bets/validate`,
-        { method: 'POST' }
-      );
+      const response = await fetch(`${API_URL}/api/best-bets/validate`, { method: 'POST' });
       const result = await response.json();
-      
+
       alert(`✅ Validación completada (MULTILIGA):\n- Validadas: ${result.validated}\n- Aciertos: ${result.hits}\n- Fallos: ${result.misses}\n- Accuracy: ${result.accuracy}%`);
-      
+
       fetchStats();
       fetchHistory();
     } catch (error) {
@@ -195,10 +169,6 @@ export default function BestBetsAnalysis() {
     } finally {
       setValidating(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return `$${value >= 0 ? '+' : ''}${value.toFixed(2)}`;
   };
 
   const getBetTypeLabel = (type: string) => {
@@ -230,6 +200,21 @@ export default function BestBetsAnalysis() {
     return 'bg-red-500/20';
   };
 
+  const getAccuracyBarColor = (accuracy: number): string => {
+    if (accuracy >= 70) return 'bg-green-500/70';
+    if (accuracy >= 60) return 'bg-yellow-500/70';
+    if (accuracy >= 50) return 'bg-orange-500/70';
+    return 'bg-red-500/70';
+  };
+
+  // Elige el "mejor" de una lista priorizando muestra confiable (>= LOW_SAMPLE_THRESHOLD)
+  // sobre un accuracy más alto pero basado en pocos datos.
+  const pickBest = <T extends { total: number; accuracy_pct: number }>(items: T[]): T | undefined => {
+    const reliable = items.filter(i => i.total >= LOW_SAMPLE_THRESHOLD);
+    const pool = reliable.length ? reliable : items;
+    return [...pool].sort((a, b) => b.accuracy_pct - a.accuracy_pct)[0];
+  };
+
   // 🎯 LOADING STATE
   if (loading) {
     return (
@@ -252,37 +237,12 @@ export default function BestBetsAnalysis() {
             <div className="text-red-300 mb-4 font-mono text-sm bg-red-950/50 p-3 rounded">
               {error}
             </div>
-            
-            <div className="bg-slate-800 rounded p-4 text-sm text-slate-300 mb-4">
-              <p className="font-semibold mb-2">💡 Posibles causas:</p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>La tabla <code className="bg-slate-700 px-1 rounded">best_bets_history</code> no existe</li>
-                <li>El endpoint <code className="bg-slate-700 px-1 rounded">/api/best-bets/stats</code> no está implementado</li>
-                <li>Error en el backend (revisar logs)</li>
-              </ul>
-            </div>
-
-            <div className="bg-blue-900/20 border border-blue-500/30 rounded p-4 text-sm text-blue-300 mb-4">
-              <p className="font-semibold mb-2">🔧 Soluciones:</p>
-              <ol className="list-decimal list-inside space-y-1 ml-2">
-                <li>Ejecutar: <code className="bg-blue-950/50 px-1 rounded">create_best_bets_tracking.sql</code></li>
-                <li>Verificar que los endpoints estén en <code className="bg-blue-950/50 px-1 rounded">api.py</code></li>
-                <li>Reiniciar el backend</li>
-              </ol>
-            </div>
-
             <div className="flex gap-3">
               <button
                 onClick={fetchStats}
                 className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold"
               >
                 🔄 Reintentar
-              </button>
-              <button
-                onClick={() => window.open('http://localhost:8000/api/best-bets/stats?season_id=2', '_blank')}
-                className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
-              >
-                🔗 Abrir Endpoint
               </button>
             </div>
           </div>
@@ -302,17 +262,6 @@ export default function BestBetsAnalysis() {
             <p className="text-slate-300 mb-6">
               Aún no se han guardado "Best Bets" para analizar.
             </p>
-            
-            <div className="bg-slate-800 rounded p-4 text-sm text-slate-300 mb-6">
-              <p className="font-semibold mb-3">📋 Pasos para generar datos:</p>
-              <ol className="list-decimal text-left space-y-2 ml-6">
-                <li>Ir a la sección <strong className="text-white">"Mejores Apuestas"</strong></li>
-                <li>Click en el botón <strong className="text-white">"Actualizar"</strong></li>
-                <li>Esperar a que se jueguen los partidos</li>
-                <li>Regresar aquí y click en <strong className="text-white">"Validar Resultados"</strong></li>
-              </ol>
-            </div>
-
             <a
               href="/best-bets"
               className="inline-block px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold"
@@ -325,8 +274,9 @@ export default function BestBetsAnalysis() {
     );
   }
 
-  const { general, by_type, by_model, by_model_type, by_rank, evolution } = stats;
-  const generalRoi = general.roi_pct;
+  const { general, by_type, by_model, by_model_type, by_league, by_rank, evolution } = stats;
+  const bestType = pickBest(by_type);
+  const bestLeague = pickBest(by_league);
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -337,10 +287,10 @@ export default function BestBetsAnalysis() {
             <Target className="w-10 h-10 text-green-400" />
             <div>
               <h1 className="text-3xl font-bold text-white">
-                📊 Análisis de Mejores Apuestas
+                📊 Efectividad de Mejores Apuestas
               </h1>
               <p className="text-slate-300 text-sm">
-                Rendimiento de las Top 4 recomendaciones
+                Qué tan acertivo ha sido cada modelo, tipo y liga en las Top 4 recomendaciones
               </p>
             </div>
           </div>
@@ -357,8 +307,7 @@ export default function BestBetsAnalysis() {
       </div>
 
       {/* Resumen General */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Total Apuestas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
             <span className="text-slate-400 text-sm">Total Apuestas</span>
@@ -370,81 +319,62 @@ export default function BestBetsAnalysis() {
           </div>
         </div>
 
-        {/* Accuracy */}
         <div className="bg-slate-800 rounded-lg p-6 border border-green-500/30">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Accuracy</span>
+            <span className="text-slate-400 text-sm">Accuracy General</span>
             <CheckCircle className="w-5 h-5 text-green-400" />
           </div>
-          <div className="text-3xl font-bold text-green-400">
+          <div className={`text-3xl font-bold ${getAccuracyColor(general.accuracy_pct)}`}>
             {general.accuracy_pct.toFixed(1)}%
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Confianza promedio: {general.avg_confidence.toFixed(1)}%
+            Confianza promedio del modelo: {general.avg_confidence.toFixed(1)}%
           </div>
         </div>
 
-        {/* Ganancia/Pérdida */}
-        <div className={`rounded-lg p-6 border ${
-          general.total_profit_loss >= 0
-            ? 'bg-green-900/20 border-green-500/30'
-            : 'bg-red-900/20 border-red-500/30'
-        }`}>
+        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Ganancia/Pérdida</span>
-            <DollarSign className={`w-5 h-5 ${general.total_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+            <span className="text-slate-400 text-sm">Tipo más acertivo</span>
+            <span className="text-lg">🎯</span>
           </div>
-          <div className={`text-3xl font-bold ${general.total_profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {formatCurrency(general.total_profit_loss)}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            Sobre {general.with_odds} de {general.total_bets} apuestas con cuota registrada
-          </div>
+          {bestType ? (
+            <>
+              <div className="text-xl font-bold text-white truncate">{getBetTypeLabel(bestType.bet_type)}</div>
+              <div className={`text-sm font-bold mt-1 ${getAccuracyColor(bestType.accuracy_pct)}`}>
+                {bestType.accuracy_pct.toFixed(1)}% ({bestType.total} apuestas)
+              </div>
+            </>
+          ) : <div className="text-slate-500">—</div>}
         </div>
 
-        {/* ROI */}
-        <div className={`rounded-lg p-6 border ${
-          generalRoi === null ? 'bg-slate-800 border-slate-700' :
-          generalRoi >= 0
-            ? 'bg-green-900/20 border-green-500/30'
-            : 'bg-red-900/20 border-red-500/30'
-        }`}>
+        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">ROI</span>
-            {generalRoi === null ? null : generalRoi >= 0 ? (
-              <TrendingUp className="w-5 h-5 text-green-400" />
-            ) : (
-              <TrendingDown className="w-5 h-5 text-red-400" />
-            )}
+            <span className="text-slate-400 text-sm">Liga más acertiva</span>
+            <span className="text-lg">🌍</span>
           </div>
-          <div className={`text-3xl font-bold ${
-            generalRoi === null ? 'text-slate-500' : generalRoi >= 0 ? 'text-green-400' : 'text-red-400'
-          }`}>
-            {generalRoi === null ? 'N/D' : `${generalRoi >= 0 ? '+' : ''}${generalRoi.toFixed(1)}%`}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            Inversión con cuota: ${(general.with_odds * 10).toFixed(0)}
-          </div>
+          {bestLeague ? (
+            <>
+              <div className="text-xl font-bold text-white truncate">{bestLeague.league}</div>
+              <div className={`text-sm font-bold mt-1 ${getAccuracyColor(bestLeague.accuracy_pct)}`}>
+                {bestLeague.accuracy_pct.toFixed(1)}% ({bestLeague.total} apuestas)
+              </div>
+            </>
+          ) : <div className="text-slate-500">—</div>}
         </div>
       </div>
 
-      {/* Rentabilidad por Tipo de Apuesta */}
+      {/* Efectividad por Tipo de Apuesta */}
       {(() => {
-        const withRoi = by_type.filter(t => t.roi_pct !== null) as (TypeStats & { roi_pct: number; profit_loss: number })[];
-        const withoutRoi = by_type.filter(t => t.roi_pct === null);
-        const ranked = [...withRoi].sort((a, b) => b.roi_pct - a.roi_pct);
-        const maxAbsRoi = Math.max(1, ...ranked.map(t => Math.abs(t.roi_pct)));
-        const reliable = ranked.filter(t => t.with_odds >= LOW_SAMPLE_THRESHOLD);
-        const best = reliable[0] ?? ranked[0];
-        const worst = reliable[reliable.length - 1] ?? ranked[ranked.length - 1];
+        const ranked = [...by_type].sort((a, b) => b.accuracy_pct - a.accuracy_pct);
+        const best = pickBest(by_type);
+        const reliableSorted = ranked.filter(t => t.total >= LOW_SAMPLE_THRESHOLD);
+        const worst = reliableSorted[reliableSorted.length - 1] ?? ranked[ranked.length - 1];
 
         return (
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-xl font-bold text-white">💰 Rentabilidad por Tipo de Apuesta</h2>
-            </div>
+            <h2 className="text-xl font-bold text-white mb-1">🎯 Efectividad por Tipo de Apuesta</h2>
             <p className="text-slate-400 text-xs mb-4">
-              Ordenado de mejor a peor ROI. Solo se calcula sobre apuestas con cuota registrada. El número entre paréntesis es cuántas apuestas respaldan ese dato — menos de {LOW_SAMPLE_THRESHOLD} se marca como muestra baja.
+              Ordenado de mejor a peor accuracy. El número entre paréntesis es cuántas apuestas respaldan ese dato — menos de {LOW_SAMPLE_THRESHOLD} se marca como muestra baja.
             </p>
 
             {best && worst && best.bet_type !== worst.bet_type && (
@@ -452,73 +382,81 @@ export default function BestBetsAnalysis() {
                 <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 flex items-center gap-3">
                   <span className="text-2xl">🏆</span>
                   <div>
-                    <div className="text-green-400 text-xs font-semibold">Más rentable</div>
+                    <div className="text-green-400 text-xs font-semibold">Más acertivo</div>
                     <div className="text-white font-bold">{getBetTypeLabel(best.bet_type)}</div>
-                    <div className="text-slate-400 text-[11px]">{best.with_odds} apuestas con cuota</div>
+                    <div className="text-slate-400 text-[11px]">{best.total} apuestas</div>
                   </div>
-                  <div className="ml-auto text-green-400 font-bold text-lg">+{best.roi_pct.toFixed(1)}%</div>
+                  <div className="ml-auto text-green-400 font-bold text-lg">{best.accuracy_pct.toFixed(1)}%</div>
                 </div>
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 flex items-center gap-3">
                   <span className="text-2xl">⚠️</span>
                   <div>
-                    <div className="text-red-400 text-xs font-semibold">Evitar</div>
+                    <div className="text-red-400 text-xs font-semibold">Menos acertivo</div>
                     <div className="text-white font-bold">{getBetTypeLabel(worst.bet_type)}</div>
-                    <div className="text-slate-400 text-[11px]">{worst.with_odds} apuestas con cuota</div>
+                    <div className="text-slate-400 text-[11px]">{worst.total} apuestas</div>
                   </div>
-                  <div className="ml-auto text-red-400 font-bold text-lg">{worst.roi_pct.toFixed(1)}%</div>
+                  <div className="ml-auto text-red-400 font-bold text-lg">{worst.accuracy_pct.toFixed(1)}%</div>
                 </div>
               </div>
             )}
 
             <div className="space-y-2.5">
               {ranked.map((type) => {
-                const barPct = (Math.abs(type.roi_pct) / maxAbsRoi) * 50;
-                const isPositive = type.roi_pct >= 0;
-                const lowSample = type.with_odds < LOW_SAMPLE_THRESHOLD;
+                const lowSample = type.total < LOW_SAMPLE_THRESHOLD;
                 return (
                   <div key={type.bet_type} className={`flex items-center gap-3 text-sm ${lowSample ? 'opacity-60' : ''}`}>
-                    <div className="w-32 sm:w-40 shrink-0 text-white font-medium truncate flex items-center gap-1">
-                      {lowSample && <span title={`Muestra baja: solo ${type.with_odds} apuestas con cuota`}>⚠️</span>}
+                    <div className="w-32 sm:w-44 shrink-0 text-white font-medium truncate flex items-center gap-1">
+                      {lowSample && <span title={`Muestra baja: solo ${type.total} apuestas`}>⚠️</span>}
                       {getBetTypeLabel(type.bet_type)}
                     </div>
-                    <div className="flex-1 h-6 relative bg-slate-900/50 rounded overflow-hidden">
-                      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-600" />
+                    <div className="flex-1 h-5 relative bg-slate-900/50 rounded overflow-hidden">
                       <div
-                        className={`absolute top-0 bottom-0 ${isPositive ? 'bg-green-500/70 left-1/2' : 'bg-red-500/70 right-1/2'}`}
-                        style={{ width: `${barPct}%` }}
+                        className={`absolute left-0 top-0 bottom-0 ${getAccuracyBarColor(type.accuracy_pct)}`}
+                        style={{ width: `${type.accuracy_pct}%` }}
                       />
                     </div>
-                    <div className={`w-24 shrink-0 text-right font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                      {isPositive ? '+' : ''}{type.roi_pct.toFixed(1)}% <span className="text-slate-500 font-normal">({type.with_odds})</span>
-                    </div>
-                    <div className={`w-14 shrink-0 text-right text-xs px-1.5 py-0.5 rounded ${getAccuracyBgColor(type.accuracy_pct)} ${getAccuracyColor(type.accuracy_pct)}`}>
-                      {type.accuracy_pct.toFixed(0)}%
+                    <div className={`w-28 shrink-0 text-right font-bold ${getAccuracyColor(type.accuracy_pct)}`}>
+                      {type.accuracy_pct.toFixed(1)}% <span className="text-slate-500 font-normal">({type.total})</span>
                     </div>
                   </div>
                 );
               })}
             </div>
+          </div>
+        );
+      })()}
 
-            {withoutRoi.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-slate-700">
-                <div className="text-slate-400 text-xs font-semibold mb-2">Sin datos suficientes de cuota (se muestra solo accuracy):</div>
-                <div className="flex flex-wrap gap-2">
-                  {withoutRoi.map((type) => {
-                    const lowSample = type.total < LOW_SAMPLE_THRESHOLD;
-                    return (
-                      <div key={type.bet_type} className={`bg-slate-900/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs ${lowSample ? 'opacity-60' : ''}`}>
-                        {lowSample && <span title={`Muestra baja: solo ${type.total} apuestas`}>⚠️</span>}
-                        <span className="text-slate-300">{getBetTypeLabel(type.bet_type)}</span>
-                        <span className={`font-bold px-1.5 py-0.5 rounded ${getAccuracyBgColor(type.accuracy_pct)} ${getAccuracyColor(type.accuracy_pct)}`}>
-                          {type.accuracy_pct.toFixed(0)}%
-                        </span>
-                        <span className="text-slate-500">({type.total})</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+      {/* Efectividad por Liga */}
+      {by_league.length > 0 && (() => {
+        const ranked = [...by_league].sort((a, b) => b.accuracy_pct - a.accuracy_pct);
+        return (
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 className="text-xl font-bold text-white mb-1">🌍 Efectividad por Liga</h2>
+            <p className="text-slate-400 text-xs mb-4">
+              Se agrupa por la liga actual del partido — no por la liga guardada cuando se generó la recomendación, para que siga siendo correcto si la temporada cambió de id.
+            </p>
+            <div className="space-y-2.5">
+              {ranked.map((league) => {
+                const lowSample = league.total < LOW_SAMPLE_THRESHOLD;
+                return (
+                  <div key={league.league} className={`flex items-center gap-3 text-sm ${lowSample ? 'opacity-60' : ''}`}>
+                    <div className="w-32 sm:w-44 shrink-0 text-white font-medium truncate flex items-center gap-1">
+                      {lowSample && <span title={`Muestra baja: solo ${league.total} apuestas`}>⚠️</span>}
+                      {league.league}
+                    </div>
+                    <div className="flex-1 h-5 relative bg-slate-900/50 rounded overflow-hidden">
+                      <div
+                        className={`absolute left-0 top-0 bottom-0 ${getAccuracyBarColor(league.accuracy_pct)}`}
+                        style={{ width: `${league.accuracy_pct}%` }}
+                      />
+                    </div>
+                    <div className={`w-28 shrink-0 text-right font-bold ${getAccuracyColor(league.accuracy_pct)}`}>
+                      {league.accuracy_pct.toFixed(1)}% <span className="text-slate-500 font-normal">({league.total})</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })()}
@@ -563,13 +501,7 @@ export default function BestBetsAnalysis() {
                                 <span className={`font-bold ${getAccuracyColor(data.accuracy_pct)}`}>
                                   {data.total < LOW_SAMPLE_THRESHOLD && '⚠️ '}{data.accuracy_pct.toFixed(0)}%
                                 </span>
-                                <span className="text-[10px] text-slate-400">
-                                  {data.total} ap. {data.roi_pct !== null && (
-                                    <span className={data.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                      · {data.roi_pct >= 0 ? '+' : ''}{data.roi_pct.toFixed(0)}%
-                                    </span>
-                                  )}
-                                </span>
+                                <span className="text-[10px] text-slate-400">{data.total} ap.</span>
                               </div>
                             )}
                           </td>
@@ -591,34 +523,21 @@ export default function BestBetsAnalysis() {
           <h2 className="text-xl font-bold text-white mb-4">🎯 Por Modelo</h2>
           <div className="space-y-3">
             {(() => {
-              const withRoi = by_model.filter(m => m.roi_pct !== null);
-              const bestRoi = withRoi.length ? Math.max(...withRoi.map(m => m.roi_pct as number)) : null;
+              const bestModel = pickBest(by_model);
               return by_model.map((model) => (
                 <div key={model.model} className="bg-slate-900/50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-white font-semibold capitalize">{model.model}</span>
-                      {bestRoi !== null && model.roi_pct === bestRoi && (
-                        <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-bold">🏆 Más rentable</span>
+                      {bestModel?.model === model.model && (
+                        <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-bold">🏆 Más acertivo</span>
                       )}
                     </div>
                     <span className="text-slate-400 text-xs">{model.total} apuestas</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className={`rounded-lg px-3 py-2 ${getAccuracyBgColor(model.accuracy_pct)}`}>
-                      <div className="text-slate-400 text-xs mb-0.5">Accuracy</div>
-                      <div className={`text-xl font-bold ${getAccuracyColor(model.accuracy_pct)}`}>{model.accuracy_pct.toFixed(1)}%</div>
-                    </div>
-                    <div className={`rounded-lg px-3 py-2 ${
-                      model.roi_pct === null ? 'bg-slate-800' : model.roi_pct >= 0 ? 'bg-green-500/20' : 'bg-red-500/20'
-                    }`}>
-                      <div className="text-slate-400 text-xs mb-0.5">ROI ({model.with_odds} c/cuota)</div>
-                      <div className={`text-xl font-bold ${
-                        model.roi_pct === null ? 'text-slate-500' : model.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {model.roi_pct === null ? 'N/D' : `${model.roi_pct >= 0 ? '+' : ''}${model.roi_pct.toFixed(1)}%`}
-                      </div>
-                    </div>
+                  <div className={`rounded-lg px-3 py-2 ${getAccuracyBgColor(model.accuracy_pct)}`}>
+                    <div className="text-slate-400 text-xs mb-0.5">Accuracy</div>
+                    <div className={`text-2xl font-bold ${getAccuracyColor(model.accuracy_pct)}`}>{model.accuracy_pct.toFixed(1)}%</div>
                   </div>
                 </div>
               ));
@@ -632,7 +551,7 @@ export default function BestBetsAnalysis() {
           <div className="space-y-3">
             {by_rank.map((rank) => (
               <div key={rank.rank} className="bg-slate-900/50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center text-slate-900 font-bold">
                       #{rank.rank}
@@ -642,15 +561,8 @@ export default function BestBetsAnalysis() {
                       <div className="text-slate-400 text-xs">{rank.total} apuestas</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className={`text-2xl font-bold ${getAccuracyColor(rank.accuracy_pct)}`}>
-                      {rank.accuracy_pct.toFixed(1)}%
-                    </div>
-                    <div className={`text-xs font-bold ${
-                      rank.roi_pct === null ? 'text-slate-500' : rank.roi_pct >= 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      ROI: {rank.roi_pct === null ? 'N/D' : `${rank.roi_pct >= 0 ? '+' : ''}${rank.roi_pct.toFixed(1)}%`}
-                    </div>
+                  <div className={`text-2xl font-bold ${getAccuracyColor(rank.accuracy_pct)}`}>
+                    {rank.accuracy_pct.toFixed(1)}%
                   </div>
                 </div>
               </div>
@@ -661,35 +573,24 @@ export default function BestBetsAnalysis() {
 
       {/* Evolución Temporal */}
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-        <h2 className="text-xl font-bold text-white mb-4">📈 Evolución Temporal</h2>
-        <ResponsiveContainer width="100%" height={350}>
+        <h2 className="text-xl font-bold text-white mb-4">📈 Evolución del Accuracy</h2>
+        <ResponsiveContainer width="100%" height={300}>
           <LineChart data={evolution}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="week" stroke="#9CA3AF" style={{ fontSize: '12px' }} />
-            <YAxis yAxisId="left" stroke="#9CA3AF" style={{ fontSize: '12px' }} domain={[0, 100]} />
-            <YAxis yAxisId="right" orientation="right" stroke="#9CA3AF" style={{ fontSize: '12px' }} />
+            <YAxis stroke="#9CA3AF" style={{ fontSize: '12px' }} domain={[0, 100]} />
             <Tooltip
               contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
               labelStyle={{ color: '#e2e8f0' }}
+              formatter={(value: number) => [`${value.toFixed(1)}%`, 'Accuracy']}
             />
-            <Legend />
-            <Line 
-              yAxisId="left"
-              type="monotone" 
-              dataKey="accuracy_pct" 
+            <Line
+              type="monotone"
+              dataKey="accuracy_pct"
               name="Accuracy (%)"
-              stroke="#10b981" 
+              stroke="#10b981"
               strokeWidth={3}
               dot={{ fill: '#10b981', r: 4 }}
-            />
-            <Line 
-              yAxisId="right"
-              type="monotone" 
-              dataKey="roi_pct" 
-              name="ROI (%)"
-              stroke="#3b82f6" 
-              strokeWidth={3}
-              dot={{ fill: '#3b82f6', r: 4 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -709,7 +610,7 @@ export default function BestBetsAnalysis() {
             <option value="all">Todas</option>
           </select>
         </div>
-        
+
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {history.length === 0 ? (
             <div className="text-center text-slate-400 py-8">
@@ -739,7 +640,7 @@ export default function BestBetsAnalysis() {
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
                       <div>
                         <div className="text-slate-400 text-xs">Apuesta</div>
                         <div className="text-white font-semibold text-xs sm:text-sm truncate">
@@ -755,28 +656,20 @@ export default function BestBetsAnalysis() {
                         <div className="text-slate-400 text-xs">Confianza</div>
                         <div className="text-white text-xs sm:text-sm">{(bet.confidence * 100).toFixed(0)}%</div>
                       </div>
-                      <div>
-                        <div className="text-slate-400 text-xs">Odds</div>
-                        <div className="text-white text-xs sm:text-sm">{bet.odds?.toFixed(2) || 'N/A'}</div>
-                      </div>
                     </div>
                   </div>
                   <div className="text-center sm:text-right w-full sm:w-auto sm:ml-4 flex-shrink-0">
                     {bet.hit === null ? (
                       <div className="text-slate-400">⏳ Pendiente</div>
                     ) : bet.hit ? (
-                      <div>
-                        <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-1" />
-                        <div className="text-green-400 font-bold text-lg">
-                          {bet.profit_loss !== null ? formatCurrency(bet.profit_loss) : 'N/D'}
-                        </div>
+                      <div className="flex sm:flex-col items-center gap-1">
+                        <CheckCircle className="w-8 h-8 text-green-400" />
+                        <span className="text-green-400 font-bold text-sm">Acertó</span>
                       </div>
                     ) : (
-                      <div>
-                        <XCircle className="w-8 h-8 text-red-400 mx-auto mb-1" />
-                        <div className={`font-bold text-lg ${bet.profit_loss !== null ? 'text-red-400' : 'text-slate-500'}`}>
-                          {bet.profit_loss !== null ? formatCurrency(bet.profit_loss) : 'N/D'}
-                        </div>
+                      <div className="flex sm:flex-col items-center gap-1">
+                        <XCircle className="w-8 h-8 text-red-400" />
+                        <span className="text-red-400 font-bold text-sm">Falló</span>
                       </div>
                     )}
                     {bet.home_goals !== null && (
@@ -795,19 +688,12 @@ export default function BestBetsAnalysis() {
       {/* Explicación */}
       <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
         <div className="text-slate-300 text-sm space-y-2">
-          <div className="font-semibold text-white mb-2">💡 Cómo se calcula el ROI</div>
+          <div className="font-semibold text-white mb-2">💡 Cómo leer el accuracy</div>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li><strong>Stake fijo:</strong> $10 por cada apuesta</li>
-            <li><strong>Si acierta:</strong> Ganancia = (Odds - 1) × $10</li>
-            <li><strong>Si falla:</strong> Pérdida = -$10</li>
-            <li><strong>ROI:</strong> (Ganancia Total / Inversión Total) × 100</li>
-            <li><strong className="text-yellow-400">N/D:</strong> esa apuesta no tiene una cuota registrada, así que no se puede calcular ganancia/pérdida real — el accuracy sigue siendo válido, solo falta el dato de cuota</li>
+            <li><strong>Accuracy:</strong> aciertos ÷ apuestas validadas de ese corte (tipo, modelo, liga, etc.), en %</li>
+            <li><strong>Confianza:</strong> la probabilidad que el modelo le asignó a la predicción antes de saber el resultado</li>
+            <li><strong className="text-yellow-400">⚠️ Muestra baja:</strong> menos de {LOW_SAMPLE_THRESHOLD} apuestas respaldan ese %, así que puede cambiar mucho con el próximo resultado — tómalo con cautela</li>
           </ul>
-          <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded">
-            <div className="text-blue-300 text-xs">
-              <strong>Ejemplo:</strong> Si apuestas $100 (10 apuestas) y ganas $130, tu ROI es +30%
-            </div>
-          </div>
         </div>
       </div>
     </div>
