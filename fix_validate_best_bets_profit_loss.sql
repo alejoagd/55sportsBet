@@ -1,6 +1,6 @@
 -- fix_validate_best_bets_profit_loss.sql
 --
--- BUG (encontrado 2026-09-12): la función validate_best_bets() calculaba
+-- BUG 1 (encontrado 2026-09-12): la función validate_best_bets() calculaba
 -- profit_loss con un CASE que leía la columna `hit` — pero dentro de un mismo
 -- UPDATE, Postgres evalúa cada expresión del SET contra el valor VIEJO de la
 -- fila, no contra el valor que otra cláusula del mismo UPDATE acaba de
@@ -12,11 +12,24 @@
 -- todos los tipos de apuesta con cuota registrada — 117 de 121 apuestas
 -- validadas con cuota real tenían profit_loss NULL en vez del valor real.
 --
--- Fix: computar hit/actual_result en una subconsulta aparte y hacer JOIN
+-- Fix 1: computar hit/actual_result en una subconsulta aparte y hacer JOIN
 -- contra ella en el UPDATE, para que profit_loss pueda usar ese valor recién
 -- calculado en la misma pasada. Los 117 registros históricos afectados ya
 -- se corrigieron con un backfill puntual (profit_loss = odds-1 si hit, si no -1,
 -- solo donde odds y hit ya eran correctos y profit_loss estaba en NULL).
+--
+-- BUG 2 (encontrado el mismo día, reportado por el usuario al no entender el
+-- ROI mostrado): profit_loss se calculaba como (odds-1) o -1 — es decir, en
+-- base a una apuesta de $1 — pero el resto del dashboard (y el pie de página
+-- "Stake fijo: $10 por cada apuesta") asumía $10 por apuesta. El % de ROI en
+-- sí salía bien (es una proporción, no depende de la escala del stake), pero
+-- el monto en dólares mostrado ($-10.05) no coincidía con la "Inversión"
+-- mostrada al lado ($1210) — con esos números el ROI debería haber sido
+-- -0.83%, no el -8.3% real. Fix 2: multiplicar por v_stake=10 al calcular
+-- profit_loss, re-escalar x10 los valores ya guardados, y corregir el
+-- denominador de roi_pct en /api/best-bets/stats (ROUND(100*SUM(profit_loss)
+-- / (count_con_cuota * 10), 2)) para que siga siendo el % correcto ahora que
+-- profit_loss está en dólares reales y no en "unidades de $1".
 
 CREATE OR REPLACE FUNCTION public.validate_best_bets(p_season_id integer DEFAULT NULL::integer)
  RETURNS TABLE(validated_count integer, hits integer, misses integer)
@@ -26,6 +39,7 @@ DECLARE
     v_validated INTEGER := 0;
     v_hits INTEGER := 0;
     v_misses INTEGER := 0;
+    v_stake CONSTANT NUMERIC := 10;
 BEGIN
     UPDATE best_bets_history bbh
     SET
@@ -33,7 +47,7 @@ BEGIN
         actual_result = computed.actual_result_value,
         profit_loss = CASE
             WHEN bbh.odds IS NOT NULL THEN
-                CASE WHEN computed.hit_value THEN (bbh.odds - 1) ELSE -1 END
+                CASE WHEN computed.hit_value THEN (bbh.odds - 1) * v_stake ELSE -v_stake END
             ELSE NULL
         END,
         validated_at = NOW()
@@ -158,9 +172,16 @@ BEGIN
 END;
 $function$;
 
--- Backfill puntual ya aplicado en producción (documentado acá para referencia,
--- no hace falta volver a correrlo salvo que se reconstruya la BD desde cero):
+-- Backfills puntuales ya aplicados en producción (documentados acá para
+-- referencia, no hace falta volver a correrlos salvo que se reconstruya la
+-- BD desde cero):
 --
+-- 1) Rellenar los profit_loss que se quedaron en NULL por el bug 1 (en base $1):
 -- UPDATE best_bets_history
 -- SET profit_loss = CASE WHEN hit THEN (odds - 1) ELSE -1 END
 -- WHERE odds IS NOT NULL AND hit IS NOT NULL AND profit_loss IS NULL;
+--
+-- 2) Re-escalar todo a la base $10 real (bug 2), corrido una sola vez después del paso 1:
+-- UPDATE best_bets_history
+-- SET profit_loss = profit_loss * 10
+-- WHERE odds IS NOT NULL AND hit IS NOT NULL AND profit_loss IS NOT NULL;

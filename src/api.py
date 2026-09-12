@@ -3588,7 +3588,7 @@ def get_best_bets_stats(
                 COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
                     100.0 * COALESCE(SUM(profit_loss), 0) /
-                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL) * 10, 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3628,7 +3628,7 @@ def get_best_bets_stats(
                 COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
                     100.0 * COALESCE(SUM(profit_loss), 0) /
-                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL) * 10, 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3672,7 +3672,7 @@ def get_best_bets_stats(
                 COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
                     100.0 * COALESCE(SUM(profit_loss), 0) /
-                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL) * 10, 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3716,7 +3716,7 @@ def get_best_bets_stats(
                 COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
                     100.0 * COALESCE(SUM(profit_loss), 0) /
-                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL) * 10, 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3760,7 +3760,7 @@ def get_best_bets_stats(
                 COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
                     100.0 * COALESCE(SUM(profit_loss), 0) /
-                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL), 0),
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL) * 10, 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3801,9 +3801,10 @@ def get_best_bets_stats(
                     2
                 ) as accuracy_pct,
                 COALESCE(SUM(profit_loss), 0) as profit_loss,
+                COUNT(*) FILTER (WHERE odds IS NOT NULL) as with_odds,
                 ROUND(
-                    100.0 * COALESCE(SUM(profit_loss), 0) / 
-                    NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                    100.0 * COALESCE(SUM(profit_loss), 0) /
+                    NULLIF(COUNT(*) FILTER (WHERE odds IS NOT NULL AND hit IS NOT NULL) * 10, 0),
                     2
                 ) as roi_pct
             FROM best_bets_history bbh
@@ -3822,8 +3823,9 @@ def get_best_bets_stats(
                 "total": row.total,
                 "hits": row.hits,
                 "accuracy_pct": float(row.accuracy_pct or 0),
-                "profit_loss": float(row.profit_loss or 0),
-                "roi_pct": float(row.roi_pct or 0)
+                "profit_loss": float(row.profit_loss or 0) if row.with_odds else None,
+                "with_odds": row.with_odds or 0,
+                "roi_pct": float(row.roi_pct or 0) if row.with_odds else None
             }
             for row in evolution_rows
         ]
