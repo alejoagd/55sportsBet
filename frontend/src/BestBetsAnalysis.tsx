@@ -168,7 +168,7 @@ export default function BestBetsAnalysis() {
     setTop10Error(null);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?min_sample=11&min_accuracy=80&limit=10`);
+      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?min_sample=11&min_accuracy=70&limit=10`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Error ${response.status}: ${errorText}`);
@@ -870,7 +870,7 @@ export default function BestBetsAnalysis() {
       <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg p-4 sm:p-6 border border-purple-500/30">
         <h2 className="text-xl font-bold text-white mb-1">🎯 Top 10 Apuestas H2H de Alta Confianza</h2>
         <p className="text-slate-400 text-xs sm:text-sm mb-4">
-          De todos los partidos de este fin de semana: puntuaciones H2H (0-12) con accuracy real ≥ 80% y respaldadas por más de 10 partidos pasados.
+          De todos los partidos de este fin de semana: puntuaciones H2H (0-12) con accuracy real ≥ 70% y respaldadas por más de 10 partidos pasados.
         </p>
 
         {top10Loading ? (
@@ -879,7 +879,7 @@ export default function BestBetsAnalysis() {
           <div className="text-center text-red-400 py-8">❌ {top10Error}</div>
         ) : top10Picks.length === 0 ? (
           <div className="text-center text-slate-400 py-8">
-            Ningún pronóstico de este fin de semana llega a 80% de accuracy real con más de 10 partidos de respaldo.
+            Ningún pronóstico de este fin de semana llega a 70% de accuracy real con más de 10 partidos de respaldo.
           </div>
         ) : (
           <div className="space-y-2.5">
