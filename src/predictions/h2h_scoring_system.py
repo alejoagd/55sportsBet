@@ -552,3 +552,110 @@ def get_league_effectiveness_stats(season_id: int, min_score: int = 8) -> Dict[s
             "high_confidence_accuracy": 78.5
         }
     }
+
+
+STAT_LABELS = {
+    "goles": "Goles (Over/Under 2.5)",
+    "tiros": "Tiros",
+    "tiros_al_arco": "Tiros a puerta",
+    "faltas": "Faltas",
+    "tarjetas": "Tarjetas",
+    "corners": "Corners",
+}
+
+
+def get_top_upcoming_h2h_picks(days_ahead: int = 10, min_sample: int = 10, limit: int = 4) -> List[Dict[str, Any]]:
+    """
+    De los partidos que se van a jugar pronto, calcula su puntuación H2H en
+    vivo (0-12) para cada estadística y la cruza contra la efectividad REAL
+    que esa puntuación exacta tuvo históricamente en esa liga (la tabla
+    h2h_scoring ya validada por get_top_upcoming_h2h_picks/backtest — ver
+    /api/h2h-score/effectiveness-by-league). Retorna los `limit` pronósticos
+    próximos cuya puntuación tiene el mejor historial real de acierto,
+    exigiendo al menos `min_sample` partidos pasados con esa misma
+    puntuación exacta para no confiar en una muestra chica.
+    """
+    with engine.begin() as conn:
+        # 1) tabla de efectividad real (liga, stat, score) -> (accuracy, total)
+        #    misma union que usa /api/h2h-score/effectiveness-by-league
+        accuracy_query = text("""
+            SELECT l.name as league, x.stat, x.score,
+                   COUNT(*) as total,
+                   ROUND(AVG(CASE WHEN x.hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+            FROM (
+                SELECT match_id, 'goles' as stat, goles_score as score, goles_hit as hit FROM h2h_scoring WHERE goles_score IS NOT NULL AND goles_hit IS NOT NULL
+                UNION ALL
+                SELECT match_id, 'tiros', tiros_score, tiros_hit FROM h2h_scoring WHERE tiros_score IS NOT NULL AND tiros_hit IS NOT NULL
+                UNION ALL
+                SELECT match_id, 'tiros_al_arco', tiros_al_arco_score, tiros_al_arco_hit FROM h2h_scoring WHERE tiros_al_arco_score IS NOT NULL AND tiros_al_arco_hit IS NOT NULL
+                UNION ALL
+                SELECT match_id, 'faltas', faltas_score, faltas_hit FROM h2h_scoring WHERE faltas_score IS NOT NULL AND faltas_hit IS NOT NULL
+                UNION ALL
+                SELECT match_id, 'tarjetas', tarjetas_score, tarjetas_hit FROM h2h_scoring WHERE tarjetas_score IS NOT NULL AND tarjetas_hit IS NOT NULL
+                UNION ALL
+                SELECT match_id, 'corners', corners_score, corners_hit FROM h2h_scoring WHERE corners_score IS NOT NULL AND corners_hit IS NOT NULL
+            ) x
+            JOIN matches m ON m.id = x.match_id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            GROUP BY l.name, x.stat, x.score
+        """)
+        accuracy_lookup: Dict[Tuple[str, str, int], Tuple[float, int]] = {
+            (row.league, row.stat, row.score): (float(row.accuracy), row.total)
+            for row in conn.execute(accuracy_query).fetchall()
+        }
+
+        # 2) partidos proximos con prediccion de Weinston ya generada
+        candidates_query = text("""
+            SELECT m.id as match_id, m.home_team_id, m.away_team_id, m.season_id, m.date,
+                   th.name as home_team, ta.name as away_team, th.logo_url as home_logo, ta.logo_url as away_logo,
+                   l.name as league
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            JOIN weinston_predictions wp ON wp.match_id = m.id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            WHERE m.home_goals IS NULL
+              AND m.date BETWEEN CURRENT_DATE AND CURRENT_DATE + (:days_ahead || ' days')::interval
+            ORDER BY m.date
+        """)
+        candidates = conn.execute(candidates_query, {"days_ahead": days_ahead}).mappings().all()
+
+    picks: List[Dict[str, Any]] = []
+    for c in candidates:
+        scoring = calculate_h2h_scoring(c["match_id"], c["home_team_id"], c["away_team_id"], c["season_id"])
+        if "error" in scoring:
+            continue
+
+        for stat, result in scoring["predictions"].items():
+            score = result.get("score")
+            if score is None:
+                continue
+            lookup = accuracy_lookup.get((c["league"], stat, score))
+            if not lookup:
+                continue
+            historical_accuracy, historical_sample = lookup
+            if historical_sample < min_sample:
+                continue
+
+            picks.append({
+                "match_id": c["match_id"],
+                "date": c["date"].isoformat() if hasattr(c["date"], "isoformat") else str(c["date"]),
+                "home_team": c["home_team"],
+                "away_team": c["away_team"],
+                "home_team_logo": c["home_logo"],
+                "away_team_logo": c["away_logo"],
+                "league": c["league"],
+                "stat": stat,
+                "stat_label": STAT_LABELS.get(stat, stat),
+                "prediction": result["prediction"],
+                "line": result.get("line"),
+                "score": score,
+                "h2h_valid_matches": result["valid_matches"],
+                "historical_accuracy": historical_accuracy,
+                "historical_sample": historical_sample,
+            })
+
+    picks.sort(key=lambda p: p["historical_accuracy"], reverse=True)
+    return picks[:limit]

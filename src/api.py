@@ -4279,9 +4279,26 @@ def get_league_h2h_effectiveness(season_id: int, min_score: int = Query(8)):
     Estadísticas de efectividad del sistema H2H por liga y puntuación.
     """
     from src.predictions.h2h_scoring_system import get_league_effectiveness_stats
-    
+
     result = get_league_effectiveness_stats(season_id, min_score)
-    return result    
+    return result
+
+@router.get("/api/h2h-score/top-upcoming-picks")
+def get_top_upcoming_h2h_picks_endpoint(
+    days_ahead: int = Query(10, description="Ventana de días hacia adelante para buscar partidos próximos"),
+    min_sample: int = Query(10, description="Mínimo de partidos históricos con esa puntuación exacta para considerarla confiable"),
+    limit: int = Query(4, description="Cuántos pronósticos devolver")
+):
+    """
+    De los partidos próximos, los `limit` pronósticos H2H cuya puntuación
+    (0-12) tiene la mejor efectividad REAL histórica en esa liga — cruza el
+    scoring en vivo de cada partido próximo contra la tabla h2h_scoring ya
+    validada con el backtest de partidos pasados.
+    """
+    from src.predictions.h2h_scoring_system import get_top_upcoming_h2h_picks
+
+    picks = get_top_upcoming_h2h_picks(days_ahead=days_ahead, min_sample=min_sample, limit=limit)
+    return {"picks": picks}
 
 # ============================================================================
 # BETTING LINES STATISTICS ENDPOINTS

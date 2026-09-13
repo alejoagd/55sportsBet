@@ -18,6 +18,24 @@ import { useNavigate } from 'react-router-dom';
 import { AdminOnly } from './AdminButton';
 import ScoreRangeEffectiveness from './Scorerangeeffectiveness';
 
+interface H2HTopPick {
+  match_id: number;
+  date: string;
+  home_team: string;
+  away_team: string;
+  home_team_logo?: string | null;
+  away_team_logo?: string | null;
+  league: string;
+  stat: string;
+  stat_label: string;
+  prediction: string;
+  line: number | null;
+  score: number;
+  h2h_valid_matches: number;
+  historical_accuracy: number;
+  historical_sample: number;
+}
+
 interface BestBet {
   id: number;
   match_id: number;
@@ -67,10 +85,34 @@ export default function BestBetsSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [h2hPicks, setH2hPicks] = useState<H2HTopPick[]>([]);
+  const [h2hPicksLoading, setH2hPicksLoading] = useState(true);
+  const [h2hPicksError, setH2hPicksError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBestBets();
+    fetchTopH2hPicks();
   }, []);
+
+  const fetchTopH2hPicks = async () => {
+    setH2hPicksLoading(true);
+    setH2hPicksError(null);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?days_ahead=10&min_sample=10&limit=4`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      setH2hPicks(data.picks || []);
+    } catch (error) {
+      console.error('❌ Error fetching top H2H picks:', error);
+      setH2hPicksError(error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setH2hPicksLoading(false);
+    }
+  };
 
   const fetchBestBets = async () => {
     setLoading(true);
@@ -404,6 +446,80 @@ export default function BestBetsSection() {
             )}
           </ul>
         </div>
+      </div>
+
+      {/* Top 4 pronósticos H2H más confiables (próximos partidos) */}
+      <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg p-4 sm:p-6 border border-purple-500/30">
+        <div className="flex items-center gap-2 sm:gap-3 mb-1">
+          <span className="text-3xl sm:text-4xl">🔬</span>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Pronósticos H2H con Mayor Respaldo Histórico</h2>
+            <p className="text-slate-400 text-xs sm:text-sm">
+              Próximos partidos cuya puntuación H2H (0-12) tuvo el mejor acierto real en partidos ya jugados de la misma liga
+            </p>
+          </div>
+        </div>
+
+        {h2hPicksLoading ? (
+          <div className="text-center text-slate-400 py-8">⏳ Calculando puntuaciones H2H en vivo...</div>
+        ) : h2hPicksError ? (
+          <div className="text-center text-red-400 py-8">❌ {h2hPicksError}</div>
+        ) : h2hPicks.length === 0 ? (
+          <div className="text-center text-slate-400 py-8">
+            No hay pronósticos próximos con suficiente respaldo histórico todavía.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            {h2hPicks.map((pick, i) => {
+              const isOver = pick.prediction.startsWith('OVER');
+              return (
+                <div
+                  key={`${pick.match_id}-${pick.stat}`}
+                  onClick={() => navigate(`/match/${pick.match_id}`, { state: { returnPath: '/best-bets' } })}
+                  className="relative bg-slate-800 rounded-lg p-4 border-2 border-purple-500/30 cursor-pointer hover:scale-[1.02] transition-transform"
+                >
+                  <div className="absolute -top-3 -left-3 w-9 h-9 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white font-bold text-sm">#{i + 1}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-slate-400 text-xs mb-2 mt-1">
+                    <span>{pick.league}</span>
+                    <span>{formatMatchDate(pick.date)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <TeamLogo url={pick.home_team_logo} alt={pick.home_team} />
+                    <span className="text-white font-bold text-sm truncate">{pick.home_team}</span>
+                    <span className="text-slate-500 text-xs shrink-0">vs</span>
+                    <TeamLogo url={pick.away_team_logo} alt={pick.away_team} />
+                    <span className="text-white font-bold text-sm truncate">{pick.away_team}</span>
+                  </div>
+
+                  <div className="bg-slate-900/50 rounded-lg p-3 mb-3 text-center">
+                    <div className="text-slate-400 text-xs mb-1">Pronóstico H2H</div>
+                    <div className="text-lg font-bold text-purple-300">
+                      {isOver ? 'Más de' : 'Menos de'} {pick.line} {pick.stat_label}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-slate-900/50 rounded-lg p-2.5 text-center">
+                      <div className="text-slate-400 text-xs mb-1">Puntuación H2H</div>
+                      <div className="text-lg font-bold text-white">{pick.score}/{pick.h2h_valid_matches}</div>
+                    </div>
+                    <div className="bg-green-500/20 rounded-lg p-2.5 text-center">
+                      <div className="text-slate-400 text-xs mb-1">Acierto real histórico</div>
+                      <div className="text-lg font-bold text-green-400">{pick.historical_accuracy.toFixed(0)}%</div>
+                    </div>
+                  </div>
+                  <div className="text-center text-slate-500 text-[11px] mt-2">
+                    Basado en {pick.historical_sample} partidos pasados con esta misma puntuación en {pick.league}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
