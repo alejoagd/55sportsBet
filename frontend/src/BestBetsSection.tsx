@@ -455,7 +455,7 @@ export default function BestBetsSection() {
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-white">Pronósticos H2H con Mayor Respaldo Histórico</h2>
             <p className="text-slate-400 text-xs sm:text-sm">
-              El mejor pronóstico de cada tipo (goles, tiros, faltas, tarjetas, corners...) entre todos los partidos de este fin de semana, según su acierto real en partidos ya jugados de la misma liga
+              Los 4 pronósticos con mayor acierto real histórico entre todos los partidos de este fin de semana — sin importar si se repite el mismo tipo de apuesta, siempre en partidos distintos
             </p>
           </div>
         </div>

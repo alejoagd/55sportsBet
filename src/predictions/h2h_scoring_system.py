@@ -660,10 +660,13 @@ def get_top_upcoming_h2h_picks(
         """)
         candidates = conn.execute(candidates_query, date_params).mappings().all()
 
-    # Para cada item (stat), nos quedamos solo con su mejor pronostico de
-    # todo el fin de semana (mayor accuracy real) — asi el resultado nunca
-    # repite el mismo item 4 veces, aunque ese item domine el ranking global.
-    best_by_stat: Dict[str, Dict[str, Any]] = {}
+    # Se toman las N mas confiables en TOTAL (sin diversificar por item): si
+    # el patron con mayor accuracy real (ej. "Faltas score=3/6") se repite en
+    # varios partidos distintos del fin de semana, todos esos partidos
+    # entran antes de bajar a mirar otros items — solo se evita recomendar
+    # el MISMO partido dos veces (para no gastar 2 de los 4 espacios en un
+    # solo partido con 2 estadisticas fuertes).
+    all_candidates: List[Dict[str, Any]] = []
 
     for c in candidates:
         scoring = calculate_h2h_scoring(c["match_id"], c["home_team_id"], c["away_team_id"], c["season_id"])
@@ -699,9 +702,18 @@ def get_top_upcoming_h2h_picks(
                 "historical_sample": historical_sample,
             }
 
-            current_best = best_by_stat.get(stat)
-            if current_best is None or historical_accuracy > current_best["historical_accuracy"]:
-                best_by_stat[stat] = candidate_pick
+            all_candidates.append(candidate_pick)
 
-    picks = sorted(best_by_stat.values(), key=lambda p: p["historical_accuracy"], reverse=True)
-    return picks[:limit]
+    all_candidates.sort(key=lambda p: p["historical_accuracy"], reverse=True)
+
+    picks: List[Dict[str, Any]] = []
+    used_matches: set = set()
+    for candidate_pick in all_candidates:
+        if candidate_pick["match_id"] in used_matches:
+            continue
+        picks.append(candidate_pick)
+        used_matches.add(candidate_pick["match_id"])
+        if len(picks) >= limit:
+            break
+
+    return picks
