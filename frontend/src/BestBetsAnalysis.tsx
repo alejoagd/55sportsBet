@@ -14,6 +14,28 @@ import { AdminOnly } from './AdminButton';
 // una sola apuesta acertada mostrando "100%" no es una tendencia.
 const LOW_SAMPLE_THRESHOLD = 10;
 
+interface H2HScoreEntry {
+  score: number;
+  total: number;
+  hits: number;
+  misses: number;
+  accuracy: number;
+}
+
+interface H2HEffectivenessResponse {
+  h2h_effectiveness: Record<string, Record<string, H2HScoreEntry[]>>;
+  total_leagues: number;
+}
+
+const H2H_STAT_LABELS: Record<string, string> = {
+  GOLES: 'Goles (Over/Under 2.5)',
+  TIROS: 'Tiros',
+  'TIROS AL ARCO': 'Tiros a puerta',
+  FALTAS: 'Faltas',
+  TARJETAS: 'Tarjetas',
+  CORNERS: 'Corners',
+};
+
 interface GeneralStats {
   total_bets: number;
   hits: number;
@@ -106,11 +128,36 @@ export default function BestBetsAnalysis() {
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [showHistory, setShowHistory] = useState<'all' | 'validated' | 'pending'>('validated');
+  const [h2hData, setH2hData] = useState<H2HEffectivenessResponse | null>(null);
+  const [h2hLoading, setH2hLoading] = useState(true);
+  const [h2hError, setH2hError] = useState<string | null>(null);
+  const [selectedStat, setSelectedStat] = useState<string>('CORNERS');
 
   useEffect(() => {
     fetchStats();
     fetchHistory();
+    fetchH2hEffectiveness();
   }, [showHistory]);
+
+  const fetchH2hEffectiveness = async () => {
+    setH2hLoading(true);
+    setH2hError(null);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/h2h-score/effectiveness-by-league`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      setH2hData(data);
+    } catch (error) {
+      console.error('❌ Error fetching H2H effectiveness:', error);
+      setH2hError(error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setH2hLoading(false);
+    }
+  };
 
   const fetchStats = async () => {
     setLoading(true);
@@ -273,7 +320,7 @@ export default function BestBetsAnalysis() {
     );
   }
 
-  const { general, by_type, by_model, by_model_type, by_league, by_rank, evolution } = stats;
+  const { general, by_type, by_model, by_league, by_rank, evolution } = stats;
   const bestType = pickBest(by_type);
   const bestLeague = pickBest(by_league);
 
@@ -460,60 +507,132 @@ export default function BestBetsAnalysis() {
         );
       })()}
 
-      {/* Matriz Modelo x Tipo de Apuesta */}
-      {(() => {
-        const models = Array.from(new Set(by_model_type.map(r => r.model))).sort();
-        const betTypes = Array.from(new Set(by_model_type.map(r => r.bet_type)));
-        const cell = (model: string, betType: string) =>
-          by_model_type.find(r => r.model === model && r.bet_type === betType);
+      {/* Validación del H2H Scoring System */}
+      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <h2 className="text-xl font-bold text-white mb-1">🔬 Validación del Sistema de Puntuación H2H</h2>
+        <p className="text-slate-400 text-xs mb-4">
+          Cada pronóstico trae una puntuación 0-12: cuántos de los últimos hasta-12 enfrentamientos directos
+          <em> anteriores</em> a ese partido cumplían lo mismo que Weinston predijo (ej: "más de 9.5 corners se dio en 10 de los últimos 12 H2H" → puntuación 10).
+          Acá comparamos esa puntuación contra lo que <strong className="text-white">realmente pasó</strong> en cada partido ya jugado, para saber si una puntuación alta de verdad predice mejor.
+        </p>
 
-        return (
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-1">🧩 Matriz Modelo × Tipo de Apuesta</h2>
-            <p className="text-slate-400 text-xs mb-4">Accuracy de cada modelo por tipo de apuesta — el marco dorado es el modelo más acertivo en esa fila.</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left text-slate-400 p-2">Tipo</th>
-                    {models.map(m => (
-                      <th key={m} className="text-center text-slate-400 p-2 capitalize">{m}</th>
+        {h2hLoading ? (
+          <div className="text-center text-slate-400 py-8">⏳ Cargando validación H2H...</div>
+        ) : h2hError ? (
+          <div className="text-center text-red-400 py-8">❌ {h2hError}</div>
+        ) : !h2hData || h2hData.total_leagues === 0 ? (
+          <div className="text-center text-slate-400 py-8">No hay datos de H2H scoring todavía.</div>
+        ) : (() => {
+          // Aplanar todo en (liga, stat, score, total, hits, accuracy) para el Top 4
+          type FlatEntry = { league: string; stat: string; score: number; total: number; accuracy: number };
+          const flat: FlatEntry[] = [];
+          for (const [league, byStat] of Object.entries(h2hData.h2h_effectiveness)) {
+            for (const [stat, entries] of Object.entries(byStat)) {
+              for (const e of entries) {
+                flat.push({ league, stat, score: e.score, total: e.total, accuracy: e.accuracy });
+              }
+            }
+          }
+          const top4 = flat
+            .filter(e => e.total >= LOW_SAMPLE_THRESHOLD)
+            .sort((a, b) => b.accuracy - a.accuracy)
+            .slice(0, 4);
+
+          const leagues = Object.keys(h2hData.h2h_effectiveness).sort();
+          const statsAvailable = Array.from(
+            new Set(leagues.flatMap(l => Object.keys(h2hData.h2h_effectiveness[l])))
+          );
+          const activeStat = statsAvailable.includes(selectedStat) ? selectedStat : statsAvailable[0];
+
+          const cellFor = (league: string, score: number): H2HScoreEntry | undefined =>
+            h2hData.h2h_effectiveness[league]?.[activeStat]?.find(e => e.score === score);
+
+          return (
+            <>
+              {/* Top 4 más efectivas de todas las ligas */}
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-slate-300 mb-3">🏆 Top 4 puntuaciones más efectivas (todas las ligas, mín. {LOW_SAMPLE_THRESHOLD} partidos)</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {top4.map((e, i) => (
+                    <div key={i} className={`rounded-lg p-4 border ${getAccuracyBgColor(e.accuracy)} border-slate-700`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-slate-400">#{i + 1}</span>
+                        <span className={`text-2xl font-bold ${getAccuracyColor(e.accuracy)}`}>{e.accuracy.toFixed(1)}%</span>
+                      </div>
+                      <div className="text-white font-semibold text-sm">{H2H_STAT_LABELS[e.stat] || e.stat}</div>
+                      <div className="text-slate-400 text-xs">{e.league} · puntuación {e.score}</div>
+                      <div className="text-slate-500 text-xs mt-1">{e.total} partidos analizados</div>
+                    </div>
+                  ))}
+                  {top4.length === 0 && (
+                    <div className="col-span-full text-slate-500 text-sm">Todavía no hay suficientes partidos con muestra grande.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Matriz puntuación (0-12) x liga, para el item seleccionado */}
+              <div>
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 className="text-sm font-semibold text-slate-300">Todas las puntuaciones (0-12) por liga</h3>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {statsAvailable.map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setSelectedStat(s)}
+                        className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                          activeStat === s ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        {H2H_STAT_LABELS[s] || s}
+                      </button>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {betTypes.map((bt) => {
-                    const cells = models.map(m => ({ model: m, data: cell(m, bt) }));
-                    const bestAcc = Math.max(...cells.filter(c => c.data).map(c => c.data!.accuracy_pct));
-                    return (
-                      <tr key={bt} className="border-b border-slate-700/50">
-                        <td className="text-white p-2 font-medium whitespace-nowrap">{getBetTypeLabel(bt)}</td>
-                        {cells.map(({ model, data }) => (
-                          <td key={model} className="p-2 text-center">
-                            {!data ? (
-                              <span className="text-slate-600 text-xs">—</span>
-                            ) : (
-                              <div
-                                className={`inline-flex flex-col items-center rounded-lg px-2.5 py-1.5 ${getAccuracyBgColor(data.accuracy_pct)} ${data.accuracy_pct === bestAcc ? 'ring-2 ring-yellow-400' : ''} ${data.total < LOW_SAMPLE_THRESHOLD ? 'opacity-60' : ''}`}
-                                title={data.total < LOW_SAMPLE_THRESHOLD ? `Muestra baja: solo ${data.total} apuestas` : undefined}
-                              >
-                                <span className={`font-bold ${getAccuracyColor(data.accuracy_pct)}`}>
-                                  {data.total < LOW_SAMPLE_THRESHOLD && '⚠️ '}{data.accuracy_pct.toFixed(0)}%
-                                </span>
-                                <span className="text-[10px] text-slate-400">{data.total} ap.</span>
-                              </div>
-                            )}
-                          </td>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-700">
+                        <th className="text-left text-slate-400 p-2">Puntuación</th>
+                        {leagues.map(l => (
+                          <th key={l} className="text-center text-slate-400 p-2 whitespace-nowrap">{l}</th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: 13 }, (_, i) => 12 - i).map(score => (
+                        <tr key={score} className="border-b border-slate-700/50">
+                          <td className="text-white p-2 font-bold">{score}/12</td>
+                          {leagues.map(league => {
+                            const data = cellFor(league, score);
+                            const lowSample = data && data.total < LOW_SAMPLE_THRESHOLD;
+                            return (
+                              <td key={league} className="p-1.5 text-center">
+                                {!data ? (
+                                  <span className="text-slate-600">—</span>
+                                ) : (
+                                  <div
+                                    className={`inline-flex flex-col items-center rounded px-2 py-1 ${getAccuracyBgColor(data.accuracy)} ${lowSample ? 'opacity-60' : ''}`}
+                                    title={lowSample ? `Muestra baja: solo ${data.total} partidos` : undefined}
+                                  >
+                                    <span className={`font-bold ${getAccuracyColor(data.accuracy)}`}>
+                                      {lowSample && '⚠️ '}{data.accuracy.toFixed(0)}%
+                                    </span>
+                                    <span className="text-slate-500 text-[10px]">{data.total}</span>
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          );
+        })()}
+      </div>
 
       {/* Grid: Por Modelo + Por Ranking */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

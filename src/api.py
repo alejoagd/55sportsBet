@@ -4674,6 +4674,25 @@ def get_h2h_score_effectiveness_by_league(
                 {where_sql}
                 GROUP BY l.name, h2h.faltas_score
 
+                UNION ALL
+
+                -- GOLES
+                SELECT
+                    l.name as league_name,
+                    'GOLES' as stat_type,
+                    h2h.goles_score as score,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN h2h.goles_hit THEN 1 ELSE 0 END) as hits,
+                    ROUND(AVG(CASE WHEN h2h.goles_hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
+                FROM h2h_scoring h2h
+                JOIN matches m ON m.id = h2h.match_id
+                JOIN seasons s ON s.id = m.season_id
+                JOIN leagues l ON l.id = s.league_id
+                WHERE h2h.goles_score IS NOT NULL
+                AND h2h.goles_hit IS NOT NULL
+                {where_sql}
+                GROUP BY l.name, h2h.goles_score
+
                 ORDER BY league_name, stat_type, score
             """)
 
