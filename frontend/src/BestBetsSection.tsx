@@ -99,7 +99,7 @@ export default function BestBetsSection() {
     setH2hPicksError(null);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?days_ahead=10&min_sample=10&limit=4`);
+      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?min_sample=10&limit=4`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Error ${response.status}: ${errorText}`);
@@ -455,7 +455,7 @@ export default function BestBetsSection() {
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-white">Pronósticos H2H con Mayor Respaldo Histórico</h2>
             <p className="text-slate-400 text-xs sm:text-sm">
-              Próximos partidos cuya puntuación H2H (0-12) tuvo el mejor acierto real en partidos ya jugados de la misma liga
+              El mejor pronóstico de cada tipo (goles, tiros, faltas, tarjetas, corners...) entre todos los partidos de este fin de semana, según su acierto real en partidos ya jugados de la misma liga
             </p>
           </div>
         </div>

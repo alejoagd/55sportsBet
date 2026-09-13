@@ -564,16 +564,45 @@ STAT_LABELS = {
 }
 
 
-def get_top_upcoming_h2h_picks(days_ahead: int = 10, min_sample: int = 10, limit: int = 4) -> List[Dict[str, Any]]:
+def _current_weekend_window() -> Tuple[Any, Any]:
     """
-    De los partidos que se van a jugar pronto, calcula su puntuación H2H en
-    vivo (0-12) para cada estadística y la cruza contra la efectividad REAL
-    que esa puntuación exacta tuvo históricamente en esa liga (la tabla
-    h2h_scoring ya validada por get_top_upcoming_h2h_picks/backtest — ver
-    /api/h2h-score/effectiveness-by-league). Retorna los `limit` pronósticos
-    próximos cuya puntuación tiene el mejor historial real de acierto,
-    exigiendo al menos `min_sample` partidos pasados con esa misma
-    puntuación exacta para no confiar en una muestra chica.
+    Ventana viernes-lunes que contiene "este fin de semana": si hoy ya cae
+    dentro de un fin de semana (vie/sáb/dom/lun) usa ESE, si no, el próximo.
+    Cubre ligas que juegan desde el viernes hasta el lunes por la noche.
+    """
+    from datetime import date, timedelta
+    today = date.today()
+    weekday = today.weekday()  # Mon=0 ... Sun=6
+    if weekday in (4, 5, 6, 0):  # ya estamos en un fin de semana (vie/sáb/dom/lun)
+        start = today - timedelta(days=(weekday - 4) % 7)
+    else:  # martes/miércoles/jueves -> el próximo viernes
+        start = today + timedelta(days=(4 - weekday) % 7)
+    end = start + timedelta(days=3)  # viernes .. lunes
+    return start, end
+
+
+def get_top_upcoming_h2h_picks(
+    days_ahead: Optional[int] = None,
+    min_sample: int = 10,
+    limit: int = 4,
+    weekend_only: bool = True,
+) -> List[Dict[str, Any]]:
+    """
+    De los partidos que se van a jugar (por defecto, solo los de "este fin de
+    semana" — viernes a lunes; con weekend_only=False o days_ahead seteado,
+    usa una ventana de N días desde hoy en su lugar), calcula la puntuación
+    H2H en vivo (0-12) de cada estadística y la cruza contra la efectividad
+    REAL que esa puntuación exacta tuvo históricamente en esa liga (tabla
+    h2h_scoring, ya poblada por el backtest — ver
+    /api/h2h-score/effectiveness-by-league).
+
+    Para asegurar variedad, NO se toman simplemente las `limit` mejores
+    filas globales (eso puede terminar siendo 4 veces el mismo item, ej.
+    "Faltas" en Bundesliga) — primero se busca, para CADA item (goles,
+    tiros, tiros_al_arco, faltas, tarjetas, corners), su mejor pronóstico de
+    todo el fin de semana (la puntuación con mayor accuracy real, sin
+    importar en qué partido/liga haya salido); recién de esos "campeones"
+    por item se ordenan y se devuelven los `limit` con mejor accuracy.
     """
     with engine.begin() as conn:
         # 1) tabla de efectividad real (liga, stat, score) -> (accuracy, total)
@@ -605,8 +634,17 @@ def get_top_upcoming_h2h_picks(days_ahead: int = 10, min_sample: int = 10, limit
             for row in conn.execute(accuracy_query).fetchall()
         }
 
-        # 2) partidos proximos con prediccion de Weinston ya generada
-        candidates_query = text("""
+        # 2) partidos a analizar: "este fin de semana" (viernes-lunes) por defecto,
+        #    o una ventana de N dias si se pide explicitamente
+        if weekend_only and days_ahead is None:
+            window_start, window_end = _current_weekend_window()
+            date_filter = "m.date BETWEEN :window_start AND :window_end"
+            date_params = {"window_start": window_start, "window_end": window_end}
+        else:
+            date_filter = "m.date BETWEEN CURRENT_DATE AND CURRENT_DATE + (:days_ahead || ' days')::interval"
+            date_params = {"days_ahead": days_ahead or 10}
+
+        candidates_query = text(f"""
             SELECT m.id as match_id, m.home_team_id, m.away_team_id, m.season_id, m.date,
                    th.name as home_team, ta.name as away_team, th.logo_url as home_logo, ta.logo_url as away_logo,
                    l.name as league
@@ -617,12 +655,16 @@ def get_top_upcoming_h2h_picks(days_ahead: int = 10, min_sample: int = 10, limit
             JOIN seasons s ON s.id = m.season_id
             JOIN leagues l ON l.id = s.league_id
             WHERE m.home_goals IS NULL
-              AND m.date BETWEEN CURRENT_DATE AND CURRENT_DATE + (:days_ahead || ' days')::interval
+              AND {date_filter}
             ORDER BY m.date
         """)
-        candidates = conn.execute(candidates_query, {"days_ahead": days_ahead}).mappings().all()
+        candidates = conn.execute(candidates_query, date_params).mappings().all()
 
-    picks: List[Dict[str, Any]] = []
+    # Para cada item (stat), nos quedamos solo con su mejor pronostico de
+    # todo el fin de semana (mayor accuracy real) — asi el resultado nunca
+    # repite el mismo item 4 veces, aunque ese item domine el ranking global.
+    best_by_stat: Dict[str, Dict[str, Any]] = {}
+
     for c in candidates:
         scoring = calculate_h2h_scoring(c["match_id"], c["home_team_id"], c["away_team_id"], c["season_id"])
         if "error" in scoring:
@@ -639,7 +681,7 @@ def get_top_upcoming_h2h_picks(days_ahead: int = 10, min_sample: int = 10, limit
             if historical_sample < min_sample:
                 continue
 
-            picks.append({
+            candidate_pick = {
                 "match_id": c["match_id"],
                 "date": c["date"].isoformat() if hasattr(c["date"], "isoformat") else str(c["date"]),
                 "home_team": c["home_team"],
@@ -655,7 +697,11 @@ def get_top_upcoming_h2h_picks(days_ahead: int = 10, min_sample: int = 10, limit
                 "h2h_valid_matches": result["valid_matches"],
                 "historical_accuracy": historical_accuracy,
                 "historical_sample": historical_sample,
-            })
+            }
 
-    picks.sort(key=lambda p: p["historical_accuracy"], reverse=True)
+            current_best = best_by_stat.get(stat)
+            if current_best is None or historical_accuracy > current_best["historical_accuracy"]:
+                best_by_stat[stat] = candidate_pick
+
+    picks = sorted(best_by_stat.values(), key=lambda p: p["historical_accuracy"], reverse=True)
     return picks[:limit]
