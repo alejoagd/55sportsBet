@@ -587,6 +587,7 @@ def get_top_upcoming_h2h_picks(
     min_accuracy: float = 0,
     limit: int = 4,
     weekend_only: bool = True,
+    exclude_stats: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     De los partidos que se van a jugar (por defecto, solo los de "este fin de
@@ -677,6 +678,8 @@ def get_top_upcoming_h2h_picks(
             continue
 
         for stat, result in scoring["predictions"].items():
+            if exclude_stats and stat in exclude_stats:
+                continue
             score = result.get("score")
             if score is None:
                 continue

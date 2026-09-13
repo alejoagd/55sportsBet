@@ -4289,7 +4289,8 @@ def get_top_upcoming_h2h_picks_endpoint(
     min_sample: int = Query(10, description="Mínimo de partidos históricos con esa puntuación exacta para considerarla confiable"),
     min_accuracy: float = Query(0, description="Descarta cualquier pronóstico con accuracy real por debajo de este piso (0-100)"),
     limit: int = Query(4, description="Cuántos pronósticos devolver como máximo"),
-    weekend_only: bool = Query(True, description="Restringir a 'este fin de semana' (viernes-lunes); se ignora si se pasa days_ahead")
+    weekend_only: bool = Query(True, description="Restringir a 'este fin de semana' (viernes-lunes); se ignora si se pasa days_ahead"),
+    exclude_stats: Optional[str] = Query(None, description="Items a excluir del ranking, separados por coma (ej: 'faltas' o 'faltas,corners')")
 ):
     """
     De los partidos de este fin de semana (o de la ventana de días pedida),
@@ -4300,9 +4301,11 @@ def get_top_upcoming_h2h_picks_endpoint(
     """
     from src.predictions.h2h_scoring_system import get_top_upcoming_h2h_picks
 
+    exclude_list = [s.strip() for s in exclude_stats.split(",")] if exclude_stats else None
+
     picks = get_top_upcoming_h2h_picks(
         days_ahead=days_ahead, min_sample=min_sample, min_accuracy=min_accuracy,
-        limit=limit, weekend_only=weekend_only
+        limit=limit, weekend_only=weekend_only, exclude_stats=exclude_list
     )
     return {"picks": picks}
 

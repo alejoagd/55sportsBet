@@ -168,7 +168,9 @@ export default function BestBetsAnalysis() {
     setTop10Error(null);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?min_sample=11&min_accuracy=70&limit=10`);
+      // FILTRO TEMPORAL (ejercicio 2026-09-13): excluye "faltas" del ranking para
+      // ver cómo se ve sin que ese item domine — quitar exclude_stats para revertir.
+      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?min_sample=11&min_accuracy=70&limit=10&exclude_stats=faltas`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Error ${response.status}: ${errorText}`);
