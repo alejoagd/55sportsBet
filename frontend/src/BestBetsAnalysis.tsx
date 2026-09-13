@@ -174,7 +174,6 @@ export default function BestBetsAnalysis() {
   const getBetTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       'OVER_25': 'Over/Under 2.5',
-      'OVER_UNDER': 'Over/Under (líneas)',
       'BTTS': 'BTTS',
       '1X2': '1X2',
       'CORNERS': 'Corners',
