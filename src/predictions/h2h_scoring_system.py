@@ -584,6 +584,7 @@ def _current_weekend_window() -> Tuple[Any, Any]:
 def get_top_upcoming_h2h_picks(
     days_ahead: Optional[int] = None,
     min_sample: int = 10,
+    min_accuracy: float = 0,
     limit: int = 4,
     weekend_only: bool = True,
 ) -> List[Dict[str, Any]]:
@@ -596,13 +597,15 @@ def get_top_upcoming_h2h_picks(
     h2h_scoring, ya poblada por el backtest — ver
     /api/h2h-score/effectiveness-by-league).
 
-    Para asegurar variedad, NO se toman simplemente las `limit` mejores
-    filas globales (eso puede terminar siendo 4 veces el mismo item, ej.
-    "Faltas" en Bundesliga) — primero se busca, para CADA item (goles,
-    tiros, tiros_al_arco, faltas, tarjetas, corners), su mejor pronóstico de
-    todo el fin de semana (la puntuación con mayor accuracy real, sin
-    importar en qué partido/liga haya salido); recién de esos "campeones"
-    por item se ordenan y se devuelven los `limit` con mejor accuracy.
+    Devuelve las `limit` combinaciones (partido, estadística) con mayor
+    accuracy real histórico — sin diversificar por item: si el mismo patrón
+    (ej. "Faltas score=3") es el más confiable en varios partidos distintos
+    del fin de semana, todos entran antes de bajar a otro item. Único
+    resguardo: nunca se repite el mismo partido en dos lugares del listado.
+    `min_sample` exige un mínimo de partidos históricos con esa puntuación
+    exacta, y `min_accuracy` (0-100) descarta cualquier candidato por debajo
+    de ese piso de confiabilidad real en vez de solo tomar el top N a
+    cualquier costo.
     """
     with engine.begin() as conn:
         # 1) tabla de efectividad real (liga, stat, score) -> (accuracy, total)
@@ -682,6 +685,8 @@ def get_top_upcoming_h2h_picks(
                 continue
             historical_accuracy, historical_sample = lookup
             if historical_sample < min_sample:
+                continue
+            if historical_accuracy < min_accuracy:
                 continue
 
             candidate_pick = {

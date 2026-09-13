@@ -4287,21 +4287,22 @@ def get_league_h2h_effectiveness(season_id: int, min_score: int = Query(8)):
 def get_top_upcoming_h2h_picks_endpoint(
     days_ahead: Optional[int] = Query(None, description="Si se especifica, usa una ventana de N días desde hoy en vez de 'este fin de semana'"),
     min_sample: int = Query(10, description="Mínimo de partidos históricos con esa puntuación exacta para considerarla confiable"),
-    limit: int = Query(4, description="Cuántos pronósticos devolver (uno por item como máximo)"),
+    min_accuracy: float = Query(0, description="Descarta cualquier pronóstico con accuracy real por debajo de este piso (0-100)"),
+    limit: int = Query(4, description="Cuántos pronósticos devolver como máximo"),
     weekend_only: bool = Query(True, description="Restringir a 'este fin de semana' (viernes-lunes); se ignora si se pasa days_ahead")
 ):
     """
     De los partidos de este fin de semana (o de la ventana de días pedida),
-    el mejor pronóstico H2H de CADA item (goles, tiros, tiros_al_arco,
-    faltas, tarjetas, corners) según su efectividad REAL histórica en esa
-    liga, y de esos "campeones" por item, los `limit` con mejor accuracy —
-    nunca repite el mismo item más de una vez, aunque domine el ranking
-    global.
+    las combinaciones (partido, estadística) con mayor accuracy real
+    histórico en esa liga — sin diversificar por item, solo evitando repetir
+    el mismo partido. `min_accuracy` descarta candidatos por debajo de ese
+    piso en vez de rellenar con lo que sea hasta completar `limit`.
     """
     from src.predictions.h2h_scoring_system import get_top_upcoming_h2h_picks
 
     picks = get_top_upcoming_h2h_picks(
-        days_ahead=days_ahead, min_sample=min_sample, limit=limit, weekend_only=weekend_only
+        days_ahead=days_ahead, min_sample=min_sample, min_accuracy=min_accuracy,
+        limit=limit, weekend_only=weekend_only
     )
     return {"picks": picks}
 

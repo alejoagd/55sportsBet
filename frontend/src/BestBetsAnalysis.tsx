@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Target, Award, CheckCircle, XCircle } from 'lucide-react';
 import { AdminOnly } from './AdminButton';
@@ -25,6 +26,24 @@ interface H2HScoreEntry {
 interface H2HEffectivenessResponse {
   h2h_effectiveness: Record<string, Record<string, H2HScoreEntry[]>>;
   total_leagues: number;
+}
+
+interface H2HTopPick {
+  match_id: number;
+  date: string;
+  home_team: string;
+  away_team: string;
+  home_team_logo?: string | null;
+  away_team_logo?: string | null;
+  league: string;
+  stat: string;
+  stat_label: string;
+  prediction: string;
+  line: number | null;
+  score: number;
+  h2h_valid_matches: number;
+  historical_accuracy: number;
+  historical_sample: number;
 }
 
 const H2H_STAT_LABELS: Record<string, string> = {
@@ -122,6 +141,7 @@ interface HistoryBet {
 }
 
 export default function BestBetsAnalysis() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<BestBetsStats | null>(null);
   const [history, setHistory] = useState<HistoryBet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,12 +152,36 @@ export default function BestBetsAnalysis() {
   const [h2hLoading, setH2hLoading] = useState(true);
   const [h2hError, setH2hError] = useState<string | null>(null);
   const [selectedStat, setSelectedStat] = useState<string>('CORNERS');
+  const [top10Picks, setTop10Picks] = useState<H2HTopPick[]>([]);
+  const [top10Loading, setTop10Loading] = useState(true);
+  const [top10Error, setTop10Error] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
     fetchHistory();
     fetchH2hEffectiveness();
+    fetchTop10Picks();
   }, [showHistory]);
+
+  const fetchTop10Picks = async () => {
+    setTop10Loading(true);
+    setTop10Error(null);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/h2h-score/top-upcoming-picks?min_sample=11&min_accuracy=80&limit=10`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      setTop10Picks(data.picks || []);
+    } catch (error) {
+      console.error('❌ Error fetching top 10 H2H picks:', error);
+      setTop10Error(error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setTop10Loading(false);
+    }
+  };
 
   const fetchH2hEffectiveness = async () => {
     setH2hLoading(true);
@@ -216,6 +260,13 @@ export default function BestBetsAnalysis() {
     } finally {
       setValidating(false);
     }
+  };
+
+  const formatMatchDate = (dateString: string): string => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' });
   };
 
   const getBetTypeLabel = (type: string) => {
@@ -772,7 +823,7 @@ export default function BestBetsAnalysis() {
                       </div>
                       <div>
                         <div className="text-slate-400 text-xs">Confianza</div>
-                        <div className="text-white text-xs sm:text-sm">{(bet.confidence * 100).toFixed(0)}%</div>
+                        <div className="text-white text-xs sm:text-sm">{bet.confidence.toFixed(0)}%</div>
                       </div>
                     </div>
                   </div>
@@ -813,6 +864,66 @@ export default function BestBetsAnalysis() {
             <li><strong className="text-yellow-400">⚠️ Muestra baja:</strong> menos de {LOW_SAMPLE_THRESHOLD} apuestas respaldan ese %, así que puede cambiar mucho con el próximo resultado — tómalo con cautela</li>
           </ul>
         </div>
+      </div>
+
+      {/* Top 10 apuestas H2H de alta confianza (este fin de semana) */}
+      <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg p-4 sm:p-6 border border-purple-500/30">
+        <h2 className="text-xl font-bold text-white mb-1">🎯 Top 10 Apuestas H2H de Alta Confianza</h2>
+        <p className="text-slate-400 text-xs sm:text-sm mb-4">
+          De todos los partidos de este fin de semana: puntuaciones H2H (0-12) con accuracy real ≥ 80% y respaldadas por más de 10 partidos pasados.
+        </p>
+
+        {top10Loading ? (
+          <div className="text-center text-slate-400 py-8">⏳ Calculando puntuaciones H2H en vivo...</div>
+        ) : top10Error ? (
+          <div className="text-center text-red-400 py-8">❌ {top10Error}</div>
+        ) : top10Picks.length === 0 ? (
+          <div className="text-center text-slate-400 py-8">
+            Ningún pronóstico de este fin de semana llega a 80% de accuracy real con más de 10 partidos de respaldo.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {top10Picks.map((pick, i) => {
+              const isOver = pick.prediction.startsWith('OVER');
+              return (
+                <div
+                  key={`${pick.match_id}-${pick.stat}`}
+                  onClick={() => navigate(`/match/${pick.match_id}`, { state: { returnPath: '/analysis' } })}
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-slate-900/50 rounded-lg p-3 cursor-pointer hover:bg-slate-900/80 transition-colors"
+                >
+                  <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white font-semibold text-sm truncate">
+                      {pick.home_team} vs {pick.away_team}
+                    </div>
+                    <div className="text-slate-400 text-xs">
+                      {pick.league} · {formatMatchDate(pick.date)}
+                    </div>
+                  </div>
+                  <div className="text-slate-300 text-sm shrink-0">
+                    <span className="text-purple-300 font-semibold">{isOver ? 'Más de' : 'Menos de'} {pick.line} {pick.stat_label}</span>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <div className="bg-slate-800 rounded px-2.5 py-1 text-center">
+                      <div className="text-slate-500 text-[10px]">Puntuación</div>
+                      <div className="text-white font-bold text-sm">{pick.score}/{pick.h2h_valid_matches}</div>
+                    </div>
+                    <div className={`rounded px-2.5 py-1 text-center ${getAccuracyBgColor(pick.historical_accuracy)}`}>
+                      <div className="text-slate-500 text-[10px]">Accuracy real</div>
+                      <div className={`font-bold text-sm ${getAccuracyColor(pick.historical_accuracy)}`}>{pick.historical_accuracy.toFixed(0)}%</div>
+                    </div>
+                    <div className="bg-slate-800 rounded px-2.5 py-1 text-center">
+                      <div className="text-slate-500 text-[10px]">Muestra</div>
+                      <div className="text-white font-bold text-sm">{pick.historical_sample}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
