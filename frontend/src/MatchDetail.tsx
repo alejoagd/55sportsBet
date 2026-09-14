@@ -33,17 +33,19 @@ interface MatchStats {
   home_red_cards: number | null;
   away_red_cards: number | null;
   
-  // Predicciones de Weinston (estadísticas predichas)
-  weinston_shots_home?: number;
-  weinston_shots_away?: number;
-  weinston_shots_on_target_home?: number;
-  weinston_shots_on_target_away?: number;
-  weinston_fouls_home?: number;
-  weinston_fouls_away?: number;
-  weinston_corners_home?: number;
-  weinston_corners_away?: number;
-  weinston_cards_home?: number;
-  weinston_cards_away?: number;
+  // Predicciones de Weinston (estadísticas predichas). null cuando la liga
+  // no tiene match_stats real para calibrar esa predicción (no se inventa
+  // un valor genérico derivado solo del gol esperado).
+  weinston_shots_home?: number | null;
+  weinston_shots_away?: number | null;
+  weinston_shots_on_target_home?: number | null;
+  weinston_shots_on_target_away?: number | null;
+  weinston_fouls_home?: number | null;
+  weinston_fouls_away?: number | null;
+  weinston_corners_home?: number | null;
+  weinston_corners_away?: number | null;
+  weinston_cards_home?: number | null;
+  weinston_cards_away?: number | null;
 
   // Probabilidades exactas de Weinston (nuevas)
   weinston_prob_over_25?: number;     // Probabilidad exacta de Over 2.5
@@ -444,56 +446,70 @@ export default function MatchDetail() {
         {/* Últimos 6 partidos de cada equipo */}
         <TeamFormSection matchId={Number(matchId)} />
 
-        {/* Predicciones de Estadísticas Detalladas */}
+        {/* Predicciones de Estadísticas Detalladas. Cada card sólo se
+            muestra si la liga tiene match_stats real para calibrarla - si
+            no, el backend manda null y no hay nada fiable que mostrar. */}
+        {(match.weinston_shots_home != null || match.weinston_fouls_home != null ||
+          match.weinston_cards_home != null || match.weinston_corners_home != null) && (
         <div className="bg-slate-800 rounded-lg p-4 sm:p-6 shadow-xl border border-orange-500/20">
           <h2 className="text-xl sm:text-2xl font-bold text-orange-400 mb-4 sm:mb-6">📊 Predicciones de Estadísticas (Weinston)</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-            <StatPredictionCard
-              label="Shots"
-              homeValue={safeNumber(match.weinston_shots_home)}
-              awayValue={safeNumber(match.weinston_shots_away)}
-              homeTeam={match.home_team}
-              awayTeam={match.away_team}
-              bettingLine={bettingLines?.shots}
-              renderBettingLine={renderBettingLine}
-            />
-            <StatPredictionCard
-              label="Shots OT"
-              homeValue={safeNumber(match.weinston_shots_on_target_home)}
-              awayValue={safeNumber(match.weinston_shots_on_target_away)}
-              homeTeam={match.home_team}
-              awayTeam={match.away_team}
-              bettingLine={bettingLines?.shots_on_target}
-              renderBettingLine={renderBettingLine}
-            />
-            <StatPredictionCard
-              label="Fouls"
-              homeValue={safeNumber(match.weinston_fouls_home)}
-              awayValue={safeNumber(match.weinston_fouls_away)}
-              homeTeam={match.home_team}
-              awayTeam={match.away_team}
-              bettingLine={bettingLines?.fouls}
-              renderBettingLine={renderBettingLine}
-            />
-            <StatPredictionCard
-              label="Cards"
-              homeValue={safeNumber(match.weinston_cards_home)}
-              awayValue={safeNumber(match.weinston_cards_away)}
-              homeTeam={match.home_team}
-              awayTeam={match.away_team}
-              bettingLine={bettingLines?.cards}
-              renderBettingLine={renderBettingLine}
-            />
-            <StatPredictionCard
-              label="Corners"
-              homeValue={safeNumber(match.weinston_corners_home)}
-              awayValue={safeNumber(match.weinston_corners_away)}
-              homeTeam={match.home_team}
-              awayTeam={match.away_team}
-              bettingLine={bettingLines?.corners}
-              renderBettingLine={renderBettingLine}
-            />
+            {match.weinston_shots_home != null && match.weinston_shots_away != null && (
+              <StatPredictionCard
+                label="Shots"
+                homeValue={match.weinston_shots_home}
+                awayValue={match.weinston_shots_away}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                bettingLine={bettingLines?.shots}
+                renderBettingLine={renderBettingLine}
+              />
+            )}
+            {match.weinston_shots_on_target_home != null && match.weinston_shots_on_target_away != null && (
+              <StatPredictionCard
+                label="Shots OT"
+                homeValue={match.weinston_shots_on_target_home}
+                awayValue={match.weinston_shots_on_target_away}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                bettingLine={bettingLines?.shots_on_target}
+                renderBettingLine={renderBettingLine}
+              />
+            )}
+            {match.weinston_fouls_home != null && match.weinston_fouls_away != null && (
+              <StatPredictionCard
+                label="Fouls"
+                homeValue={match.weinston_fouls_home}
+                awayValue={match.weinston_fouls_away}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                bettingLine={bettingLines?.fouls}
+                renderBettingLine={renderBettingLine}
+              />
+            )}
+            {match.weinston_cards_home != null && match.weinston_cards_away != null && (
+              <StatPredictionCard
+                label="Cards"
+                homeValue={match.weinston_cards_home}
+                awayValue={match.weinston_cards_away}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                bettingLine={bettingLines?.cards}
+                renderBettingLine={renderBettingLine}
+              />
+            )}
+            {match.weinston_corners_home != null && match.weinston_corners_away != null && (
+              <StatPredictionCard
+                label="Corners"
+                homeValue={match.weinston_corners_home}
+                awayValue={match.weinston_corners_away}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                bettingLine={bettingLines?.corners}
+                renderBettingLine={renderBettingLine}
+              />
+            )}
           </div>
 
           {/* Leyenda de Betting Lines */}
@@ -521,6 +537,7 @@ export default function MatchDetail() {
             </div>
           )}
         </div>
+        )}
 
         {/* Estadísticas Reales (si el partido está finalizado) */}
         {isFinished && match.has_real_stats && (

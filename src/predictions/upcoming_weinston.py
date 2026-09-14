@@ -379,13 +379,20 @@ def predict_and_upsert_weinston(
             ch, ca   = _exp_stat("cards", home_id, away_id, profiles, league_means)
             coh, coa = _exp_stat("corners", home_id, away_id, profiles, league_means)
         else:
-            sh = round(lh * 9 + 3, 2); sa = round(la * 9 + 3, 2)
-            sth = round(lh * 3.5 + 1, 2); sta = round(la * 3.5 + 1, 2)
-            fh = round(lh * 5 + 7, 2); fa = round(la * 5 + 7, 2)
-            ch = round(lh * 0.8 + 1, 2); ca = round(la * 0.8 + 1, 2)
-            coh = round(lh * 3.5 + 2, 2); coa = round(la * 3.5 + 2, 2)
-        
-        wc = "HOME" if coh > coa else ("AWAY" if coa > coh else "TIE")
+            # Sin match_stats real para esta liga (perfiles vacíos) no hay
+            # ninguna señal de equipo que usar para tiros/faltas/tarjetas/
+            # corners - una fórmula genérica derivada solo del gol esperado
+            # aparentaría precisión de equipo que no existe, así que se deja
+            # NULL en vez de inventar un número.
+            sh = sa = sth = sta = fh = fa = ch = ca = coh = coa = None
+
+        if coh is not None and coa is not None:
+            wc = "HOME" if coh > coa else ("AWAY" if coa > coh else "TIE")
+        else:
+            wc = None
+
+        def _f(x):
+            return float(x) if x is not None else None
 
         conn.execute(upsert, {
             "mid": int(mid), "lg": lh, "ag": la, "r1x2": int(r1x2),
@@ -395,11 +402,11 @@ def predict_and_upsert_weinston(
             "pA": float(pr["pA"]),
             "pO25": float(pr["pO25"]),
             "pBTTS": float(pr["pBTTS"]),
-            "sh": float(sh), "sa": float(sa),
-            "sth": float(sth), "sta": float(sta),
-            "fh": float(fh), "fa": float(fa),
-            "ch": float(ch), "ca": float(ca),
-            "coh": float(coh), "coa": float(coa),
+            "sh": _f(sh), "sa": _f(sa),
+            "sth": _f(sth), "sta": _f(sta),
+            "fh": _f(fh), "fa": _f(fa),
+            "ch": _f(ch), "ca": _f(ca),
+            "coh": _f(coh), "coa": _f(coa),
             "wc": wc,
         })
         predictions_saved += 1
