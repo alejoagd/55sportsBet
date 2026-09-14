@@ -2977,7 +2977,7 @@ def get_team_form(match_id: int, limit: int = 10):
     """Devuelve los últimos N partidos completados para cada equipo del partido."""
     with engine.connect() as conn:
         match_row = conn.execute(text("""
-            SELECT m.home_team_id, m.away_team_id,
+            SELECT m.home_team_id, m.away_team_id, m.season_id,
                    ht.name as home_team, at.name as away_team
             FROM matches m
             JOIN teams ht ON m.home_team_id = ht.id
@@ -2987,6 +2987,30 @@ def get_team_form(match_id: int, limit: int = 10):
 
         if not match_row:
             raise HTTPException(404, "Match not found")
+
+        def get_season_halftime_avg(team_id: int):
+            """
+            Promedio de goles en 1er/2do tiempo de este equipo en TODOS sus
+            partidos de la temporada actual (no solo los últimos 6/10
+            mostrados en la lista) - sirve de referencia de tendencia para
+            contrastar contra el promedio H2H de la parte de arriba. NULL
+            cuando la liga no trae halftime_homegoal/awaygoal.
+            """
+            row = conn.execute(text("""
+                SELECT
+                    AVG(CASE WHEN m.home_team_id = :tid THEN m.halftime_homegoal ELSE m.halftime_awaygoal END) as avg_1h,
+                    AVG(CASE WHEN m.home_team_id = :tid THEN (m.home_goals - m.halftime_homegoal) ELSE (m.away_goals - m.halftime_awaygoal) END) as avg_2h,
+                    COUNT(CASE WHEN m.home_team_id = :tid THEN m.halftime_homegoal ELSE m.halftime_awaygoal END) as sample
+                FROM matches m
+                WHERE (m.home_team_id = :tid OR m.away_team_id = :tid)
+                  AND m.season_id = :sid
+                  AND m.home_goals IS NOT NULL
+            """), {"tid": team_id, "sid": match_row.season_id}).fetchone()
+            return {
+                "avg_goals_1h": float(row.avg_1h) if row.avg_1h is not None else None,
+                "avg_goals_2h": float(row.avg_2h) if row.avg_2h is not None else None,
+                "sample": row.sample,
+            }
 
         def get_form(team_id: int):
             rows = conn.execute(text("""
@@ -3027,6 +3051,8 @@ def get_team_form(match_id: int, limit: int = 10):
             "away_team": match_row.away_team,
             "home_form": get_form(match_row.home_team_id),
             "away_form": get_form(match_row.away_team_id),
+            "home_halftime_trend": get_season_halftime_avg(match_row.home_team_id),
+            "away_halftime_trend": get_season_halftime_avg(match_row.away_team_id),
         }
 
 

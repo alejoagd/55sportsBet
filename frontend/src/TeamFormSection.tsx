@@ -13,11 +13,19 @@ interface FormMatch {
   result: 'W' | 'D' | 'L';
 }
 
+interface HalftimeTrend {
+  avg_goals_1h: number | null;
+  avg_goals_2h: number | null;
+  sample: number;
+}
+
 interface TeamFormResponse {
   home_team: string;
   away_team: string;
   home_form: FormMatch[];
   away_form: FormMatch[];
+  home_halftime_trend: HalftimeTrend;
+  away_halftime_trend: HalftimeTrend;
 }
 
 const TEAM_FLAG: Record<string, string> = {
@@ -90,7 +98,7 @@ function resultClass(result: 'W' | 'D' | 'L'): string {
   return 'bg-red-600 text-white';
 }
 
-function TeamFormPanel({ team, form }: { team: string; form: FormMatch[] }) {
+function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[]; trend: HalftimeTrend }) {
   const flag = TEAM_FLAG[team] ?? '🏳';
   const code = TEAM_CODE[team] ?? team.slice(0, 3).toUpperCase();
 
@@ -205,6 +213,36 @@ function TeamFormPanel({ team, form }: { team: string; form: FormMatch[] }) {
           </div>
         </div>
       )}
+
+      {/* Tendencia de goles por tiempo en la temporada actual - referencia
+          para contrastar contra el promedio H2H mostrado arriba en el
+          análisis de enfrentamientos directos. Oculto si la liga no trae
+          halftime_homegoal/awaygoal. */}
+      {trend.avg_goals_1h !== null && trend.avg_goals_2h !== null && (
+        <div className="mt-2.5 pt-2.5 border-t border-slate-700/60">
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">
+            Tendencia de la Temporada
+          </p>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="flex items-center gap-1">
+              <span>🕐</span>
+              <span className="text-slate-300 font-semibold">{trend.avg_goals_1h.toFixed(2)}</span>
+              <span className="text-slate-500">1T/partido</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span>🕕</span>
+              <span className="text-slate-300 font-semibold">{trend.avg_goals_2h.toFixed(2)}</span>
+              <span className="text-slate-500">2T/partido</span>
+            </span>
+            <span
+              className={`text-[9px] font-medium px-1 rounded ${trend.sample < 3 ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
+              title="Partidos de esta temporada que respaldan este promedio"
+            >
+              {trend.sample} PJ
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -239,9 +277,9 @@ export default function TeamFormSection({ matchId }: { matchId: number }) {
         📈 Últimos Partidos
       </h2>
       <div className="flex flex-col sm:flex-row gap-6">
-        <TeamFormPanel team={data.home_team} form={data.home_form} />
+        <TeamFormPanel team={data.home_team} form={data.home_form} trend={data.home_halftime_trend} />
         <div className="hidden sm:block w-px bg-slate-700 flex-shrink-0" />
-        <TeamFormPanel team={data.away_team} form={data.away_form} />
+        <TeamFormPanel team={data.away_team} form={data.away_form} trend={data.away_halftime_trend} />
       </div>
     </div>
   );
