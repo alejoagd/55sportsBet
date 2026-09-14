@@ -3242,8 +3242,8 @@ def _venue_stat_items(s: Dict, home_prefix: str, away_prefix: str) -> List[Dict]
         ("shots", "Tiros", "🎯"),
         ("shots_on_target", "Tiros a puerta", "🥅"),
         ("corners", "Corners", "🚩"),
-        ("fouls", "Faltas", "🟨"),
-        ("cards", "Tarjetas", "🟥"),
+        ("fouls", "Faltas", "💥"),
+        ("cards", "Tarjetas", "🟨"),
     ]
     items = []
     for key, label, icon in pairs:
