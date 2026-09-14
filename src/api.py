@@ -3089,7 +3089,11 @@ async def get_h2h_analysis(match_id: int):
                 m.home_goals + m.away_goals as total_goals,
                 CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN true ELSE false END as btts,
                 CASE WHEN m.home_goals + m.away_goals >= 3 THEN true ELSE false END as over25,
-                
+
+                -- Goles por tiempo (NULL si el partido no trae HTHG/HTAG)
+                m.halftime_homegoal + m.halftime_awaygoal as total_goals_1h,
+                (m.home_goals + m.away_goals) - (m.halftime_homegoal + m.halftime_awaygoal) as total_goals_2h,
+
                 -- Estadísticas (NULL cuando no hay match_stats para este partido,
                 -- en vez de inventar un 0 - una liga sin esta fuente de datos
                 -- no debe aparentar "0 corners" como si fuera un dato real)
@@ -3144,7 +3148,11 @@ async def get_h2h_analysis(match_id: int):
                 m.home_goals + m.away_goals as total_goals,
                 CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN true ELSE false END as btts,
                 CASE WHEN m.home_goals + m.away_goals >= 3 THEN true ELSE false END as over25,
-                
+
+                -- Goles por tiempo (NULL si el partido no trae HTHG/HTAG)
+                m.halftime_homegoal + m.halftime_awaygoal as total_goals_1h,
+                (m.home_goals + m.away_goals) - (m.halftime_homegoal + m.halftime_awaygoal) as total_goals_2h,
+
                 -- Estadísticas (desde la perspectiva del equipo que hoy es local;
                 -- NULL cuando no hay match_stats, no un 0 falso)
                 ms.away_shots as team_shots,
@@ -3261,6 +3269,8 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info:
         "avg_total_corners": _avg_ignore_none(all_matches, "total_corners"),
         "avg_total_fouls": _avg_ignore_none(all_matches, "total_fouls"),
         "avg_total_cards": _avg_ignore_none(all_matches, "total_cards"),
+        "avg_total_goals_1h": _avg_ignore_none(all_matches, "total_goals_1h"),
+        "avg_total_goals_2h": _avg_ignore_none(all_matches, "total_goals_2h"),
         
         # Frecuencias
         "btts_count": sum(1 for m in all_matches if m.get("btts")),
