@@ -17,6 +17,8 @@ interface MatchStats {
   away_team_logo?: string | null;
   home_goals: number;
   away_goals: number;
+  halftime_homegoal: number | null;
+  halftime_awaygoal: number | null;
   referee: string;
   
   // Estadísticas reales del partido (null = no disponible)
@@ -432,6 +434,21 @@ export default function MatchDetail() {
                   <span className="text-slate-500 mx-3">-</span>
                   <span className="text-orange-400">{match.away_goals}</span>
                 </div>
+                {match.halftime_homegoal != null && match.halftime_awaygoal != null && (
+                  <div className="flex items-center justify-center gap-3 mt-2 text-xs text-slate-400">
+                    <span>
+                      1T <span className="text-slate-200 font-semibold">
+                        {match.halftime_homegoal}-{match.halftime_awaygoal}
+                      </span>
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span>
+                      2T <span className="text-slate-200 font-semibold">
+                        {match.home_goals - match.halftime_homegoal}-{match.away_goals - match.halftime_awaygoal}
+                      </span>
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

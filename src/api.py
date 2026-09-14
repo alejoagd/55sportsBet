@@ -469,7 +469,12 @@ def get_team_statistics(
                 AVG(m.away_goals) as avg_goals_conceded,
                 SUM(m.home_goals) as total_goals_scored,
                 SUM(m.away_goals) as total_goals_conceded,
-                
+
+                -- Goles por tiempo (desde matches.halftime_homegoal - HTHG de
+                -- football-data.co.uk; NULL si la liga no trae ese dato)
+                AVG(m.halftime_homegoal) as avg_goals_1h,
+                AVG(m.home_goals - m.halftime_homegoal) as avg_goals_2h,
+
                 -- Estadísticas detalladas (desde match_stats - DATOS REALES)
                 AVG(ms.home_corners) as avg_corners,
                 SUM(ms.home_corners) as total_corners,
@@ -481,7 +486,7 @@ def get_team_statistics(
                 SUM(ms.home_fouls) as total_fouls,
                 AVG(COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0)) as avg_cards,
                 SUM(COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0)) as total_cards
-                
+
             FROM teams t
             JOIN matches m ON m.home_team_id = t.id
             LEFT JOIN match_stats ms ON ms.match_id = m.id
@@ -502,7 +507,11 @@ def get_team_statistics(
                 AVG(m.home_goals) as avg_goals_conceded,
                 SUM(m.away_goals) as total_goals_scored,
                 SUM(m.home_goals) as total_goals_conceded,
-                
+
+                -- Goles por tiempo
+                AVG(m.halftime_awaygoal) as avg_goals_1h,
+                AVG(m.away_goals - m.halftime_awaygoal) as avg_goals_2h,
+
                 -- Estadísticas detalladas (desde match_stats - DATOS REALES)
                 AVG(ms.away_corners) as avg_corners,
                 SUM(ms.away_corners) as total_corners,
@@ -544,7 +553,14 @@ def get_team_statistics(
             ROUND(COALESCE(a.avg_goals_conceded, 0)::numeric, 2) as away_avg_goals_conceded,
             COALESCE(h.total_goals_conceded, 0) as home_total_goals_conceded,
             COALESCE(a.total_goals_conceded, 0) as away_total_goals_conceded,
-            
+
+            -- Goles por tiempo (NULL si la liga no trae HTHG/HTAG - se
+            -- resuelve aparte con has_halftime_data, sin COALESCE a 0 aquí)
+            ROUND(h.avg_goals_1h::numeric, 2) as home_avg_goals_1h,
+            ROUND(a.avg_goals_1h::numeric, 2) as away_avg_goals_1h,
+            ROUND(h.avg_goals_2h::numeric, 2) as home_avg_goals_2h,
+            ROUND(a.avg_goals_2h::numeric, 2) as away_avg_goals_2h,
+
             -- Corners
             ROUND(COALESCE(h.avg_corners, 0)::numeric, 2) as home_avg_corners,
             ROUND(COALESCE(a.avg_corners, 0)::numeric, 2) as away_avg_corners,
@@ -619,12 +635,21 @@ def get_team_statistics(
         "avg_cards", "total_cards",
     ]
 
+    HALFTIME_FIELDS = ["avg_goals_1h", "avg_goals_2h"]
+
     with engine.begin() as conn:
         has_match_stats = conn.execute(text("""
             SELECT EXISTS (
                 SELECT 1 FROM match_stats ms
                 JOIN matches m ON m.id = ms.match_id
                 WHERE m.season_id = :season_id
+            )
+        """), {"season_id": season_id}).scalar()
+
+        has_halftime_data = conn.execute(text("""
+            SELECT EXISTS (
+                SELECT 1 FROM matches m
+                WHERE m.season_id = :season_id AND m.halftime_homegoal IS NOT NULL
             )
         """), {"season_id": season_id}).scalar()
 
@@ -641,6 +666,12 @@ def get_team_statistics(
             for team in team_stats:
                 for prefix in ("home_", "away_"):
                     for field in MATCH_STATS_FIELDS:
+                        team[f"{prefix}{field}"] = None
+
+        if not has_halftime_data:
+            for team in team_stats:
+                for prefix in ("home_", "away_"):
+                    for field in HALFTIME_FIELDS:
                         team[f"{prefix}{field}"] = None
 
         # Obtener estadísticas de árbitros (no tiene sentido sin match_stats:
@@ -660,6 +691,7 @@ def get_team_statistics(
             "date_from": date_from,
             "date_to": date_to,
             "has_match_stats": bool(has_match_stats),
+            "has_halftime_data": bool(has_halftime_data),
             "teams": team_stats,
             "referees": referee_stats
         }
@@ -1793,8 +1825,10 @@ def get_match_details(match_id: int):
                 s.league_id,
                 m.home_goals,
                 m.away_goals,
+                m.halftime_homegoal,
+                m.halftime_awaygoal,
                 m.referee,
-                
+
                 -- PREDICCIONES DE WEINSTON (SIEMPRE de weinston_predictions)
                 wp.shots_home as weinston_shots_home,
                 wp.shots_away as weinston_shots_away,

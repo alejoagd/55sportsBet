@@ -15,6 +15,10 @@ interface TeamStats {
   away_avg_goals_conceded: number;
   home_total_goals_conceded: number;
   away_total_goals_conceded: number;
+  home_avg_goals_1h: number | null;
+  away_avg_goals_1h: number | null;
+  home_avg_goals_2h: number | null;
+  away_avg_goals_2h: number | null;
   home_avg_corners: number;
   away_avg_corners: number;
   home_total_corners: number;
@@ -51,6 +55,7 @@ interface StatsResponse {
   date_from: string | null;
   date_to: string | null;
   has_match_stats: boolean;
+  has_halftime_data: boolean;
   teams: TeamStats[];
   referees: RefereeStats[];
 }
@@ -263,6 +268,11 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
   const topAwayDefense = getTopTeams('away_avg_goals_conceded', 5, true);
   const bottomAwayDefense = getTopTeams('away_avg_goals_conceded', 5);
 
+  const topHomeGoals1h = getTopTeams('home_avg_goals_1h', 5);
+  const topAwayGoals1h = getTopTeams('away_avg_goals_1h', 5);
+  const topHomeGoals2h = getTopTeams('home_avg_goals_2h', 5);
+  const topAwayGoals2h = getTopTeams('away_avg_goals_2h', 5);
+
   const topHomeCorners = getTopTeams('home_avg_corners', 5);
   const bottomHomeCorners = getTopTeams('home_avg_corners', 5, true);
   const topAwayCorners = getTopTeams('away_avg_corners', 5);
@@ -346,6 +356,21 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             {renderRankingTable('✈️ Peor Defensa Visitante', bottomAwayDefense, 'away_avg_goals_conceded', 'text-red-400')}
           </div>
         </div>
+
+        {/* GOLES POR TIEMPO - depende de halftime_homegoal/halftime_awaygoal
+            (HTHG/HTAG de football-data.co.uk), que hoy sólo tienen las 4
+            ligas europeas - se oculta si la liga actual no trae ese dato. */}
+        {data.has_halftime_data && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-white">⏱️ Goles por Tiempo</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+              {renderRankingTable('🏠 Más Goles 1er Tiempo Local', topHomeGoals1h, 'home_avg_goals_1h', 'text-cyan-400')}
+              {renderRankingTable('✈️ Más Goles 1er Tiempo Visitante', topAwayGoals1h, 'away_avg_goals_1h', 'text-cyan-400')}
+              {renderRankingTable('🏠 Más Goles 2do Tiempo Local', topHomeGoals2h, 'home_avg_goals_2h', 'text-pink-400')}
+              {renderRankingTable('✈️ Más Goles 2do Tiempo Visitante', topAwayGoals2h, 'away_avg_goals_2h', 'text-pink-400')}
+            </div>
+          </div>
+        )}
 
         {/* 3-7. CORNERS / TIROS / TIROS A PUERTA / FALTAS / TARJETAS
             Estas 5 categorías dependen de match_stats, que algunas ligas
