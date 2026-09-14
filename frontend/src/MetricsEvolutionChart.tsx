@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import BestBetsAnalysis from './BestBetsAnalysis';
 import BettingLinesStats from './BettingLinesStats';
@@ -283,10 +284,17 @@ function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab;
   );
 }
 
+const VALID_EVOLUTION_TABS: EvolutionTab[] = ['metrics', 'best-bets', 'betting-lines', 'wc2026'];
+
 export default function MetricsEvolutionChart() {
-  // 🎯 NUEVO: State para tabs
-  const [activeTab, setActiveTab] = useState<EvolutionTab>('metrics');
-  
+  // 🎯 Tab inicial: si llega ?tab=best-bets en la URL (ej. al volver de un
+  // partido con returnPath), arranca ahí en vez de siempre en 'metrics'.
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<EvolutionTab>(
+    VALID_EVOLUTION_TABS.includes(initialTab as EvolutionTab) ? (initialTab as EvolutionTab) : 'metrics'
+  );
+
   const [data, setData] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedMetric, setSelectedMetric] = useState<string>('acc_1x2_pct');

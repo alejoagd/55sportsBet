@@ -890,7 +890,7 @@ export default function BestBetsAnalysis() {
               return (
                 <div
                   key={`${pick.match_id}-${pick.stat}`}
-                  onClick={() => navigate(`/match/${pick.match_id}`, { state: { returnPath: '/analysis' } })}
+                  onClick={() => navigate(`/match/${pick.match_id}`, { state: { returnPath: '/evolution?tab=best-bets' } })}
                   className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-slate-900/50 rounded-lg p-3 cursor-pointer hover:bg-slate-900/80 transition-colors"
                 >
                   <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0">
