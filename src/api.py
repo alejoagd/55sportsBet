@@ -471,9 +471,15 @@ def get_team_statistics(
                 SUM(m.away_goals) as total_goals_conceded,
 
                 -- Goles por tiempo (desde matches.halftime_homegoal - HTHG de
-                -- football-data.co.uk; NULL si la liga no trae ese dato)
+                -- football-data.co.uk; NULL si la liga no trae ese dato).
+                -- Ojo: la cobertura de este campo no es todo-o-nada por liga
+                -- como match_stats - un partido puntual puede no traerlo aun
+                -- en una liga que sí lo tiene casi siempre (COUNT ignora los
+                -- NULL, así que este es el N real detrás del promedio, no
+                -- matches_played).
                 AVG(m.halftime_homegoal) as avg_goals_1h,
                 AVG(m.home_goals - m.halftime_homegoal) as avg_goals_2h,
+                COUNT(m.halftime_homegoal) as matches_with_ht,
 
                 -- Estadísticas detalladas (desde match_stats - DATOS REALES)
                 AVG(ms.home_corners) as avg_corners,
@@ -511,6 +517,7 @@ def get_team_statistics(
                 -- Goles por tiempo
                 AVG(m.halftime_awaygoal) as avg_goals_1h,
                 AVG(m.away_goals - m.halftime_awaygoal) as avg_goals_2h,
+                COUNT(m.halftime_awaygoal) as matches_with_ht,
 
                 -- Estadísticas detalladas (desde match_stats - DATOS REALES)
                 AVG(ms.away_corners) as avg_corners,
@@ -555,11 +562,16 @@ def get_team_statistics(
             COALESCE(a.total_goals_conceded, 0) as away_total_goals_conceded,
 
             -- Goles por tiempo (NULL si la liga no trae HTHG/HTAG - se
-            -- resuelve aparte con has_halftime_data, sin COALESCE a 0 aquí)
+            -- resuelve aparte con has_halftime_data, sin COALESCE a 0 aquí).
+            -- home/away_matches_ht es el N real detrás de estos promedios -
+            -- puede ser menor que home/away_matches si algún partido puntual
+            -- no trae halftime_homegoal/awaygoal aunque la liga sí lo tenga.
             ROUND(h.avg_goals_1h::numeric, 2) as home_avg_goals_1h,
             ROUND(a.avg_goals_1h::numeric, 2) as away_avg_goals_1h,
             ROUND(h.avg_goals_2h::numeric, 2) as home_avg_goals_2h,
             ROUND(a.avg_goals_2h::numeric, 2) as away_avg_goals_2h,
+            COALESCE(h.matches_with_ht, 0) as home_matches_ht,
+            COALESCE(a.matches_with_ht, 0) as away_matches_ht,
 
             -- Corners
             ROUND(COALESCE(h.avg_corners, 0)::numeric, 2) as home_avg_corners,

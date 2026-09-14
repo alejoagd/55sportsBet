@@ -19,6 +19,8 @@ interface TeamStats {
   away_avg_goals_1h: number | null;
   home_avg_goals_2h: number | null;
   away_avg_goals_2h: number | null;
+  home_matches_ht: number;
+  away_matches_ht: number;
   home_avg_corners: number;
   away_avg_corners: number;
   home_total_corners: number;
@@ -183,7 +185,8 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
     title: string,
     teams: TeamStats[],
     valueKey: keyof TeamStats,
-    color: string
+    color: string,
+    matchesKey?: keyof TeamStats
   ) => (
     <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
       <h3 className={`text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight ${color}`}>{title}</h3>
@@ -198,7 +201,9 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             // no representa un promedio estable, así que se muestra para
             // que se pueda juzgar con contexto en vez de leerse como dato
             // definitivo.
-            const sideMatches = (valueKey as string).startsWith('home_') ? team.home_matches : team.away_matches;
+            const sideMatches = matchesKey
+              ? (team[matchesKey] as number)
+              : (valueKey as string).startsWith('home_') ? team.home_matches : team.away_matches;
             const lowSample = sideMatches < 3;
             return (
               <div
@@ -364,10 +369,10 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-white">⏱️ Goles por Tiempo</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-              {renderRankingTable('🏠 Más Goles 1er Tiempo Local', topHomeGoals1h, 'home_avg_goals_1h', 'text-cyan-400')}
-              {renderRankingTable('✈️ Más Goles 1er Tiempo Visitante', topAwayGoals1h, 'away_avg_goals_1h', 'text-cyan-400')}
-              {renderRankingTable('🏠 Más Goles 2do Tiempo Local', topHomeGoals2h, 'home_avg_goals_2h', 'text-pink-400')}
-              {renderRankingTable('✈️ Más Goles 2do Tiempo Visitante', topAwayGoals2h, 'away_avg_goals_2h', 'text-pink-400')}
+              {renderRankingTable('🏠 Más Goles 1er Tiempo Local', topHomeGoals1h, 'home_avg_goals_1h', 'text-cyan-400', 'home_matches_ht')}
+              {renderRankingTable('✈️ Más Goles 1er Tiempo Visitante', topAwayGoals1h, 'away_avg_goals_1h', 'text-cyan-400', 'away_matches_ht')}
+              {renderRankingTable('🏠 Más Goles 2do Tiempo Local', topHomeGoals2h, 'home_avg_goals_2h', 'text-pink-400', 'home_matches_ht')}
+              {renderRankingTable('✈️ Más Goles 2do Tiempo Visitante', topAwayGoals2h, 'away_avg_goals_2h', 'text-pink-400', 'away_matches_ht')}
             </div>
           </div>
         )}
