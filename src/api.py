@@ -608,29 +608,58 @@ def get_team_statistics(
         ORDER BY avg_fouls_per_match DESC
     """)
     
+    # Campos que dependen de match_stats: si la liga no tiene ese dato cargado
+    # (p.ej. torneos sudamericanos), no inventamos un 0 - lo dejamos en null
+    # para que el frontend directamente no muestre esas secciones.
+    MATCH_STATS_FIELDS = [
+        "avg_corners", "total_corners",
+        "avg_shots", "total_shots",
+        "avg_shots_target", "total_shots_target",
+        "avg_fouls", "total_fouls",
+        "avg_cards", "total_cards",
+    ]
+
     with engine.begin() as conn:
+        has_match_stats = conn.execute(text("""
+            SELECT EXISTS (
+                SELECT 1 FROM match_stats ms
+                JOIN matches m ON m.id = ms.match_id
+                WHERE m.season_id = :season_id
+            )
+        """), {"season_id": season_id}).scalar()
+
         # Obtener estadísticas de equipos
         team_rows = conn.execute(query, {
             "season_id": season_id,
             "date_from": date_from,
             "date_to": date_to
         }).mappings().all()
-        
+
         team_stats = [dict(row) for row in team_rows]
-        
-        # Obtener estadísticas de árbitros
-        referee_rows = conn.execute(referee_query, {
-            "season_id": season_id,
-            "date_from": date_from,
-            "date_to": date_to
-        }).mappings().all()
-        
-        referee_stats = [dict(row) for row in referee_rows]
-        
+
+        if not has_match_stats:
+            for team in team_stats:
+                for prefix in ("home_", "away_"):
+                    for field in MATCH_STATS_FIELDS:
+                        team[f"{prefix}{field}"] = None
+
+        # Obtener estadísticas de árbitros (no tiene sentido sin match_stats:
+        # fouls/cards serían todo ceros falsos)
+        if has_match_stats:
+            referee_rows = conn.execute(referee_query, {
+                "season_id": season_id,
+                "date_from": date_from,
+                "date_to": date_to
+            }).mappings().all()
+            referee_stats = [dict(row) for row in referee_rows]
+        else:
+            referee_stats = []
+
         return {
             "season_id": season_id,
             "date_from": date_from,
             "date_to": date_to,
+            "has_match_stats": bool(has_match_stats),
             "teams": team_stats,
             "referees": referee_stats
         }
@@ -3015,24 +3044,26 @@ async def get_h2h_analysis(match_id: int):
                 CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN true ELSE false END as btts,
                 CASE WHEN m.home_goals + m.away_goals >= 3 THEN true ELSE false END as over25,
                 
-                -- Estadísticas
-                COALESCE(ms.home_shots, 0) as home_shots,
-                COALESCE(ms.away_shots, 0) as away_shots,
-                COALESCE(ms.home_shots_on_target, 0) as home_shots_on_target,
-                COALESCE(ms.away_shots_on_target, 0) as away_shots_on_target,
-                COALESCE(ms.home_corners, 0) as home_corners,
-                COALESCE(ms.away_corners, 0) as away_corners,
-                COALESCE(ms.home_fouls, 0) as home_fouls,
-                COALESCE(ms.away_fouls, 0) as away_fouls,
-                COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0) as home_cards,
-                COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0) as away_cards,
-                
+                -- Estadísticas (NULL cuando no hay match_stats para este partido,
+                -- en vez de inventar un 0 - una liga sin esta fuente de datos
+                -- no debe aparentar "0 corners" como si fuera un dato real)
+                ms.home_shots as home_shots,
+                ms.away_shots as away_shots,
+                ms.home_shots_on_target as home_shots_on_target,
+                ms.away_shots_on_target as away_shots_on_target,
+                ms.home_corners as home_corners,
+                ms.away_corners as away_corners,
+                ms.home_fouls as home_fouls,
+                ms.away_fouls as away_fouls,
+                ms.home_yellow_cards + ms.home_red_cards as home_cards,
+                ms.away_yellow_cards + ms.away_red_cards as away_cards,
+
                 -- Totales
-                COALESCE(ms.total_shots, 0) as total_shots,
-                COALESCE(ms.total_corners, 0) as total_corners,
-                COALESCE(ms.total_fouls, 0) as total_fouls,
-                COALESCE(ms.total_cards, 0) as total_cards
-                
+                ms.total_shots as total_shots,
+                ms.total_corners as total_corners,
+                ms.total_fouls as total_fouls,
+                ms.total_cards as total_cards
+
             FROM matches m
             JOIN seasons s ON s.id = m.season_id
             LEFT JOIN match_stats ms ON ms.match_id = m.id
@@ -3068,23 +3099,24 @@ async def get_h2h_analysis(match_id: int):
                 CASE WHEN m.home_goals > 0 AND m.away_goals > 0 THEN true ELSE false END as btts,
                 CASE WHEN m.home_goals + m.away_goals >= 3 THEN true ELSE false END as over25,
                 
-                -- Estadísticas (desde la perspectiva del equipo que hoy es local)
-                COALESCE(ms.away_shots, 0) as team_shots,
-                COALESCE(ms.home_shots, 0) as opponent_shots,
-                COALESCE(ms.away_shots_on_target, 0) as team_shots_on_target,
-                COALESCE(ms.home_shots_on_target, 0) as opponent_shots_on_target,
-                COALESCE(ms.away_corners, 0) as team_corners,
-                COALESCE(ms.home_corners, 0) as opponent_corners,
-                COALESCE(ms.away_fouls, 0) as team_fouls,
-                COALESCE(ms.home_fouls, 0) as opponent_fouls,
-                COALESCE(ms.away_yellow_cards, 0) + COALESCE(ms.away_red_cards, 0) as team_cards,
-                COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.home_red_cards, 0) as opponent_cards,
-                
+                -- Estadísticas (desde la perspectiva del equipo que hoy es local;
+                -- NULL cuando no hay match_stats, no un 0 falso)
+                ms.away_shots as team_shots,
+                ms.home_shots as opponent_shots,
+                ms.away_shots_on_target as team_shots_on_target,
+                ms.home_shots_on_target as opponent_shots_on_target,
+                ms.away_corners as team_corners,
+                ms.home_corners as opponent_corners,
+                ms.away_fouls as team_fouls,
+                ms.home_fouls as opponent_fouls,
+                ms.away_yellow_cards + ms.away_red_cards as team_cards,
+                ms.home_yellow_cards + ms.home_red_cards as opponent_cards,
+
                 -- Totales
-                COALESCE(ms.total_shots, 0) as total_shots,
-                COALESCE(ms.total_corners, 0) as total_corners,
-                COALESCE(ms.total_fouls, 0) as total_fouls,
-                COALESCE(ms.total_cards, 0) as total_cards,
+                ms.total_shots as total_shots,
+                ms.total_corners as total_corners,
+                ms.total_fouls as total_fouls,
+                ms.total_cards as total_cards,
                 
                 -- Para mostrar el marcador correctamente (home - away del partido histórico)
                 m.home_goals,
@@ -3144,6 +3176,16 @@ async def get_h2h_analysis(match_id: int):
 # Incluye TODAS las estadísticas: goles, tiros, tiros a puerta, corners, faltas y tarjetas
 # ==============================================================================
 
+def _avg_ignore_none(matches: List[Dict], key: str) -> Optional[float]:
+    """
+    Promedia `key` sobre los partidos que sí tienen ese dato cargado.
+    Devuelve None si ninguno lo tiene (p.ej. ligas sin match_stats), en vez
+    de aparentar un 0 real.
+    """
+    values = [m[key] for m in matches if m.get(key) is not None]
+    return sum(values) / len(values) if values else None
+
+
 def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info: Dict) -> Dict[str, Any]:
     """
     Calcula estadísticas agregadas del H2H con TODAS las métricas
@@ -3165,12 +3207,14 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info:
         "matches_away_venue": len(h2h_away),
         "has_data": True,
         
-        # Promedios generales (todos los partidos)
+        # Promedios generales (todos los partidos). Goles siempre existen
+        # (vienen de matches, no de match_stats); el resto puede ser None si
+        # la liga no tiene esa fuente de datos cargada.
         "avg_total_goals": sum(m["total_goals"] for m in all_matches) / total_matches if total_matches > 0 else 0,
-        "avg_total_shots": sum(m.get("total_shots", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
-        "avg_total_corners": sum(m.get("total_corners", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
-        "avg_total_fouls": sum(m.get("total_fouls", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
-        "avg_total_cards": sum(m.get("total_cards", 0) for m in all_matches) / total_matches if total_matches > 0 else 0,
+        "avg_total_shots": _avg_ignore_none(all_matches, "total_shots"),
+        "avg_total_corners": _avg_ignore_none(all_matches, "total_corners"),
+        "avg_total_fouls": _avg_ignore_none(all_matches, "total_fouls"),
+        "avg_total_cards": _avg_ignore_none(all_matches, "total_cards"),
         
         # Frecuencias
         "btts_count": sum(1 for m in all_matches if m.get("btts")),
@@ -3188,20 +3232,20 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info:
             "avg_home_goals": sum(m["home_goals"] for m in h2h_home) / len(h2h_home),
             "avg_away_goals": sum(m["away_goals"] for m in h2h_home) / len(h2h_home),
             # Tiros
-            "avg_home_shots": sum(m.get("home_shots", 0) for m in h2h_home) / len(h2h_home),
-            "avg_away_shots": sum(m.get("away_shots", 0) for m in h2h_home) / len(h2h_home),
+            "avg_home_shots": _avg_ignore_none(h2h_home, "home_shots"),
+            "avg_away_shots": _avg_ignore_none(h2h_home, "away_shots"),
             # Tiros a puerta
-            "avg_home_shots_on_target": sum(m.get("home_shots_on_target", 0) for m in h2h_home) / len(h2h_home),
-            "avg_away_shots_on_target": sum(m.get("away_shots_on_target", 0) for m in h2h_home) / len(h2h_home),
+            "avg_home_shots_on_target": _avg_ignore_none(h2h_home, "home_shots_on_target"),
+            "avg_away_shots_on_target": _avg_ignore_none(h2h_home, "away_shots_on_target"),
             # Corners
-            "avg_home_corners": sum(m.get("home_corners", 0) for m in h2h_home) / len(h2h_home),
-            "avg_away_corners": sum(m.get("away_corners", 0) for m in h2h_home) / len(h2h_home),
+            "avg_home_corners": _avg_ignore_none(h2h_home, "home_corners"),
+            "avg_away_corners": _avg_ignore_none(h2h_home, "away_corners"),
             # Faltas
-            "avg_home_fouls": sum(m.get("home_fouls", 0) for m in h2h_home) / len(h2h_home),
-            "avg_away_fouls": sum(m.get("away_fouls", 0) for m in h2h_home) / len(h2h_home),
+            "avg_home_fouls": _avg_ignore_none(h2h_home, "home_fouls"),
+            "avg_away_fouls": _avg_ignore_none(h2h_home, "away_fouls"),
             # Tarjetas
-            "avg_home_cards": sum(m.get("home_cards", 0) for m in h2h_home) / len(h2h_home),
-            "avg_away_cards": sum(m.get("away_cards", 0) for m in h2h_home) / len(h2h_home),
+            "avg_home_cards": _avg_ignore_none(h2h_home, "home_cards"),
+            "avg_away_cards": _avg_ignore_none(h2h_home, "away_cards"),
         }
     
     # Promedios específicos de VISITANTE (equipo que hoy juega de local, pero en partidos donde fue visitante)
@@ -3212,20 +3256,20 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info:
             "avg_team_goals": sum(m["team_goals"] for m in h2h_away) / len(h2h_away),
             "avg_opponent_goals": sum(m["opponent_goals"] for m in h2h_away) / len(h2h_away),
             # Tiros
-            "avg_team_shots": sum(m.get("team_shots", 0) for m in h2h_away) / len(h2h_away),
-            "avg_opponent_shots": sum(m.get("opponent_shots", 0) for m in h2h_away) / len(h2h_away),
+            "avg_team_shots": _avg_ignore_none(h2h_away, "team_shots"),
+            "avg_opponent_shots": _avg_ignore_none(h2h_away, "opponent_shots"),
             # Tiros a puerta
-            "avg_team_shots_on_target": sum(m.get("team_shots_on_target", 0) for m in h2h_away) / len(h2h_away),
-            "avg_opponent_shots_on_target": sum(m.get("opponent_shots_on_target", 0) for m in h2h_away) / len(h2h_away),
+            "avg_team_shots_on_target": _avg_ignore_none(h2h_away, "team_shots_on_target"),
+            "avg_opponent_shots_on_target": _avg_ignore_none(h2h_away, "opponent_shots_on_target"),
             # Corners
-            "avg_team_corners": sum(m.get("team_corners", 0) for m in h2h_away) / len(h2h_away),
-            "avg_opponent_corners": sum(m.get("opponent_corners", 0) for m in h2h_away) / len(h2h_away),
+            "avg_team_corners": _avg_ignore_none(h2h_away, "team_corners"),
+            "avg_opponent_corners": _avg_ignore_none(h2h_away, "opponent_corners"),
             # Faltas
-            "avg_team_fouls": sum(m.get("team_fouls", 0) for m in h2h_away) / len(h2h_away),
-            "avg_opponent_fouls": sum(m.get("opponent_fouls", 0) for m in h2h_away) / len(h2h_away),
+            "avg_team_fouls": _avg_ignore_none(h2h_away, "team_fouls"),
+            "avg_opponent_fouls": _avg_ignore_none(h2h_away, "opponent_fouls"),
             # Tarjetas
-            "avg_team_cards": sum(m.get("team_cards", 0) for m in h2h_away) / len(h2h_away),
-            "avg_opponent_cards": sum(m.get("opponent_cards", 0) for m in h2h_away) / len(h2h_away),
+            "avg_team_cards": _avg_ignore_none(h2h_away, "team_cards"),
+            "avg_opponent_cards": _avg_ignore_none(h2h_away, "opponent_cards"),
         }
     
     return stats
@@ -3298,17 +3342,25 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         over25_count = sum(1 for m in h2h_home if m.get('over25', False))
         total_home_matches = len(h2h_home)
 
-        # Construir narrativa con resumen de resultados
+        # Construir narrativa con resumen de resultados. Cada línea de stat
+        # detallada (tiros/corners/faltas/tarjetas) sólo se agrega si la liga
+        # realmente tiene esa fuente de datos cargada (match_stats) - si no,
+        # se omite en vez de mostrar un promedio falso de 0.0.
         home_venue_analysis = f"""Cuando {home_team} ha jugado de local contra {away_team} (últimos {total_home_matches} partidos):
 {home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_home_matches} | Over 2.5: {over25_count}/{total_home_matches}
 
 - Promedio de goles: {home_team} {home_stats['avg_home_goals']:.1f} - {away_team} {home_stats['avg_away_goals']:.1f}
-- Promedio de tiros: {home_stats['avg_home_shots']:.1f} del {home_team} vs {home_stats['avg_away_shots']:.1f} del {away_team}
-- Promedio de tiros al arco: {home_stats['avg_home_shots_on_target']:.1f} del {home_team} vs {home_stats['avg_away_shots_on_target']:.1f} del {away_team}
-- Promedio de corners: {home_stats['avg_home_corners']:.1f} del {home_team} vs {home_stats['avg_away_corners']:.1f} del {away_team}
-- Promedio de faltas: {home_stats['avg_home_fouls']:.1f} del {home_team} vs {home_stats['avg_away_fouls']:.1f} del {away_team}
-- Promedio de tarjetas: {home_stats['avg_home_cards']:.1f} del {home_team} vs {home_stats['avg_away_cards']:.1f} del {away_team}
 """
+        if home_stats.get('avg_home_shots') is not None and home_stats.get('avg_away_shots') is not None:
+            home_venue_analysis += f"- Promedio de tiros: {home_stats['avg_home_shots']:.1f} del {home_team} vs {home_stats['avg_away_shots']:.1f} del {away_team}\n"
+        if home_stats.get('avg_home_shots_on_target') is not None and home_stats.get('avg_away_shots_on_target') is not None:
+            home_venue_analysis += f"- Promedio de tiros al arco: {home_stats['avg_home_shots_on_target']:.1f} del {home_team} vs {home_stats['avg_away_shots_on_target']:.1f} del {away_team}\n"
+        if home_stats.get('avg_home_corners') is not None and home_stats.get('avg_away_corners') is not None:
+            home_venue_analysis += f"- Promedio de corners: {home_stats['avg_home_corners']:.1f} del {home_team} vs {home_stats['avg_away_corners']:.1f} del {away_team}\n"
+        if home_stats.get('avg_home_fouls') is not None and home_stats.get('avg_away_fouls') is not None:
+            home_venue_analysis += f"- Promedio de faltas: {home_stats['avg_home_fouls']:.1f} del {home_team} vs {home_stats['avg_away_fouls']:.1f} del {away_team}\n"
+        if home_stats.get('avg_home_cards') is not None and home_stats.get('avg_away_cards') is not None:
+            home_venue_analysis += f"- Promedio de tarjetas: {home_stats['avg_home_cards']:.1f} del {home_team} vs {home_stats['avg_away_cards']:.1f} del {away_team}\n"
         home_venue_stats = {
             "matches": total_home_matches,
             "wins": wins, "draws": draws, "losses": losses,
@@ -3334,17 +3386,23 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         over25_count = sum(1 for m in h2h_away if m.get('over25', False))
         total_away_matches = len(h2h_away)
 
-        # Construir narrativa con resumen de resultados
+        # Construir narrativa con resumen de resultados (mismo criterio que
+        # arriba: se omite la línea si la liga no tiene ese dato cargado)
         away_venue_analysis = f"""Cuando {home_team} ha jugado de visitante contra {away_team} (últimos {total_away_matches} partidos):
 {home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_away_matches} | Over 2.5: {over25_count}/{total_away_matches}
 
 - Promedio de goles: {away_team} {away_stats['avg_opponent_goals']:.1f} - {home_team} {away_stats['avg_team_goals']:.1f}
-- Promedio de tiros: {away_stats['avg_opponent_shots']:.1f} del {away_team} vs {away_stats['avg_team_shots']:.1f} del {home_team}
-- Promedio de tiros al arco: {away_stats['avg_opponent_shots_on_target']:.1f} del {away_team} vs {away_stats['avg_team_shots_on_target']:.1f} del {home_team}
-- Promedio de corners: {away_stats['avg_opponent_corners']:.1f} del {away_team} vs {away_stats['avg_team_corners']:.1f} del {home_team}
-- Promedio de faltas: {away_stats['avg_opponent_fouls']:.1f} del {away_team} vs {away_stats['avg_team_fouls']:.1f} del {home_team}
-- Promedio de tarjetas: {away_stats['avg_opponent_cards']:.1f} del {away_team} vs {away_stats['avg_team_cards']:.1f} del {home_team}
 """
+        if away_stats.get('avg_opponent_shots') is not None and away_stats.get('avg_team_shots') is not None:
+            away_venue_analysis += f"- Promedio de tiros: {away_stats['avg_opponent_shots']:.1f} del {away_team} vs {away_stats['avg_team_shots']:.1f} del {home_team}\n"
+        if away_stats.get('avg_opponent_shots_on_target') is not None and away_stats.get('avg_team_shots_on_target') is not None:
+            away_venue_analysis += f"- Promedio de tiros al arco: {away_stats['avg_opponent_shots_on_target']:.1f} del {away_team} vs {away_stats['avg_team_shots_on_target']:.1f} del {home_team}\n"
+        if away_stats.get('avg_opponent_corners') is not None and away_stats.get('avg_team_corners') is not None:
+            away_venue_analysis += f"- Promedio de corners: {away_stats['avg_opponent_corners']:.1f} del {away_team} vs {away_stats['avg_team_corners']:.1f} del {home_team}\n"
+        if away_stats.get('avg_opponent_fouls') is not None and away_stats.get('avg_team_fouls') is not None:
+            away_venue_analysis += f"- Promedio de faltas: {away_stats['avg_opponent_fouls']:.1f} del {away_team} vs {away_stats['avg_team_fouls']:.1f} del {home_team}\n"
+        if away_stats.get('avg_opponent_cards') is not None and away_stats.get('avg_team_cards') is not None:
+            away_venue_analysis += f"- Promedio de tarjetas: {away_stats['avg_opponent_cards']:.1f} del {away_team} vs {away_stats['avg_team_cards']:.1f} del {home_team}\n"
         # avg_goals_home/away se mapean siempre a home_team/away_team (no a
         # "team"/"opponent") para que ambas tarjetas (local y visitante) se
         # lean en el mismo orden visual en el frontend.
@@ -3381,7 +3439,10 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
     else:
         conclusion += "partidos cerrados y defensivos"
     
-    conclusion += f", con un promedio de {stats['avg_total_corners']:.0f} corners y {stats['avg_total_cards']:.0f} tarjetas por partido."
+    if stats['avg_total_corners'] is not None and stats['avg_total_cards'] is not None:
+        conclusion += f", con un promedio de {stats['avg_total_corners']:.0f} corners y {stats['avg_total_cards']:.0f} tarjetas por partido."
+    else:
+        conclusion += "."
     
     return {
         "summary": summary,
@@ -3994,22 +4055,22 @@ def get_h2h_scoring(match_id: int):
                     m.*,
                     th.name as home_team_name,
                     ta.name as away_team_name,
-                    COALESCE(ms.home_shots::NUMERIC, 0) as home_shots,
-                    COALESCE(ms.away_shots::NUMERIC, 0) as away_shots,
-                    COALESCE(ms.home_shots::NUMERIC, 0) + COALESCE(ms.away_shots::NUMERIC, 0) as total_shots,
-                    COALESCE(ms.home_shots_on_target::NUMERIC, 0) as home_shots_on_target,
-                    COALESCE(ms.away_shots_on_target::NUMERIC, 0) as away_shots_on_target,
-                    COALESCE(ms.home_shots_on_target::NUMERIC, 0) + COALESCE(ms.away_shots_on_target::NUMERIC, 0) as total_shots_on_target,
-                    COALESCE(ms.home_fouls::NUMERIC, 0) as home_fouls,
-                    COALESCE(ms.away_fouls::NUMERIC, 0) as away_fouls,
-                    COALESCE(ms.home_fouls::NUMERIC, 0) + COALESCE(ms.away_fouls::NUMERIC, 0) as total_fouls,
-                    COALESCE(ms.home_yellow_cards::NUMERIC, 0) + COALESCE(ms.home_red_cards::NUMERIC, 0) as home_cards,
-                    COALESCE(ms.away_yellow_cards::NUMERIC, 0) + COALESCE(ms.away_red_cards::NUMERIC, 0) as away_cards,
-                    COALESCE(ms.home_yellow_cards::NUMERIC, 0) + COALESCE(ms.home_red_cards::NUMERIC, 0) + 
-                    COALESCE(ms.away_yellow_cards::NUMERIC, 0) + COALESCE(ms.away_red_cards::NUMERIC, 0) as total_cards,
-                    COALESCE(ms.home_corners::NUMERIC, 0) as home_corners,
-                    COALESCE(ms.away_corners::NUMERIC, 0) as away_corners,
-                    COALESCE(ms.home_corners::NUMERIC, 0) + COALESCE(ms.away_corners::NUMERIC, 0) as total_corners,
+                    ms.home_shots::NUMERIC as home_shots,
+                    ms.away_shots::NUMERIC as away_shots,
+                    ms.home_shots::NUMERIC + ms.away_shots::NUMERIC as total_shots,
+                    ms.home_shots_on_target::NUMERIC as home_shots_on_target,
+                    ms.away_shots_on_target::NUMERIC as away_shots_on_target,
+                    ms.home_shots_on_target::NUMERIC + ms.away_shots_on_target::NUMERIC as total_shots_on_target,
+                    ms.home_fouls::NUMERIC as home_fouls,
+                    ms.away_fouls::NUMERIC as away_fouls,
+                    ms.home_fouls::NUMERIC + ms.away_fouls::NUMERIC as total_fouls,
+                    ms.home_yellow_cards::NUMERIC + ms.home_red_cards::NUMERIC as home_cards,
+                    ms.away_yellow_cards::NUMERIC + ms.away_red_cards::NUMERIC as away_cards,
+                    ms.home_yellow_cards::NUMERIC + ms.home_red_cards::NUMERIC +
+                    ms.away_yellow_cards::NUMERIC + ms.away_red_cards::NUMERIC as total_cards,
+                    ms.home_corners::NUMERIC as home_corners,
+                    ms.away_corners::NUMERIC as away_corners,
+                    ms.home_corners::NUMERIC + ms.away_corners::NUMERIC as total_corners,
                     CASE 
                         WHEN COALESCE(m.home_goals, 0) > 0 AND COALESCE(m.away_goals, 0) > 0 THEN 1 
                         ELSE 0 
@@ -4098,7 +4159,7 @@ def get_h2h_scoring(match_id: int):
             line = betting_lines["tiros"]
             prediction = "OVER" if pred_shots > line else "UNDER"
             
-            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_shots")) > 0]
+            valid_matches = [m for m in h2h_matches if m.get("total_shots") is not None]
             if valid_matches:
                 if prediction == "OVER":
                     hit_sequence = [safe_float(m.get("total_shots")) > line for m in valid_matches]
@@ -4123,7 +4184,7 @@ def get_h2h_scoring(match_id: int):
             line = betting_lines["tiros_al_arco"]
             prediction = "OVER" if pred_shots_ot > line else "UNDER"
             
-            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_shots_on_target")) > 0]
+            valid_matches = [m for m in h2h_matches if m.get("total_shots_on_target") is not None]
             if valid_matches:
                 if prediction == "OVER":
                     hit_sequence = [safe_float(m.get("total_shots_on_target")) > line for m in valid_matches]
@@ -4148,7 +4209,7 @@ def get_h2h_scoring(match_id: int):
             line = betting_lines["faltas"]
             prediction = "OVER" if pred_fouls > line else "UNDER"
             
-            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_fouls")) > 0]
+            valid_matches = [m for m in h2h_matches if m.get("total_fouls") is not None]
             if valid_matches:
                 if prediction == "OVER":
                     hit_sequence = [safe_float(m.get("total_fouls")) > line for m in valid_matches]
@@ -4173,7 +4234,7 @@ def get_h2h_scoring(match_id: int):
             line = betting_lines["tarjetas"]
             prediction = "OVER" if pred_cards > line else "UNDER"
             
-            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_cards")) >= 0]  # >=0 porque puede ser 0
+            valid_matches = [m for m in h2h_matches if m.get("total_cards") is not None]
             if valid_matches:
                 if prediction == "OVER":
                     hit_sequence = [safe_float(m.get("total_cards")) > line for m in valid_matches]
@@ -4198,7 +4259,7 @@ def get_h2h_scoring(match_id: int):
             line = betting_lines["corners"]
             prediction = "OVER" if pred_corners > line else "UNDER"
             
-            valid_matches = [m for m in h2h_matches if safe_float(m.get("total_corners")) > 0]
+            valid_matches = [m for m in h2h_matches if m.get("total_corners") is not None]
             if valid_matches:
                 if prediction == "OVER":
                     hit_sequence = [safe_float(m.get("total_corners")) > line for m in valid_matches]

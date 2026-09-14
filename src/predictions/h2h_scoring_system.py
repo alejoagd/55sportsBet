@@ -198,8 +198,8 @@ def _get_h2h_matches(
             (ms.home_shots + ms.away_shots) as total_shots,
             (ms.home_shots_on_target + ms.away_shots_on_target) as total_shots_target,
             (ms.home_fouls + ms.away_fouls) as total_fouls,
-            (COALESCE(ms.home_yellow_cards, 0) + COALESCE(ms.away_yellow_cards, 0) + 
-             COALESCE(ms.home_red_cards, 0) + COALESCE(ms.away_red_cards, 0)) as total_cards,
+            (ms.home_yellow_cards + ms.away_yellow_cards +
+             ms.home_red_cards + ms.away_red_cards) as total_cards,
             (ms.home_corners + ms.away_corners) as total_corners,
             
             -- Análisis de resultados

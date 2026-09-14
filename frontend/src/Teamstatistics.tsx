@@ -50,6 +50,7 @@ interface StatsResponse {
   season_id: number;
   date_from: string | null;
   date_to: string | null;
+  has_match_stats: boolean;
   teams: TeamStats[];
   referees: RefereeStats[];
 }
@@ -346,60 +347,69 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
           </div>
         </div>
 
-        {/* 3. CORNERS */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Corners Local', topHomeCorners, 'home_avg_corners', 'text-yellow-400')}
-            {renderRankingTable('🏠 Menos Corners Local', bottomHomeCorners, 'home_avg_corners', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Corners Visitante', topAwayCorners, 'away_avg_corners', 'text-yellow-400')}
-            {renderRankingTable('✈️ Menos Corners Visitante', bottomAwayCorners, 'away_avg_corners', 'text-slate-400')}
-          </div>
-        </div>
+        {/* 3-7. CORNERS / TIROS / TIROS A PUERTA / FALTAS / TARJETAS
+            Estas 5 categorías dependen de match_stats, que algunas ligas
+            (torneos sudamericanos) no tienen cargado en absoluto - sin esa
+            fuente no hay dato real que mostrar, así que se ocultan en vez
+            de aparentar un 0.00 real. */}
+        {data.has_match_stats && (
+          <>
+            {/* 3. CORNERS */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                {renderRankingTable('🏠 Más Corners Local', topHomeCorners, 'home_avg_corners', 'text-yellow-400')}
+                {renderRankingTable('🏠 Menos Corners Local', bottomHomeCorners, 'home_avg_corners', 'text-slate-400')}
+                {renderRankingTable('✈️ Más Corners Visitante', topAwayCorners, 'away_avg_corners', 'text-yellow-400')}
+                {renderRankingTable('✈️ Menos Corners Visitante', bottomAwayCorners, 'away_avg_corners', 'text-slate-400')}
+              </div>
+            </div>
 
-        {/* 4. TIROS */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">🎯 Tiros</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Tiros Local', topHomeShots, 'home_avg_shots', 'text-blue-400')}
-            {renderRankingTable('🏠 Menos Tiros Local', bottomHomeShots, 'home_avg_shots', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Tiros Visitante', topAwayShots, 'away_avg_shots', 'text-blue-400')}
-            {renderRankingTable('✈️ Menos Tiros Visitante', bottomAwayShots, 'away_avg_shots', 'text-slate-400')}
-          </div>
-        </div>
+            {/* 4. TIROS */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white">🎯 Tiros</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                {renderRankingTable('🏠 Más Tiros Local', topHomeShots, 'home_avg_shots', 'text-blue-400')}
+                {renderRankingTable('🏠 Menos Tiros Local', bottomHomeShots, 'home_avg_shots', 'text-slate-400')}
+                {renderRankingTable('✈️ Más Tiros Visitante', topAwayShots, 'away_avg_shots', 'text-blue-400')}
+                {renderRankingTable('✈️ Menos Tiros Visitante', bottomAwayShots, 'away_avg_shots', 'text-slate-400')}
+              </div>
+            </div>
 
-        {/* 5. TIROS A PUERTA */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">🎯 Tiros a Puerta</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Tiros a Puerta Local', topHomeShotsTarget, 'home_avg_shots_target', 'text-purple-400')}
-            {renderRankingTable('🏠 Menos Tiros a Puerta Local', bottomHomeShotsTarget, 'home_avg_shots_target', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Tiros a Puerta Visitante', topAwayShotsTarget, 'away_avg_shots_target', 'text-purple-400')}
-            {renderRankingTable('✈️ Menos Tiros a Puerta Visitante', bottomAwayShotsTarget, 'away_avg_shots_target', 'text-slate-400')}
-          </div>
-        </div>
+            {/* 5. TIROS A PUERTA */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white">🎯 Tiros a Puerta</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                {renderRankingTable('🏠 Más Tiros a Puerta Local', topHomeShotsTarget, 'home_avg_shots_target', 'text-purple-400')}
+                {renderRankingTable('🏠 Menos Tiros a Puerta Local', bottomHomeShotsTarget, 'home_avg_shots_target', 'text-slate-400')}
+                {renderRankingTable('✈️ Más Tiros a Puerta Visitante', topAwayShotsTarget, 'away_avg_shots_target', 'text-purple-400')}
+                {renderRankingTable('✈️ Menos Tiros a Puerta Visitante', bottomAwayShotsTarget, 'away_avg_shots_target', 'text-slate-400')}
+              </div>
+            </div>
 
-        {/* 6. FALTAS */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">⚠️ Faltas</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Faltas Local', topHomeFouls, 'home_avg_fouls', 'text-orange-400')}
-            {renderRankingTable('🏠 Menos Faltas Local', bottomHomeFouls, 'home_avg_fouls', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Faltas Visitante', topAwayFouls, 'away_avg_fouls', 'text-orange-400')}
-            {renderRankingTable('✈️ Menos Faltas Visitante', bottomAwayFouls, 'away_avg_fouls', 'text-slate-400')}
-          </div>
-        </div>
+            {/* 6. FALTAS */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white">⚠️ Faltas</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                {renderRankingTable('🏠 Más Faltas Local', topHomeFouls, 'home_avg_fouls', 'text-orange-400')}
+                {renderRankingTable('🏠 Menos Faltas Local', bottomHomeFouls, 'home_avg_fouls', 'text-slate-400')}
+                {renderRankingTable('✈️ Más Faltas Visitante', topAwayFouls, 'away_avg_fouls', 'text-orange-400')}
+                {renderRankingTable('✈️ Menos Faltas Visitante', bottomAwayFouls, 'away_avg_fouls', 'text-slate-400')}
+              </div>
+            </div>
 
-        {/* 7. TARJETAS */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">🟨 Tarjetas</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Más Tarjetas Local', topHomeCards, 'home_avg_cards', 'text-yellow-400')}
-            {renderRankingTable('🏠 Menos Tarjetas Local', bottomHomeCards, 'home_avg_cards', 'text-slate-400')}
-            {renderRankingTable('✈️ Más Tarjetas Visitante', topAwayCards, 'away_avg_cards', 'text-yellow-400')}
-            {renderRankingTable('✈️ Menos Tarjetas Visitante', bottomAwayCards, 'away_avg_cards', 'text-slate-400')}
-          </div>
-        </div>
+            {/* 7. TARJETAS */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white">🟨 Tarjetas</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                {renderRankingTable('🏠 Más Tarjetas Local', topHomeCards, 'home_avg_cards', 'text-yellow-400')}
+                {renderRankingTable('🏠 Menos Tarjetas Local', bottomHomeCards, 'home_avg_cards', 'text-slate-400')}
+                {renderRankingTable('✈️ Más Tarjetas Visitante', topAwayCards, 'away_avg_cards', 'text-yellow-400')}
+                {renderRankingTable('✈️ Menos Tarjetas Visitante', bottomAwayCards, 'away_avg_cards', 'text-slate-400')}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* 8. ÁRBITROS */}
         {data.referees && data.referees.length > 0 && (

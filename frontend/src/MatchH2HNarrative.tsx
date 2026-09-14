@@ -36,8 +36,8 @@ interface H2HAnalysisData {
     total_matches: number;
     has_data: boolean;
     avg_total_goals: number;
-    avg_total_corners: number;
-    avg_total_cards: number;
+    avg_total_corners: number | null;
+    avg_total_cards: number | null;
     btts_percentage: number;
     over25_percentage: number;
     home_venue?: any;
@@ -140,11 +140,13 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
             icon="⚽"
             trend={stats.avg_total_goals >= 2.5 ? 'up' : 'down'}
           />
-          <StatCard
-            label="Corners/Partido"
-            value={stats.avg_total_corners.toFixed(1)}
-            icon="🚩"
-          />
+          {stats.avg_total_corners !== null && (
+            <StatCard
+              label="Corners/Partido"
+              value={stats.avg_total_corners.toFixed(1)}
+              icon="🚩"
+            />
+          )}
           <StatCard
             label="BTTS"
             value={`${stats.btts_percentage.toFixed(0)}%`}
