@@ -4452,6 +4452,17 @@ def get_top_upcoming_h2h_picks_endpoint(
     )
     return {"picks": picks}
 
+
+@app.get("/api/h2h-score/recommended-picks-accuracy")
+def get_recommended_picks_accuracy_endpoint():
+    """
+    Eficacia REAL (no la histórica general) de las recomendaciones que ya se
+    mostraron en el Top 4 / Top 10 - valida contra el resultado real de cada
+    partido y agrupa por puntuación H2H (0-12).
+    """
+    from src.predictions.h2h_scoring_system import get_recommended_picks_accuracy
+    return get_recommended_picks_accuracy()
+
 # ============================================================================
 # BETTING LINES STATISTICS ENDPOINTS
 # ============================================================================

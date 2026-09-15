@@ -28,6 +28,23 @@ interface H2HEffectivenessResponse {
   total_leagues: number;
 }
 
+interface RecommendedPickScoreRow {
+  score: number;
+  total: number;
+  validated: number;
+  hits: number;
+  pending: number;
+  accuracy_pct: number | null;
+}
+
+interface RecommendedPicksAccuracy {
+  by_score: RecommendedPickScoreRow[];
+  total_recommended: number;
+  total_validated: number;
+  total_pending: number;
+  overall_accuracy: number | null;
+}
+
 interface H2HTopPick {
   match_id: number;
   date: string;
@@ -155,13 +172,37 @@ export default function BestBetsAnalysis() {
   const [top10Picks, setTop10Picks] = useState<H2HTopPick[]>([]);
   const [top10Loading, setTop10Loading] = useState(true);
   const [top10Error, setTop10Error] = useState<string | null>(null);
+  const [recPicksAccuracy, setRecPicksAccuracy] = useState<RecommendedPicksAccuracy | null>(null);
+  const [recPicksLoading, setRecPicksLoading] = useState(true);
+  const [recPicksError, setRecPicksError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
     fetchHistory();
     fetchH2hEffectiveness();
     fetchTop10Picks();
+    fetchRecommendedPicksAccuracy();
   }, [showHistory]);
+
+  const fetchRecommendedPicksAccuracy = async () => {
+    setRecPicksLoading(true);
+    setRecPicksError(null);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/h2h-score/recommended-picks-accuracy`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      setRecPicksAccuracy(data);
+    } catch (error) {
+      console.error('❌ Error fetching recommended picks accuracy:', error);
+      setRecPicksError(error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setRecPicksLoading(false);
+    }
+  };
 
   const fetchTop10Picks = async () => {
     setTop10Loading(true);
@@ -925,6 +966,89 @@ export default function BestBetsAnalysis() {
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* Eficacia REAL de las recomendaciones ya mostradas en el Top 4 / Top
+          10 - no el accuracy histórico general que se usa para elegirlas,
+          sino si ESTOS pronósticos puntuales acertaron una vez jugado el
+          partido. Se va acumulando: cada vista del Top 4/Top 10 fija el
+          pick la primera vez que aparece, y este panel lo valida en cuanto
+          el partido termina. */}
+      <div className="bg-gradient-to-r from-emerald-900/20 to-teal-900/20 rounded-lg p-4 sm:p-6 border border-emerald-500/30">
+        <h2 className="text-xl font-bold text-white mb-1">📊 Eficacia Real de las Recomendaciones</h2>
+        <p className="text-slate-400 text-xs sm:text-sm mb-4">
+          Seguimiento de los pronósticos que se mostraron en el Top 4 y Top 10 — agrupado por puntuación H2H, una vez jugados los partidos.
+        </p>
+
+        {recPicksLoading ? (
+          <div className="text-center text-slate-400 py-8">⏳ Cargando...</div>
+        ) : recPicksError ? (
+          <div className="text-center text-red-400 py-8">❌ {recPicksError}</div>
+        ) : !recPicksAccuracy || recPicksAccuracy.total_recommended === 0 ? (
+          <div className="text-center text-slate-400 py-8">
+            Todavía no se ha recomendado ningún pronóstico para hacerle seguimiento.
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-sm">
+              <div>
+                <span className="text-slate-500">Recomendados: </span>
+                <span className="text-white font-bold">{recPicksAccuracy.total_recommended}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Validados: </span>
+                <span className="text-white font-bold">{recPicksAccuracy.total_validated}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Pendientes: </span>
+                <span className="text-amber-400 font-bold">{recPicksAccuracy.total_pending}</span>
+              </div>
+              {recPicksAccuracy.overall_accuracy !== null && (
+                <div>
+                  <span className="text-slate-500">Accuracy general: </span>
+                  <span className={`font-bold ${getAccuracyColor(recPicksAccuracy.overall_accuracy)}`}>
+                    {recPicksAccuracy.overall_accuracy.toFixed(0)}%
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {recPicksAccuracy.by_score.map((row) => {
+                const lowSample = row.validated > 0 && row.validated < LOW_SAMPLE_THRESHOLD;
+                return (
+                  <div key={row.score} className="flex items-center gap-3 bg-slate-900/50 rounded-lg p-2.5">
+                    <div className="w-14 shrink-0 text-center">
+                      <div className="text-slate-500 text-[10px]">Score</div>
+                      <div className="text-white font-bold text-sm">{row.score}/12</div>
+                    </div>
+                    <div className="flex-1 relative bg-slate-800 rounded h-6 overflow-hidden">
+                      {row.accuracy_pct !== null && (
+                        <div
+                          className={`absolute left-0 top-0 bottom-0 ${getAccuracyBarColor(row.accuracy_pct)} ${lowSample ? 'opacity-60' : ''}`}
+                          style={{ width: `${row.accuracy_pct}%` }}
+                        />
+                      )}
+                    </div>
+                    <div className="w-16 shrink-0 text-right">
+                      {row.accuracy_pct !== null ? (
+                        <span className={`font-bold text-sm ${getAccuracyColor(row.accuracy_pct)} ${lowSample ? 'opacity-60' : ''}`}>
+                          {row.accuracy_pct.toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 text-xs">Sin validar</span>
+                      )}
+                    </div>
+                    <div className="w-28 shrink-0 text-right text-xs text-slate-500">
+                      {row.hits}/{row.validated}{row.pending > 0 ? ` (+${row.pending} pend.)` : ''}
+                      {lowSample && <span className="text-amber-400" title={`Menos de ${LOW_SAMPLE_THRESHOLD} recomendaciones validadas`}> ⚠️</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>

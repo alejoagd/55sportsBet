@@ -739,4 +739,135 @@ def get_top_upcoming_h2h_picks(
         if len(picks) >= limit:
             break
 
+    _record_recommended_picks(picks)
+
     return picks
+
+
+def _record_recommended_picks(picks: List[Dict[str, Any]]) -> None:
+    """
+    Snapshotea cada pick que se está devolviendo (Top 4 o Top 10, ambos pasan
+    por esta misma función) en h2h_recommended_picks, para llevar un
+    historial real de si estas recomendaciones específicas acertaron o no -
+    no solo el accuracy histórico general que ya usan para seleccionarlas.
+    UNIQUE(match_id, stat) + ON CONFLICT DO NOTHING: la primera vez que un
+    pick aparece queda fijado (predicción y contexto histórico de ese
+    momento), sin que vistas posteriores lo puedan sobrescribir.
+    """
+    if not picks:
+        return
+    with engine.begin() as conn:
+        for p in picks:
+            conn.execute(text("""
+                INSERT INTO h2h_recommended_picks
+                    (match_id, stat, score, league, prediction, line,
+                     historical_accuracy_at_time, historical_sample_at_time)
+                VALUES
+                    (:match_id, :stat, :score, :league, :prediction, :line,
+                     :hist_acc, :hist_sample)
+                ON CONFLICT (match_id, stat) DO NOTHING
+            """), {
+                "match_id": p["match_id"],
+                "stat": p["stat"],
+                "score": p["score"],
+                "league": p["league"],
+                "prediction": p["prediction"],
+                "line": p.get("line"),
+                "hist_acc": p["historical_accuracy"],
+                "hist_sample": p["historical_sample"],
+            })
+
+
+def validate_pending_recommended_picks() -> int:
+    """
+    Para cada pick de h2h_recommended_picks aún sin validar (hit IS NULL)
+    cuyo partido ya se jugó, calcula el total real de esa estadística y
+    marca acierto/fallo. Devuelve cuántos se validaron en esta corrida.
+    Si el partido terminó pero match_stats todavía no tiene esa liga
+    cargada, el pick simplemente queda pendiente (no se inventa un resultado).
+    """
+    with engine.begin() as conn:
+        pending = conn.execute(text("""
+            SELECT p.id, p.match_id, p.stat, p.line, p.prediction
+            FROM h2h_recommended_picks p
+            JOIN matches m ON m.id = p.match_id
+            WHERE p.hit IS NULL AND m.home_goals IS NOT NULL
+        """)).mappings().all()
+
+        validated = 0
+        for p in pending:
+            actual_row = conn.execute(text("""
+                SELECT
+                    (m.home_goals + m.away_goals) as goles,
+                    (ms.home_shots + ms.away_shots) as tiros,
+                    (ms.home_shots_on_target + ms.away_shots_on_target) as tiros_al_arco,
+                    (ms.home_fouls + ms.away_fouls) as faltas,
+                    (ms.home_yellow_cards + ms.home_red_cards + ms.away_yellow_cards + ms.away_red_cards) as tarjetas,
+                    (ms.home_corners + ms.away_corners) as corners
+                FROM matches m
+                LEFT JOIN match_stats ms ON ms.match_id = m.id
+                WHERE m.id = :mid
+            """), {"mid": p["match_id"]}).mappings().first()
+
+            actual_total = actual_row[p["stat"]] if actual_row else None
+            if actual_total is None:
+                continue  # sin dato real todavía (o nunca) - se deja pendiente
+
+            actual_total = float(actual_total)
+            predicted_over = p["prediction"].startswith("OVER")
+            actual_over = actual_total >= float(p["line"])
+            hit = actual_over == predicted_over
+
+            conn.execute(text("""
+                UPDATE h2h_recommended_picks
+                SET hit = :hit, actual_total = :actual_total, validated_at = NOW()
+                WHERE id = :id
+            """), {"hit": hit, "actual_total": actual_total, "id": p["id"]})
+            validated += 1
+
+    return validated
+
+
+def get_recommended_picks_accuracy() -> Dict[str, Any]:
+    """
+    Valida lo que ya se pueda validar y devuelve la eficacia real (no la
+    histórica general) de las recomendaciones del Top 4 / Top 10, agrupada
+    por puntuación H2H (0-12).
+    """
+    validate_pending_recommended_picks()
+
+    with engine.begin() as conn:
+        by_score = conn.execute(text("""
+            SELECT score,
+                   COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE hit IS NOT NULL) as validated,
+                   COUNT(*) FILTER (WHERE hit = true) as hits,
+                   COUNT(*) FILTER (WHERE hit IS NULL) as pending,
+                   ROUND(
+                       100.0 * COUNT(*) FILTER (WHERE hit = true)
+                       / NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
+                   1) as accuracy_pct
+            FROM h2h_recommended_picks
+            GROUP BY score
+            ORDER BY score DESC
+        """)).mappings().all()
+
+        overall = conn.execute(text("""
+            SELECT COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE hit IS NOT NULL) as validated,
+                   COUNT(*) FILTER (WHERE hit = true) as hits
+            FROM h2h_recommended_picks
+        """)).mappings().first()
+
+    overall_accuracy = (
+        round(100.0 * overall["hits"] / overall["validated"], 1)
+        if overall["validated"] else None
+    )
+
+    return {
+        "by_score": [dict(row) for row in by_score],
+        "total_recommended": overall["total"],
+        "total_validated": overall["validated"],
+        "total_pending": overall["total"] - overall["validated"],
+        "overall_accuracy": overall_accuracy,
+    }
