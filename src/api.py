@@ -4108,15 +4108,13 @@ def get_h2h_scoring(match_id: int):
                 COALESCE(wp.fouls_home::NUMERIC, 0) + COALESCE(wp.fouls_away::NUMERIC, 0) as pred_total_fouls,
                 COALESCE(wp.cards_home::NUMERIC, 0) + COALESCE(wp.cards_away::NUMERIC, 0) as pred_total_cards,
                 COALESCE(wp.corners_home::NUMERIC, 0) + COALESCE(wp.corners_away::NUMERIC, 0) as pred_total_corners,
-                -- Convertir both_score a numeric si es text
-                CASE 
-                    WHEN wp.both_score IS NOT NULL THEN 
-                        CASE 
-                            WHEN wp.both_score::TEXT ~ '^[0-9]*\.?[0-9]+$' THEN wp.both_score::NUMERIC
-                            ELSE 0
-                        END
-                    ELSE 0
-                END as pred_btts,
+                -- both_score guarda la etiqueta de texto ("YES"/"NO"/"Ambos
+                -- Marcan"/"No marcan ambos" según la corrida que la generó),
+                -- nunca un número - el intento de parsearla con una regex
+                -- numérica nunca podía matchear, así que pred_btts daba
+                -- siempre 0 (BTTS = "NO" para TODOS los partidos). El
+                -- porcentaje real ya existe en prob_btts.
+                wp.prob_btts as pred_btts,
                 COALESCE(wp.local_goals::NUMERIC, 0) + COALESCE(wp.away_goals::NUMERIC, 0) as pred_total_goals
             FROM matches m
             JOIN teams th ON th.id = m.home_team_id
