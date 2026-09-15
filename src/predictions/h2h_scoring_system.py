@@ -102,57 +102,72 @@ def _get_weinston_predictions(conn: Connection, match_id: int) -> Optional[Dict[
     result = conn.execute(query, {"match_id": match_id}).fetchone()
     if not result:
         return None
-    
+
+    def _total(home_val, away_val):
+        # shots/fouls/cards/corners son NULL cuando la liga no tiene
+        # match_stats para calibrar esa predicción (torneos sudamericanos) -
+        # no hay total que calcular, y este stat simplemente no se incluye.
+        if home_val is None or away_val is None:
+            return None
+        return float(home_val) + float(away_val)
+
     # Calcular totales predichos
     total_goals = float(result.local_goals) + float(result.away_goals)
-    total_shots = float(result.shots_home) + float(result.shots_away)
-    total_shots_target = float(result.shots_target_home) + float(result.shots_target_away)
-    total_fouls = float(result.fouls_home) + float(result.fouls_away)
-    total_cards = float(result.cards_home) + float(result.cards_away)
-    total_corners = float(result.corners_home) + float(result.corners_away)
-    
+    total_shots = _total(result.shots_home, result.shots_away)
+    total_shots_target = _total(result.shots_target_home, result.shots_target_away)
+    total_fouls = _total(result.fouls_home, result.fouls_away)
+    total_cards = _total(result.cards_home, result.cards_away)
+    total_corners = _total(result.corners_home, result.corners_away)
+
     # ✅ Usar thresholds de league_parameters
     line_shots = float(result.betting_line_shots)
     line_shots_ot = float(result.betting_line_shots_ot)
     line_fouls = float(result.betting_line_fouls)
     line_cards = float(result.betting_line_cards)
     line_corners = float(result.betting_line_corners)
-    
-    return {
+
+    predictions = {
         "goles": {
             "predicted_total": total_goals,
             "line": 2.5,  # Este sí es universal
             "prediction": "OVER_2_5" if total_goals >= 2.5 else "UNDER_2_5"
         },
-        "tiros": {
-            "predicted_total": total_shots,
-            "line": line_shots,  # ✅ Dinámico por liga
-            "prediction": f"OVER_{line_shots}" if total_shots >= line_shots else f"UNDER_{line_shots}"
-        },
-        "tiros_al_arco": {
-            "predicted_total": total_shots_target,
-            "line": line_shots_ot,  # ✅ Dinámico por liga
-            "prediction": f"OVER_{line_shots_ot}" if total_shots_target >= line_shots_ot else f"UNDER_{line_shots_ot}"
-        },
-        "faltas": {
-            "predicted_total": total_fouls,
-            "line": line_fouls,  # ✅ Dinámico por liga
-            "prediction": f"OVER_{line_fouls}" if total_fouls >= line_fouls else f"UNDER_{line_fouls}"
-        },
-        "tarjetas": {
-            "predicted_total": total_cards,
-            "line": line_cards,  # ✅ Dinámico por liga
-            "prediction": f"OVER_{line_cards}" if total_cards >= line_cards else f"UNDER_{line_cards}"
-        },
-        "corners": {
-            "predicted_total": total_corners,
-            "line": line_corners,  # ✅ Dinámico por liga
-            "prediction": f"OVER_{line_corners}" if total_corners >= line_corners else f"UNDER_{line_corners}"
-        },
         "btts": {
             "prediction": result.both_score  # "YES" o "NO"
         }
     }
+    if total_shots is not None:
+        predictions["tiros"] = {
+            "predicted_total": total_shots,
+            "line": line_shots,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_shots}" if total_shots >= line_shots else f"UNDER_{line_shots}"
+        }
+    if total_shots_target is not None:
+        predictions["tiros_al_arco"] = {
+            "predicted_total": total_shots_target,
+            "line": line_shots_ot,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_shots_ot}" if total_shots_target >= line_shots_ot else f"UNDER_{line_shots_ot}"
+        }
+    if total_fouls is not None:
+        predictions["faltas"] = {
+            "predicted_total": total_fouls,
+            "line": line_fouls,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_fouls}" if total_fouls >= line_fouls else f"UNDER_{line_fouls}"
+        }
+    if total_cards is not None:
+        predictions["tarjetas"] = {
+            "predicted_total": total_cards,
+            "line": line_cards,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_cards}" if total_cards >= line_cards else f"UNDER_{line_cards}"
+        }
+    if total_corners is not None:
+        predictions["corners"] = {
+            "predicted_total": total_corners,
+            "line": line_corners,  # ✅ Dinámico por liga
+            "prediction": f"OVER_{line_corners}" if total_corners >= line_corners else f"UNDER_{line_corners}"
+        }
+
+    return predictions
 
 def _get_h2h_matches(
     conn: Connection, 
