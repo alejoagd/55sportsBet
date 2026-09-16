@@ -58,64 +58,94 @@ def print_title(msg):
     print(f"{'='*70}{Colors.END}\n")
 
 
-def calculate_league_parameters(conn, league_id: int) -> Optional[Dict[str, Any]]:
+def _get_recent_complete_season_ids(conn, league_id: int, n: int = 2) -> list[int]:
     """
-    Calcula todos los parámetros estadísticos de una liga.
-    
+    Las `n` temporadas más recientes de esta liga que ya terminaron por
+    completo (sin ningún partido pendiente) - excluye la temporada en curso
+    aunque ya lleve varias fechas jugadas, para no mezclar una muestra
+    parcial con temporadas completas.
+    """
+    rows = conn.execute(text("""
+        SELECT s.id
+        FROM seasons s
+        JOIN matches m ON m.season_id = s.id
+        WHERE s.league_id = :league_id
+        GROUP BY s.id, s.year_start
+        HAVING COUNT(*) FILTER (WHERE m.home_goals IS NULL) = 0
+           AND COUNT(*) >= 100
+        ORDER BY s.year_start DESC
+        LIMIT :n
+    """), {"league_id": league_id, "n": n}).scalars().all()
+    return list(rows)
+
+
+def calculate_league_parameters(conn, league_id: int, n_seasons: int = 2) -> Optional[Dict[str, Any]]:
+    """
+    Calcula todos los parámetros estadísticos de una liga, usando solo las
+    `n_seasons` temporadas completas más recientes en vez del histórico
+    completo - el arbitraje y el estilo de juego cambian con los años (ej.
+    Bundesliga: ~30.7 faltas/partido en 2013/14 vs ~20.9 en 2025/26, una
+    caída del 32% en 13 temporadas), así que promediar todo el histórico
+    por igual produce una línea desactualizada frente al nivel actual.
+
     Args:
         conn: Conexión a la base de datos
         league_id: ID de la liga
-        
+        n_seasons: cuántas temporadas completas recientes usar (default 2)
+
     Returns:
         Diccionario con los parámetros calculados o None si no hay datos
     """
+    season_ids = _get_recent_complete_season_ids(conn, league_id, n_seasons)
+    if not season_ids:
+        return None
+
     query = text("""
-        SELECT 
+        SELECT
             s.league_id,
             l.name as league_name,
             COUNT(DISTINCT m.id) as total_matches,
-            
+
             -- Promedios de goles
             AVG(m.home_goals)::float as avg_home_goals,
             AVG(m.away_goals)::float as avg_away_goals,
-            
+
             -- Home Field Advantage (ratio home/away)
-            CASE 
-                WHEN AVG(m.away_goals) > 0 
+            CASE
+                WHEN AVG(m.away_goals) > 0
                 THEN (AVG(m.home_goals) / AVG(m.away_goals))::float
-                ELSE 1.05 
+                ELSE 1.05
             END as home_field_advantage,
-            
+
             -- Estadísticas de match_stats
             AVG(ms.total_shots)::float as avg_shots,
             AVG(ms.total_shots_on_target)::float as avg_shots_on_target,
             AVG(ms.total_corners)::float as avg_corners,
             AVG(ms.total_cards)::float as avg_cards,
             AVG(ms.total_fouls)::float as avg_fouls,
-            
+
             -- Líneas de apuestas sugeridas (percentil 50 - mediana)
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ms.total_shots) as betting_line_shots,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ms.total_corners) as betting_line_corners,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ms.total_cards) as betting_line_cards,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ms.total_fouls) as betting_line_fouls
-            
+
         FROM matches m
         JOIN seasons s ON s.id = m.season_id
         JOIN leagues l ON l.id = s.league_id
         LEFT JOIN match_stats ms ON ms.match_id = m.id
-        WHERE s.league_id = :league_id
+        WHERE m.season_id = ANY(:season_ids)
           AND m.home_goals IS NOT NULL
           AND m.away_goals IS NOT NULL
-          AND m.date < CURRENT_DATE
         GROUP BY s.league_id, l.name
         HAVING COUNT(DISTINCT m.id) > 0
     """)
-    
-    result = conn.execute(query, {"league_id": league_id}).mappings().one_or_none()
-    
+
+    result = conn.execute(query, {"season_ids": season_ids}).mappings().one_or_none()
+
     if not result:
         return None
-    
+
     return dict(result)
 
 
