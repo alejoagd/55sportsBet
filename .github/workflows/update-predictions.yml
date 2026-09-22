@@ -45,6 +45,8 @@ on:
 
   # Programación automática
   schedule:
+    - cron: '0 19 * * 0'  # Domingo a las 7 PM UTC - Workflow FINISH
+    - cron: '0 18 * * 1'  # Lunes a las 6 PM UTC - Workflow FINISH
     - cron: '0 20 * * 2'  # Martes a las 8 PM UTC - Workflow FINISH
     - cron: '0 16 * * 3'  # Miércoles a las 4 PM UTC - Workflow COMPLETE
 
@@ -177,13 +179,17 @@ jobs:
         run: |
           # Determinar modo de operación
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Detectar día de la semana (1=lunes, 2=martes, 3=miércoles, etc.)
+            # Detectar día de la semana (1=lunes, 2=martes, 3=miércoles, ..., 7=domingo)
             DAY_OF_WEEK=$(date +%u)
 
-            if [ "$DAY_OF_WEEK" = "2" ]; then
+            if [ "$DAY_OF_WEEK" = "7" ] || [ "$DAY_OF_WEEK" = "1" ] || [ "$DAY_OF_WEEK" = "2" ]; then
               # ════════════════════════════════════════════════════════════════
-              # MARTES 8 PM UTC - FINISH WORKFLOW
+              # DOMINGO 7 PM UTC / LUNES 6 PM UTC / MARTES 8 PM UTC - FINISH WORKFLOW
               # ════════════════════════════════════════════════════════════════
+              # Se corre 3 veces en vez de solo el martes para no esperar hasta
+              # el martes a ver resultados de ligas que juegan lunes o martes -
+              # cada corrida revalida la misma ventana de 7 días, así que ir
+              # agarrando partidos recién terminados en cada pasada es idempotente.
               # Procesa partidos jugados en los últimos 7 días
               # - Descarga resultados actualizados de football-data.co.uk
               # - Actualiza partidos en BD con resultados nuevos
