@@ -330,7 +330,16 @@ def predict_and_upsert_weinston(
         profiles, league_means = {}, {}
         use_profiles = False
     
-    q_matches = text("SELECT id, home_team_id, away_team_id FROM matches WHERE id = ANY(:ids)")
+    # 757/758 = "TBD Home"/"TBD Away", equipos placeholder que ESPN siembra
+    # de antemano para cupos de cuartos/semis/final antes de saber quién
+    # avanza - sin equipos reales no hay ninguna base para predecir nada
+    # (el fallback de rating por defecto da lambdas casi cero, que se veían
+    # como "0.1 goles" / "89% empate" en Próximos Partidos).
+    q_matches = text("""
+        SELECT id, home_team_id, away_team_id FROM matches
+        WHERE id = ANY(:ids)
+          AND home_team_id NOT IN (757, 758) AND away_team_id NOT IN (757, 758)
+    """)
     matches = conn.execute(q_matches, {"ids": match_ids}).fetchall()
 
     upsert = text("""

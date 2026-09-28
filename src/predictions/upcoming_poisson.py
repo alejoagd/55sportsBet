@@ -106,7 +106,13 @@ def predict_and_upsert_poisson(
         SELECT id, home_team_id, away_team_id
         FROM matches
         WHERE id = ANY(:ids)
+          AND home_team_id NOT IN (757, 758) AND away_team_id NOT IN (757, 758)
     """)
+    # 757/758 = "TBD Home"/"TBD Away", los equipos placeholder que ESPN usa
+    # para sembrar de antemano cupos de cuartos/semis/final antes de que se
+    # conozca quién avanza - no hay ningún dato real detrás, así que ninguna
+    # predicción (ni el fallback de promedio de liga) tiene sentido para
+    # estos partidos hasta que se resuelvan a equipos reales.
     rows = conn.execute(q_matches, {"ids": match_ids}).fetchall()
 
     upsert = text("""

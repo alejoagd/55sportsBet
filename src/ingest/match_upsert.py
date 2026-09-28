@@ -139,4 +139,61 @@ def upsert_match(
         """),
         params,
     ).scalar_one()
+
+    _retire_stale_bracket_placeholder(conn, season_id=season_id, stage=stage,
+                                       match_date=match_date, home_id=home_id, away_id=away_id)
+
     return new_id, "inserted"
+
+
+# Equipos "por definir" que ESPN usa para sembrar de antemano los cupos de
+# cuartos/semis/final antes de que se conozca quién avanza (ver teams.id 757
+# "TBD Home" / 758 "TBD Away"). Cuando el cruce real se confirma, ESPN lo
+# publica como un evento NUEVO (espn_event_id distinto al del placeholder),
+# así que upsert_match nunca lo reconoce como "el mismo partido" y siempre
+# termina en un INSERT - dejando el placeholder huérfano en el bracket con
+# los nombres "TBD Home"/"TBD Away" para siempre si nadie lo retira.
+_TBD_HOME_TEAM_ID = 757
+_TBD_AWAY_TEAM_ID = 758
+
+
+def _retire_stale_bracket_placeholder(
+    conn: Connection, *, season_id: int, stage: str | None, match_date: DateType,
+    home_id: int, away_id: int,
+) -> None:
+    if stage in (None, "regular", "group"):
+        return
+    if home_id == _TBD_HOME_TEAM_ID or away_id == _TBD_AWAY_TEAM_ID:
+        return  # el que se acaba de insertar es él mismo un placeholder
+
+    stale = conn.execute(
+        text("""
+            SELECT id, date FROM matches
+            WHERE season_id = :sid AND stage = :stage
+              AND (home_team_id = :tbd_h OR away_team_id = :tbd_a)
+            ORDER BY ABS(date - :d)
+            LIMIT 1
+        """),
+        {"sid": season_id, "stage": stage, "d": match_date,
+         "tbd_h": _TBD_HOME_TEAM_ID, "tbd_a": _TBD_AWAY_TEAM_ID},
+    ).fetchone()
+    if stale is None:
+        return
+    # Ventana angosta a propósito: en una ronda a ida y vuelta puede haber más
+    # de un placeholder pendiente (una pierna sí confirmada, la otra no) - solo
+    # se retira el más cercano en fecha, no todos los de esa stage/temporada.
+    if abs((stale.date - match_date).days) > 14:
+        return
+
+    # matches.id tiene FKs con delete_rule NO ACTION desde varias tablas de
+    # predicciones (el placeholder, al ser un partido "próximo" más, ya suele
+    # tener su fila de Poisson/Weinston/betting-lines generada) - hay que
+    # limpiarlas antes o el DELETE de abajo revienta por violación de FK.
+    # h2h_scoring / h2h_recommended_picks sí son ON DELETE CASCADE, no hace
+    # falta tocarlas a mano.
+    for dependent_table in (
+        "betting_lines_predictions", "match_stats", "poisson_predictions",
+        "weinston_predictions", "wc_scoring_events",
+    ):
+        conn.execute(text(f"DELETE FROM {dependent_table} WHERE match_id = :id"), {"id": stale.id})
+    conn.execute(text("DELETE FROM matches WHERE id = :id"), {"id": stale.id})
