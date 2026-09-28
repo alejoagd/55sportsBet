@@ -141,7 +141,8 @@ def upsert_match(
     ).scalar_one()
 
     _retire_stale_bracket_placeholder(conn, season_id=season_id, stage=stage,
-                                       match_date=match_date, home_id=home_id, away_id=away_id)
+                                       match_date=match_date, home_id=home_id, away_id=away_id,
+                                       new_match_id=new_id)
 
     return new_id, "inserted"
 
@@ -159,7 +160,7 @@ _TBD_AWAY_TEAM_ID = 758
 
 def _retire_stale_bracket_placeholder(
     conn: Connection, *, season_id: int, stage: str | None, match_date: DateType,
-    home_id: int, away_id: int,
+    home_id: int, away_id: int, new_match_id: int,
 ) -> None:
     if stage in (None, "regular", "group"):
         return
@@ -170,18 +171,29 @@ def _retire_stale_bracket_placeholder(
         text("""
             SELECT id, date FROM matches
             WHERE season_id = :sid AND stage = :stage
-              AND (home_team_id = :tbd_h OR away_team_id = :tbd_a)
+              AND id != :new_id
+              AND home_goals IS NULL
+              AND (
+                    (home_team_id = :tbd_h OR away_team_id = :tbd_a)
+                 OR (home_team_id IN (:hid, :aid) AND away_team_id IN (:hid, :aid))
+              )
             ORDER BY ABS(date - :d)
             LIMIT 1
         """),
-        {"sid": season_id, "stage": stage, "d": match_date,
-         "tbd_h": _TBD_HOME_TEAM_ID, "tbd_a": _TBD_AWAY_TEAM_ID},
+        {"sid": season_id, "stage": stage, "d": match_date, "new_id": new_match_id,
+         "tbd_h": _TBD_HOME_TEAM_ID, "tbd_a": _TBD_AWAY_TEAM_ID,
+         "hid": home_id, "aid": away_id},
     ).fetchone()
     if stale is None:
         return
     # Ventana angosta a propósito: en una ronda a ida y vuelta puede haber más
-    # de un placeholder pendiente (una pierna sí confirmada, la otra no) - solo
-    # se retira el más cercano en fecha, no todos los de esa stage/temporada.
+    # de un placeholder/duplicado pendiente (una pierna sí confirmada, la otra
+    # no) - solo se retira el más cercano en fecha, no todos los de esa
+    # stage/temporada. La segunda condición del WHERE de arriba (mismo par de
+    # equipos, no jugado) cubre además el caso de una fila que alguien ya
+    # corrigió a mano con los equipos reales antes de que ESPN publicara el
+    # evento oficial - si no, ese arreglo manual también quedaría huérfano en
+    # cuanto llegue el fixture real.
     if abs((stale.date - match_date).days) > 14:
         return
 
