@@ -498,6 +498,7 @@ def get_team_statistics(
             LEFT JOIN match_stats ms ON ms.match_id = m.id
             WHERE m.season_id = :season_id
               AND m.home_goals IS NOT NULL
+              AND (:phase IS NULL OR m.round_label = :phase)
               AND (:date_from IS NULL OR m.date >= :date_from)
               AND (:date_to IS NULL OR m.date <= :date_to)
             GROUP BY t.id, t.name
@@ -536,6 +537,7 @@ def get_team_statistics(
             LEFT JOIN match_stats ms ON ms.match_id = m.id
             WHERE m.season_id = :season_id
               AND m.home_goals IS NOT NULL
+              AND (:phase IS NULL OR m.round_label = :phase)
               AND (:date_from IS NULL OR m.date >= :date_from)
               AND (:date_to IS NULL OR m.date <= :date_to)
             GROUP BY t.id, t.name
@@ -629,6 +631,7 @@ def get_team_statistics(
         WHERE m.season_id = :season_id
           AND m.referee IS NOT NULL
           AND m.home_goals IS NOT NULL
+          AND (:phase IS NULL OR m.round_label = :phase)
           AND (:date_from IS NULL OR m.date >= :date_from)
           AND (:date_to IS NULL OR m.date <= :date_to)
         GROUP BY m.referee
@@ -650,24 +653,43 @@ def get_team_statistics(
     HALFTIME_FIELDS = ["avg_goals_1h", "avg_goals_2h"]
 
     with engine.begin() as conn:
+        # Varias ligas (Liga Argentina, Liga Betplay) parten el año en
+        # Apertura/Clausura bajo el mismo season_id — sin este filtro un
+        # equipo con 9-12 jugados en el Clausura en curso arrastraba también
+        # los ~18-19 del Apertura ya terminado (visto en Liga Betplay:
+        # "Posiciones" ya filtraba a la fase actual, esta vista no). Mismo
+        # criterio que /api/competitions/{season_id}/standings: la fase con
+        # partidos más cercanos a hoy es "la actual", sea cual sea su nombre.
+        phase_row = conn.execute(text("""
+            SELECT round_label
+            FROM matches
+            WHERE season_id = :season_id AND round_label IS NOT NULL
+            ORDER BY ABS(date - CURRENT_DATE)
+            LIMIT 1
+        """), {"season_id": season_id}).fetchone()
+        current_phase = phase_row.round_label if phase_row else None
+
         has_match_stats = conn.execute(text("""
             SELECT EXISTS (
                 SELECT 1 FROM match_stats ms
                 JOIN matches m ON m.id = ms.match_id
                 WHERE m.season_id = :season_id
+                  AND (:phase IS NULL OR m.round_label = :phase)
             )
-        """), {"season_id": season_id}).scalar()
+        """), {"season_id": season_id, "phase": current_phase}).scalar()
 
         has_halftime_data = conn.execute(text("""
             SELECT EXISTS (
                 SELECT 1 FROM matches m
                 WHERE m.season_id = :season_id AND m.halftime_homegoal IS NOT NULL
+                  AND (:phase IS NULL OR m.round_label = :phase)
             )
-        """), {"season_id": season_id}).scalar()
+        """), {"season_id": season_id, "phase": current_phase}).scalar()
 
         # Obtener estadísticas de equipos
         team_rows = conn.execute(query, {
             "season_id": season_id,
+            "phase": current_phase,
             "date_from": date_from,
             "date_to": date_to
         }).mappings().all()
@@ -691,6 +713,7 @@ def get_team_statistics(
         if has_match_stats:
             referee_rows = conn.execute(referee_query, {
                 "season_id": season_id,
+                "phase": current_phase,
                 "date_from": date_from,
                 "date_to": date_to
             }).mappings().all()
@@ -700,6 +723,7 @@ def get_team_statistics(
 
         return {
             "season_id": season_id,
+            "round_label": current_phase,
             "date_from": date_from,
             "date_to": date_to,
             "has_match_stats": bool(has_match_stats),

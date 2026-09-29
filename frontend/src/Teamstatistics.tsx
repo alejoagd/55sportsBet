@@ -54,6 +54,7 @@ interface RefereeStats {
 
 interface StatsResponse {
   season_id: number;
+  round_label: string | null;
   date_from: string | null;
   date_to: string | null;
   has_match_stats: boolean;
@@ -330,7 +331,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             </h1>
           </div>
           <p className="text-slate-300 text-xs sm:text-base">
-            {leagueName} · Temporada {seasonId}
+            {leagueName} · {data.round_label ? data.round_label : `Temporada ${seasonId}`}
           </p>
           <p className="text-slate-500 text-[11px] sm:text-sm mt-0.5 sm:mt-1">
             {data.teams.length} equipos • {data.referees?.length || 0} árbitros
