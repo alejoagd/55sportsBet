@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, APIRouter, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List, Dict, Any
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from src.config import settings
 from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
@@ -19,11 +20,28 @@ from pydantic import BaseModel
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run incremental DB migrations before serving any request."""
-    _engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True)
-    with _engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS penalty_winner TEXT"
-        ))
+    # El host de Postgres en Render (dpg-...-a.ohio-postgres.render.com) tiene
+    # fallos transitorios de resolución DNS conocidos - vistos muchas veces
+    # esta sesión, siempre resueltos con un simple reintento. Sin retry acá,
+    # un solo hipo de red justo en el arranque tumba toda la app: uvicorn
+    # nunca llega a abrir el puerto, y Render mata el deploy por timeout de
+    # "no open ports detected" - dejando la versión anterior corriendo sin
+    # ningún error visible más que en los logs de deploy.
+    last_exc: Exception | None = None
+    for attempt in range(5):
+        try:
+            _engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True)
+            with _engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE matches ADD COLUMN IF NOT EXISTS penalty_winner TEXT"
+                ))
+            break
+        except OperationalError as e:
+            last_exc = e
+            print(f"⚠️  [lifespan] BD no disponible (intento {attempt + 1}/5): {e}")
+            time.sleep(2 * (attempt + 1))
+    else:
+        raise RuntimeError(f"No se pudo conectar a la BD tras 5 intentos: {last_exc}")
     yield
 
 
