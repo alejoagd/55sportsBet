@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* "Twemoji Country Flags" solo existe si el polyfill de banderas la cargó
+   (ver main.tsx); por su unicode-range únicamente afecta a las banderas. */
+body {
+  font-family: "Twemoji Country Flags", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
 /* Oculta la scrollbar en filas de scroll horizontal (nav, tabs) sin
    deshabilitar el scroll. Usado por App.tsx, Teamstatistics.tsx y
    WorldCupDashboard.tsx. */

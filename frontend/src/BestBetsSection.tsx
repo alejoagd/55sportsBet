@@ -265,7 +265,7 @@ export default function BestBetsSection() {
   const leagueStats = getLeagueStats();
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-lg p-4 sm:p-6 border border-green-500/30">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
@@ -344,12 +344,12 @@ export default function BestBetsSection() {
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-4">
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <TeamLogo url={bet.home_team_logo} alt={bet.home_team} />
-                <span className="text-base sm:text-lg md:text-xl font-bold text-white truncate">{bet.home_team}</span>
+                <span className="text-base sm:text-lg md:text-xl font-bold text-white line-clamp-2 break-words leading-tight">{bet.home_team}</span>
               </div>
               <span className="text-slate-500 text-sm sm:text-base shrink-0">vs</span>
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <TeamLogo url={bet.away_team_logo} alt={bet.away_team} />
-                <span className="text-base sm:text-lg md:text-xl font-bold text-white truncate">{bet.away_team}</span>
+                <span className="text-base sm:text-lg md:text-xl font-bold text-white line-clamp-2 break-words leading-tight">{bet.away_team}</span>
               </div>
             </div>
 
@@ -489,10 +489,10 @@ export default function BestBetsSection() {
 
                   <div className="flex items-center justify-center gap-2 mb-3">
                     <TeamLogo url={pick.home_team_logo} alt={pick.home_team} />
-                    <span className="text-white font-bold text-sm truncate">{pick.home_team}</span>
+                    <span className="text-white font-bold text-sm line-clamp-2 break-words leading-tight">{pick.home_team}</span>
                     <span className="text-slate-500 text-xs shrink-0">vs</span>
                     <TeamLogo url={pick.away_team_logo} alt={pick.away_team} />
-                    <span className="text-white font-bold text-sm truncate">{pick.away_team}</span>
+                    <span className="text-white font-bold text-sm line-clamp-2 break-words leading-tight">{pick.away_team}</span>
                   </div>
 
                   <div className="bg-slate-900/50 rounded-lg p-3 mb-3 text-center">

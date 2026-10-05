@@ -91,7 +91,7 @@ export const AdminBadge: React.FC = () => {
   if (!isAdmin) return null;
 
   return (
-    <div className="fixed top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold z-50">
+    <div className="flex-shrink-0 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">
       🔧 ADMIN
     </div>
   );

@@ -125,7 +125,7 @@ export default function TodayAllLeaguesView() {
                   <div className="text-slate-400 text-xs mb-2">{formatTime(m.kickoff_at)}</div>
                   <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
                     <div className="flex items-center justify-end gap-2 text-right text-white font-semibold text-sm min-w-0">
-                      <span className="truncate">{m.home_team}</span>
+                      <span className="line-clamp-2 break-words leading-tight" title={m.home_team}>{m.home_team}</span>
                       <TeamLogo url={m.home_team_logo} alt={m.home_team} />
                     </div>
                     <div className="text-center min-w-[48px]">
@@ -137,7 +137,7 @@ export default function TodayAllLeaguesView() {
                     </div>
                     <div className="flex items-center gap-2 text-left text-white font-semibold text-sm min-w-0">
                       <TeamLogo url={m.away_team_logo} alt={m.away_team} />
-                      <span className="truncate">{m.away_team}</span>
+                      <span className="line-clamp-2 break-words leading-tight" title={m.away_team}>{m.away_team}</span>
                     </div>
                   </div>
                 </div>

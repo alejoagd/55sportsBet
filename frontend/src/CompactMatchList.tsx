@@ -271,7 +271,7 @@ function MobileCards({
                   <div className="flex items-center gap-2 mb-4">
                     <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                       <TeamLogo url={m.home_team_logo} alt={m.home_team} size="lg" />
-                      <span className="text-white font-semibold text-xs sm:text-sm text-center truncate w-full">{m.home_team}</span>
+                      <span className="text-white font-semibold text-xs sm:text-sm text-center line-clamp-2 break-words leading-tight w-full">{m.home_team}</span>
                     </div>
                     <div className="flex flex-col items-center shrink-0 px-1">
                       {row.actualScore ? (
@@ -282,7 +282,7 @@ function MobileCards({
                     </div>
                     <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                       <TeamLogo url={m.away_team_logo} alt={m.away_team} size="lg" />
-                      <span className="text-white font-semibold text-xs sm:text-sm text-center truncate w-full">{m.away_team}</span>
+                      <span className="text-white font-semibold text-xs sm:text-sm text-center line-clamp-2 break-words leading-tight w-full">{m.away_team}</span>
                     </div>
                   </div>
 

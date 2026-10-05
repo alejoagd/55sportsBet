@@ -267,7 +267,7 @@ const EVOLUTION_TABS: { id: EvolutionTab; icon: string; full?: string; short: st
 
 function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab; setActiveTab: (t: EvolutionTab) => void }) {
   return (
-    <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto">
+    <div className="flex gap-2 sm:gap-4 border-b border-slate-700 overflow-x-auto scrollbar-hide">
       {EVOLUTION_TABS.map((tab) => (
         <button
           key={tab.id}
@@ -591,16 +591,16 @@ export default function MetricsEvolutionChart() {
         </div>
 
         {/* Tabla de Datos */}
-        <div className="bg-slate-800 rounded-lg p-6 overflow-x-auto">
+        <div className="bg-slate-800 rounded-lg p-4 sm:p-6 overflow-x-auto">
           <h3 className="text-lg font-bold text-white mb-4">Datos Detallados</h3>
-          <table className="w-full text-sm">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left text-slate-400 p-2">Período</th>
-                <th className="text-right text-slate-400 p-2">Partidos</th>
-                <th className="text-right text-blue-400 p-2">Poisson</th>
-                <th className="text-right text-orange-400 p-2">Weinston</th>
-                <th className="text-right text-slate-400 p-2">Diferencia</th>
+                <th className="text-left text-slate-400 px-1.5 py-2 sm:p-2">Período</th>
+                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">Partidos</th>
+                <th className="text-right text-blue-400 px-1.5 py-2 sm:p-2">Poisson</th>
+                <th className="text-right text-orange-400 px-1.5 py-2 sm:p-2">Weinston</th>
+                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">Diferencia</th>
               </tr>
             </thead>
             <tbody>
@@ -611,15 +611,15 @@ export default function MetricsEvolutionChart() {
                 
                 return (
                   <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td className="text-white p-2">{row.period_label}</td>
-                    <td className="text-slate-300 text-right p-2">{row.total_matches}</td>
-                    <td className="text-blue-300 text-right p-2 font-mono">
+                    <td className="text-white px-1.5 py-2 sm:p-2">{row.period_label}</td>
+                    <td className="text-slate-300 text-right px-1.5 py-2 sm:p-2">{row.total_matches}</td>
+                    <td className="text-blue-300 text-right px-1.5 py-2 sm:p-2 font-mono">
                       {pValue != null ? pValue.toFixed(1) : 'N/A'}{suffix}
                     </td>
-                    <td className="text-orange-300 text-right p-2 font-mono">
+                    <td className="text-orange-300 text-right px-1.5 py-2 sm:p-2 font-mono">
                       {wValue != null ? wValue.toFixed(1) : 'N/A'}{suffix}
                     </td>
-                    <td className={`text-right p-2 font-mono font-bold ${diff > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <td className={`text-right px-1.5 py-2 sm:p-2 font-mono font-bold ${diff > 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {diff > 0 ? '+' : ''}{diff.toFixed(1)}{suffix}
                     </td>
                   </tr>
