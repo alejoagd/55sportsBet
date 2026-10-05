@@ -1,7 +1,6 @@
 // App.tsx - Con Sistema de Permisos Administrativos
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import PredictionsDashboard from "./predictionsDashboard";
 import MetricsEvolutionChart from "./MetricsEvolutionChart";
 import ImprovedDashboard from './ImprovedDashboard';
 import MatchDetail from './MatchDetail';
@@ -15,7 +14,7 @@ import './mobile-responsive.css';
 
 // 🔐 Imports del sistema administrativo
 //import { useAdminMode } from './hooks/useAdminMode';
-import { AdminOnly, AdminBadge } from './AdminButton';
+import { AdminBadge } from './AdminButton';
 import AdminLogin from './AdminLogin';
 import { useAdminMode } from './Hooks/useAdminMode';
 
@@ -38,7 +37,7 @@ const NAV_ITEMS = [
 
 // Barra superior: logo siempre visible; los links de navegación solo se
 // muestran en desktop (en mobile se mueven a la barra inferior fija).
-function TopBar({ isMobile }: { isMobile: boolean }) {
+function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () => void }) {
   const location = useLocation();
   const { isAdmin, showAdminLogin, loginAsAdmin, toggleAdminLogin } = useAdminMode();
 
@@ -83,22 +82,29 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
                         <span>{label}</span>
                       </Link>
                     ))}
-                    <AdminOnly hideCompletely={true}>
-                      <Link to="/statistics2" className={linkClass('/statistics2')}>
-                        <span>📊</span>
-                        <span>Stats 2</span>
-                      </Link>
-                    </AdminOnly>
                   </div>
                 </div>
               </>
             )}
+
+            {/* Badge de admin dentro del header (no fixed) para que no flote sobre el contenido */}
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+              <AdminBadge />
+              {/* En mobile la suscripción vive acá en vez de en un botón flotante que tapa contenido */}
+              {isMobile && (
+                <button
+                  onClick={onSubscribe}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-sm"
+                  title="Suscríbete para recibir noticias del Mundial"
+                  aria-label="Suscríbete"
+                >🔔</button>
+              )}
+            </div>
           </div>
         </div>
       </nav>
 
       <AdminLogin isVisible={showAdminLogin} onLogin={loginAsAdmin} onClose={toggleAdminLogin} />
-      <AdminBadge />
     </>
   );
 }
@@ -107,7 +113,12 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
 // + un botón "Ligas" que abre el panel de selección de liga.
 function BottomTabBar({ onOpenLeagues }: { onOpenLeagues: () => void }) {
   const location = useLocation();
-  const isActive = (path: string) => location.pathname === path;
+  // Viendo una liga (/?league=X) se marca "Ligas" en vez de "Inicio", que
+  // queda solo para "Partidos de hoy" (/ sin liga).
+  const isLeagueView =
+    location.pathname === '/' && new URLSearchParams(location.search).has('league');
+  const isActive = (path: string) =>
+    location.pathname === path && !(path === '/' && isLeagueView);
 
   const itemClass = (active: boolean) =>
     `flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium
@@ -124,7 +135,7 @@ function BottomTabBar({ onOpenLeagues }: { onOpenLeagues: () => void }) {
           <span>{label}</span>
         </Link>
       ))}
-      <button onClick={onOpenLeagues} className={itemClass(false)}>
+      <button onClick={onOpenLeagues} className={itemClass(isLeagueView)}>
         <span className="text-lg leading-none">🏆</span>
         <span>Ligas</span>
       </button>
@@ -143,27 +154,6 @@ function App() {
       <Route path="/" element={<ImprovedDashboard />} />
       <Route path="/best-bets" element={<BestBetsSection />} />
       <Route path="/evolution" element={<MetricsEvolutionChart />} />
-
-      {/* 🔐 Ruta protegida - Stats 2 solo para admins */}
-      <Route
-        path="/statistics2"
-        element={
-          <AdminOnly
-            fallback={
-              <div className="flex items-center justify-center h-96 text-slate-400">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🔐</div>
-                  <div className="text-xl">Acceso Restringido</div>
-                  <div className="text-sm mt-2">Esta sección es solo para administradores</div>
-                </div>
-              </div>
-            }
-            hideCompletely={false}
-          >
-            <PredictionsDashboard />
-          </AdminOnly>
-        }
-      />
 
       <Route path="/match/:matchId" element={<MatchDetail />} />
 
@@ -184,12 +174,12 @@ function App() {
     <ResponsiveWrapper>
       <Router>
         <div className={isMobile ? 'h-[100dvh] flex flex-col overflow-hidden bg-slate-900' : 'min-h-screen bg-slate-900'}>
-          <TopBar isMobile={isMobile} />
+          <TopBar isMobile={isMobile} onSubscribe={() => setShowSubscribe(true)} />
 
           <div className={isMobile ? 'flex-1 flex overflow-hidden' : 'flex'}>
             {!isMobile && <LeagueSidebar />}
             <main
-              className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0'}
+              className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0 pb-24'}
               style={isMobile ? { paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom))' } : undefined}
             >
               {routesElement}
@@ -199,20 +189,21 @@ function App() {
           {isMobile && <BottomTabBar onOpenLeagues={() => setShowLeaguePanel(true)} />}
           {isMobile && <LeagueMobilePanel isOpen={showLeaguePanel} onClose={() => setShowLeaguePanel(false)} />}
 
-          {/* Botón flotante de suscripción — sube en mobile para no tapar la barra inferior */}
-          <button
-            onClick={() => setShowSubscribe(true)}
-            className={`fixed right-6 z-40 flex items-center gap-2
-                       bg-yellow-400 hover:bg-yellow-300 text-slate-900
-                       font-bold text-sm px-4 py-3 rounded-full shadow-lg
-                       shadow-yellow-400/30 hover:shadow-yellow-400/50
-                       transition-all hover:scale-105 active:scale-95
-                       ${isMobile ? 'bottom-20' : 'bottom-6'}`}
-            title="Suscríbete para recibir noticias del Mundial"
-          >
-            <span className="text-base">🔔</span>
-            <span className="hidden sm:inline">Suscríbete</span>
-          </button>
+          {/* Botón flotante de suscripción — solo desktop; en mobile está en el TopBar */}
+          {!isMobile && (
+            <button
+              onClick={() => setShowSubscribe(true)}
+              className="fixed right-6 bottom-6 z-40 flex items-center gap-2
+                         bg-yellow-400 hover:bg-yellow-300 text-slate-900
+                         font-bold text-sm px-4 py-3 rounded-full shadow-lg
+                         shadow-yellow-400/30 hover:shadow-yellow-400/50
+                         transition-all hover:scale-105 active:scale-95"
+              title="Suscríbete para recibir noticias del Mundial"
+            >
+              <span className="text-base">🔔</span>
+              <span>Suscríbete</span>
+            </button>
+          )}
 
           <SubscribeModal isOpen={showSubscribe} onClose={() => setShowSubscribe(false)} />
         </div>
