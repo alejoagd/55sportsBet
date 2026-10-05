@@ -9,20 +9,40 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Postgres desechable solo para CI: los tests nunca tocan la BD de producción.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # src/config.py carga ENV_FILE con override=True; apuntarlo a un archivo
+      # inexistente evita que el .env del repo pise estas variables.
+      ENV_FILE: .env.ci-none
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_NAME: ci_test
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_SCHEMA: public
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt pytest
-      - name: Set env
-        run: |
-          echo "DB_HOST=${{ secrets.DB_HOST }}" >> $GITHUB_ENV
-          echo "DB_PORT=${{ secrets.DB_PORT }}" >> $GITHUB_ENV
-          echo "DB_NAME=${{ secrets.DB_NAME }}" >> $GITHUB_ENV
-          echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
-          echo "DB_PASS=${{ secrets.DB_PASS }}" >> $GITHUB_ENV
-          echo "DB_SCHEMA=${{ secrets.DB_SCHEMA }}" >> $GITHUB_ENV
       - name: Lint & tests
         run: |
           source .venv/bin/activate
