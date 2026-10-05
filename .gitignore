@@ -39,3 +39,6 @@ logs/
 
 # Cache de respuestas de API-Football (regenerable, no es código fuente)
 data/api_football_cache/
+# Scripts locales de sincronización prod -> local (contienen credenciales de producción)
+sync-local-from-prod.ps1
+auto-sync-watcher.ps1
