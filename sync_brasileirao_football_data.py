@@ -28,6 +28,7 @@ from src.ingest.competitions_config import get_competition, get_or_create_league
 from src.ingest.team_identity import TeamResolver
 from src.ingest.match_upsert import upsert_match
 from src.ingest.db_retry import run_with_retry
+from src.ingest.best_bets_validation import validate_pending_best_bets
 
 COMPETITION_ID = 2013  # football-data.org: Campeonato Brasileiro Série A
 CURRENT_YEAR = datetime.now().year
@@ -105,10 +106,21 @@ def main() -> None:
                     updated += 1
                 else:
                     skipped += 1
-            return inserted, updated, skipped
 
-    inserted, updated, skipped = run_with_retry(_do)
+            # Estas competencias no pasan por el flujo "finish" de
+            # run_update_automated.py, así que sus best bets se validan acá,
+            # en la misma transacción en que entran los resultados.
+            validated = validate_pending_best_bets(conn, season_id)
+            return inserted, updated, skipped, validated
+
+    inserted, updated, skipped, (bb_validated, bb_hits, bb_misses) = run_with_retry(_do)
     print(f"✅ insertados={inserted} actualizados={updated} sin_cambios={skipped}")
+    # hits/misses de validate_best_bets() cuentan todo lo validado en el último
+    # minuto (sin filtrar por temporada): solo tienen sentido si esta corrida validó algo.
+    if bb_validated:
+        print(f"🎯 best bets validadas={bb_validated} (aciertos={bb_hits} fallos={bb_misses})")
+    else:
+        print("🎯 sin best bets pendientes con resultado")
 
 
 if __name__ == "__main__":
