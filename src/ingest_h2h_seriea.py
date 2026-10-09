@@ -77,7 +77,7 @@ if missing_vars:
     exit(1)
 
 # Construir DSN
-PG_DSN = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+PG_DSN = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 app = typer.Typer()
 
