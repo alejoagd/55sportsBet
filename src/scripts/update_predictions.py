@@ -140,7 +140,7 @@ def select_database():
         sys.exit(1)
     
     # Construir URL de conexión
-    database_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
+    database_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
     
     # Crear engine
     try:

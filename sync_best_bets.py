@@ -87,7 +87,7 @@ def create_engine_from_env(env_file: str, db_name: str):
         return None
     
     # Construir URL de conexión
-    database_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
+    database_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
     
     # Crear engine
     try:

@@ -289,7 +289,7 @@ def main():
         print_error("Variables de BD faltantes")
         sys.exit(1)
     
-    dsn = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    dsn = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = create_engine(dsn)
     
     print_info(f"Conectando a: {db_name} @ {db_host}")
