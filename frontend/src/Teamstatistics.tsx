@@ -63,6 +63,25 @@ interface StatsResponse {
   referees: RefereeStats[];
 }
 
+interface AttackQualityTeam {
+  team_id: number;
+  team_name: string;
+  matches_used: number;
+  aqi: number | null;
+  volume_idx?: number;
+  finishing_idx?: number;
+  precision_pct?: number | null;
+  avg_shots_on_target?: number;
+  avg_goals?: number;
+  expected_goals?: number;
+}
+
+interface AttackQualityResponse {
+  has_match_stats: boolean;
+  window: number;
+  teams: AttackQualityTeam[];
+}
+
 export default function TeamStatistics({ embedded = false }: { embedded?: boolean } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const leagueParam = searchParams.get('league');
@@ -75,6 +94,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
   const [leagueEmoji, setLeagueEmoji] = useState<string>('⚽');
 
   const [data, setData] = useState<StatsResponse | null>(null);
+  const [attackQuality, setAttackQuality] = useState<AttackQualityResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Sin ?league= en la URL: tomar la primera liga activa (igual que ImprovedDashboard)
@@ -173,6 +193,18 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
       fetchStatistics(seasonId);
     }
   }, [seasonId, fetchStatistics]);
+
+  // Índice de Calidad de Ataque: independiente de /api/team-statistics, así que
+  // si falla solo se oculta su sección y el resto de la vista sigue igual.
+  useEffect(() => {
+    if (!seasonId || seasonId <= 0) return;
+    setAttackQuality(null);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${API_URL}/api/team-attack-quality?season_id=${seasonId}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((result: AttackQualityResponse) => setAttackQuality(result))
+      .catch(() => setAttackQuality(null));
+  }, [seasonId]);
 
   // Funciones para obtener rankings
   const getTopTeams = (key: keyof TeamStats, limit: number = 5, ascending: boolean = false) => {
@@ -385,6 +417,58 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             de aparentar un 0.00 real. */}
         {data.has_match_stats && (
           <>
+            {/* 2b. CALIDAD DE ATAQUE (AQI) */}
+            {attackQuality?.has_match_stats && attackQuality.teams.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold text-white">⚡ Calidad de Ataque</h2>
+                <p className="text-xs sm:text-sm text-slate-400">
+                  100 = ataque promedio de la liga. Combina los tiros a puerta de los últimos {attackQuality.window} partidos
+                  (ajustados por lo que concede cada rival) con la eficiencia de definición, suavizada hacia el promedio.
+                  Un 120 indica que se espera ~20% más goles que el promedio.
+                </p>
+                <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 overflow-x-auto">
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead>
+                      <tr className="text-slate-400 text-left border-b border-slate-700">
+                        <th className="py-2 pr-2">#</th>
+                        <th className="py-2 pr-2">Equipo</th>
+                        <th className="py-2 pr-2 text-right">AQI</th>
+                        <th className="py-2 pr-2 text-right">Volumen</th>
+                        <th className="py-2 pr-2 text-right">Definición</th>
+                        <th className="py-2 pr-2 text-right">Precisión</th>
+                        <th className="py-2 pr-2 text-right">SoT/p</th>
+                        <th className="py-2 pr-2 text-right">Goles/p</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attackQuality.teams.map((t, idx) => (
+                        <tr key={t.team_id} className="border-b border-slate-700/50 last:border-0">
+                          <td className="py-1.5 pr-2 text-slate-400">{t.aqi === null ? '–' : idx + 1}</td>
+                          <td className="py-1.5 pr-2 text-white font-medium whitespace-nowrap">{t.team_name}</td>
+                          {t.aqi === null ? (
+                            <td colSpan={6} className="py-1.5 text-right text-slate-500">
+                              Pocos partidos con datos ({t.matches_used})
+                            </td>
+                          ) : (
+                            <>
+                              <td className={`py-1.5 pr-2 text-right font-bold ${t.aqi >= 110 ? 'text-green-400' : t.aqi <= 90 ? 'text-red-400' : 'text-slate-200'}`}>
+                                {t.aqi.toFixed(0)}
+                              </td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.volume_idx?.toFixed(0)}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.finishing_idx?.toFixed(0)}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.precision_pct != null ? `${t.precision_pct.toFixed(0)}%` : '–'}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.avg_shots_on_target?.toFixed(1)}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.avg_goals?.toFixed(1)}</td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* 3. CORNERS */}
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
