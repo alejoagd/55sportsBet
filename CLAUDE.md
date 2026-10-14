@@ -33,7 +33,7 @@ En Windows, si un script imprime emojis y falla con `UnicodeEncodeError`, usar `
 
 ## Entorno macOS (zsh)
 
-El proyecto se creó en Windows (PowerShell); los documentos viejos (`Flujo_comandosCLI.txt`, `QUICK_START.md`, los `.bat`) usan sintaxis de Windows. En Mac:
+El proyecto se creó en Windows (PowerShell); los documentos viejos (`docs/Flujo_comandosCLI.txt`, `docs/QUICK_START.md`, los `.bat`) usan sintaxis de Windows. En Mac:
 
 - **Venv:** `python3.12 -m venv .venv && source .venv/bin/activate` (en vez de `.\.venv\Scripts\Activate.ps1`). Cada comando que lanza Claude corre en un shell aparte, así que la activación no persiste: usar `.venv/bin/python -m pip ...` y `.venv/bin/python -m uvicorn ...`.
 - **Variables de entorno:** `ENV_FILE=.env.production python src/archivo.py` (en vez de `$env:ENV_FILE=...`); rutas con `/`, no `\`. Con `--env-file` de `run_update_automated.py` no hace falta nada más.
@@ -47,7 +47,7 @@ El proyecto se creó en Windows (PowerShell); los documentos viejos (`Flujo_coma
   /opt/homebrew/opt/postgresql@18/bin/psql -q ligas_europeas < /tmp/render_dump.sql
   ```
   El único error esperado es `unrecognized configuration parameter "transaction_timeout"` (inofensivo). Es solo lectura sobre producción; nunca escribir en ella desde aquí sin confirmación.
-- **Backups viejos:** `mi_backup.sql` es un dump de Postgres 13 en **UTF-16** (generado con `>` de PowerShell) y está desactualizado (12 tablas, hasta nov-2025); no usarlo. Para cargar un `.sql` de Windows: `iconv -f UTF-16 -t UTF-8 x.sql | tr -d '\r' > x_utf8.sql`. Al generar dumps usar `-f archivo`, nunca `>` en PowerShell.
+- **Backups viejos:** el antiguo `mi_backup.sql` (Postgres 13, **UTF-16**, generado con `>` de PowerShell, hasta nov-2025) ya no está en el repo; si aparece uno parecido, no usarlo. Para cargar un `.sql` de Windows: `iconv -f UTF-16 -t UTF-8 x.sql | tr -d '\r' > x_utf8.sql`. Al generar dumps usar `-f archivo`, nunca `>` en PowerShell.
 - **`.bat`:** `update-fixtures.bat`, `update-local.bat` y `update-prod.bat` no corren en Mac; su equivalente son los comandos de la sección "Comandos".
 - **Python:** el stack declara 3.11; en Mac se usa 3.12 (3.14 es el `python3` por defecto y puede fallar con dependencias científicas como `scipy`).
 
