@@ -42,3 +42,7 @@ data/api_football_cache/
 # Scripts locales de sincronización prod -> local (contienen credenciales de producción)
 sync-local-from-prod.ps1
 auto-sync-watcher.ps1
+
+# Config local de Claude Code y backups convertidos (no versionar)
+.claude/settings.local.json
+*_utf8.sql
