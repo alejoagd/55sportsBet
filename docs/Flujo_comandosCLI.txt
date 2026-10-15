@@ -1,6 +1,6 @@
 #Antes de ejecutar cualquier comando validar si estas con el environment activado , ejecutando el siguiente comando
-.\.venv\Scripts\Activate.ps1
-
+.\.venv\Scripts\Activate.ps1  (windows)
+source .venv/bin/activate (Mac)
 #ingresar a la base de datos de Render 
 psql $env:DATABASE_URL
 
