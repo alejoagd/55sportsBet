@@ -16,8 +16,10 @@ mismo marcador) para absolutamente todos los partidos de una liga.
 
 Uso:
   python -m src.scripts.run_predictions_for_competitions
+  python -m src.scripts.run_predictions_for_competitions --key copa_libertadores copa_sudamericana
 """
 from __future__ import annotations
+import argparse
 from datetime import date
 from sqlalchemy import text
 
@@ -56,9 +58,12 @@ def _retrain_weinston(season_id: int, league_name: str) -> None:
     print(f"   ✅ Weinston reentrenado para {league_name} ({len(result.team_ids)} equipos)")
 
 
-def main() -> None:
+def main(keys: list[str] | None = None) -> None:
+    # Con --key solo se reentrena/predice esas competencias: útil cuando
+    # entran partidos nuevos a una copa y no hace falta tocar las otras 4.
+    comps = [c for c in COMPETITIONS if not keys or c["key"] in keys]
     with engine.begin() as conn:
-        for comp in COMPETITIONS:
+        for comp in comps:
             row = conn.execute(
                 text("""
                     SELECT s.id FROM seasons s
@@ -94,4 +99,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    valid = [c["key"] for c in COMPETITIONS]
+    parser = argparse.ArgumentParser(description="Predicciones de las 5 competencias nuevas")
+    parser.add_argument("--key", nargs="+", choices=valid,
+                        help="Solo estas competencias (por defecto, las 5)")
+    main(parser.parse_args().key)
