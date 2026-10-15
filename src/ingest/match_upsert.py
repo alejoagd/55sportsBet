@@ -175,7 +175,7 @@ def _retire_stale_bracket_placeholder(
               AND home_goals IS NULL
               AND (
                     (home_team_id = :tbd_h OR away_team_id = :tbd_a)
-                 OR (home_team_id IN (:hid, :aid) AND away_team_id IN (:hid, :aid))
+                 OR (home_team_id = :hid AND away_team_id = :aid)
               )
             ORDER BY ABS(date - :d)
             LIMIT 1
@@ -189,11 +189,18 @@ def _retire_stale_bracket_placeholder(
     # Ventana angosta a propósito: en una ronda a ida y vuelta puede haber más
     # de un placeholder/duplicado pendiente (una pierna sí confirmada, la otra
     # no) - solo se retira el más cercano en fecha, no todos los de esa
-    # stage/temporada. La segunda condición del WHERE de arriba (mismo par de
-    # equipos, no jugado) cubre además el caso de una fila que alguien ya
-    # corrigió a mano con los equipos reales antes de que ESPN publicara el
+    # stage/temporada. La segunda condición del WHERE de arriba (mismo local y
+    # mismo visitante, no jugado) cubre además el caso de una fila que alguien
+    # ya corrigió a mano con los equipos reales antes de que ESPN publicara el
     # evento oficial - si no, ese arreglo manual también quedaría huérfano en
     # cuanto llegue el fixture real.
+    # Ojo: debe respetar la orientación local/visitante. Antes comparaba el par
+    # sin orden (IN (:hid,:aid) en ambos lados) y eso también coincidía con la
+    # OTRA pierna de la misma llave (ida y vuelta invierten local/visitante):
+    # al insertar una pierna se borraba la otra mientras no estuviera jugada, y
+    # en el siguiente sync pasaba lo inverso. Resultado (octubre 2026): las
+    # idas de las semifinales de Libertadores y Sudamericana nunca llegaban a
+    # la app.
     if abs((stale.date - match_date).days) > 14:
         return
 
