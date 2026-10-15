@@ -30,6 +30,7 @@ Expone las mismas 2 funciones que espn_competition_client.py
 directo en update_competitions_espn_sync.py.
 """
 from __future__ import annotations
+import re
 import time
 from datetime import date, datetime
 import requests
@@ -232,5 +233,50 @@ def fetch_scoreboard_range(slug: str, start: date, end: date) -> list[dict]:
 def fetch_groups(slug: str) -> dict[int, str]:
     """No usada por las competencias actuales: el grupo ya viene embebido
     por partido en fetch_scoreboard_range (ver "group_name"). Se mantiene
-    solo para conservar la misma firma que espn_competition_client.py."""
+    solo para conservar la misma firma que espn_competition_client.py.
+
+    Ojo: para las LIGAS con zonas (Liga Argentina) el group_name embebido NO
+    sirve — ESPN pone ahí el torneo completo ("Torneo Clausura 2001"), no la
+    zona. Usar fetch_phase_groups."""
     return {}
+
+
+def fetch_phase_groups(slug: str, year: int | None = None) -> dict[str, dict[int, str]]:
+    """Zona/grupo de cada equipo, por fase de la temporada:
+    {nombre_de_fase: {espn_team_id: "Group A"}}.
+
+    Es la única fuente en la API core para ligas que parten el torneo en
+    zonas (Liga Argentina: "Torneo Apertura"/"Torneo Clausura" con Group A y
+    Group B). Se indexa por fase porque las zonas cambian entre torneos del
+    mismo año; el sync debe usar la de la fase (round_label) del partido, no
+    la "actual", o un partido del Apertura quedaría con zona del Clausura.
+    {} si la competencia no tiene fases con grupos (ligas de tabla única).
+    """
+    year = year or date.today().year
+    base = f"{BASE}/{slug}/seasons/{year}/types"
+    types = _get_json(base)
+    if not types:
+        return {}
+
+    out: dict[str, dict[int, str]] = {}
+    for item in types.get("items", []):
+        ref = item.get("$ref")
+        detail = _get_json(ref) if ref else None
+        if not detail or not detail.get("hasGroups") or not detail.get("name"):
+            continue
+        groups = _get_json(f"{base}/{detail['id']}/groups")
+        members: dict[int, str] = {}
+        for g_item in (groups or {}).get("items", []):
+            g = _get_json(g_item["$ref"]) if g_item.get("$ref") else None
+            st_ref = ((g or {}).get("standings") or {}).get("$ref")
+            st_list = _get_json(st_ref) if st_ref else None
+            for st_item in (st_list or {}).get("items", []):
+                table = _get_json(st_item["$ref"]) if st_item.get("$ref") else None
+                for entry in (table or {}).get("standings", []):
+                    team_ref = (entry.get("team") or {}).get("$ref", "")
+                    m = re.search(r"/teams/(\d+)", team_ref)
+                    if m:
+                        members[int(m.group(1))] = g["name"]
+        if members:
+            out[detail["name"]] = members
+    return out
