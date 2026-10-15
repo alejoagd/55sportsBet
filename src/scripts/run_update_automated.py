@@ -163,7 +163,13 @@ def get_leagues(engine, leagues_param: str) -> List[LeagueConfig]:
             return selected_leagues
 
 
-def mode_predict_auto(engine, league_config: LeagueConfig, date_from: str, date_to: str) -> bool:
+# Resultado de mode_predict_auto cuando el rango no tiene partidos pendientes.
+# No es un error: pasa en cada ventana FIFA (ej. 21 sep - 8 oct 2026), y antes
+# se contaba como liga fallida, dejando el workflow en rojo sin nada roto.
+NO_PENDING_MATCHES = "no_pending_matches"
+
+
+def mode_predict_auto(engine, league_config: LeagueConfig, date_from: str, date_to: str) -> bool | str:
     """Modo: Generar predicciones (versión automatizada)"""
     print_step(f"🎯 GENERAR PREDICCIONES - {league_config.league_name}")
 
@@ -185,8 +191,8 @@ def mode_predict_auto(engine, league_config: LeagueConfig, date_from: str, date_
         count = len(rows)
 
     if count == 0:
-        print_warning(f"No hay partidos sin resultados para {league_config.league_name}")
-        return False
+        print_info(f"No hay partidos sin resultados para {league_config.league_name} entre {date_from} y {date_to}")
+        return NO_PENDING_MATCHES
 
     print_success(f"Hay {count} partidos sin resultados")
 
@@ -506,21 +512,25 @@ def main():
     # Ejecutar operaciones
     success_count = 0
     failed_leagues = []
+    skipped_leagues = []
 
     for idx, league_config in enumerate(leagues, 1):
         print(f"\n{Colors.BOLD}{Colors.CYAN}[{idx}/{len(leagues)}] {league_config.league_name}{Colors.END}")
 
         success = False
+        skipped = False
 
         try:
             if args.mode == 'complete':
                 # Flujo: LOAD FIXTURES → RETRAIN → PREDICT → BETTING LINES → BEST BETS
                 if mode_load_fixtures_auto(league_config, args.env_file):
                     if mode_retrain_auto(engine, league_config, args.env_file):
-                        if mode_predict_auto(engine, league_config, args.date_from, args.date_to):
-                            if generate_betting_lines_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
-                                generate_best_bets_auto(league_config, args.date_from, args.date_to, args.env_file)
-                                success = True
+                        predicted = mode_predict_auto(engine, league_config, args.date_from, args.date_to)
+                        if predicted == NO_PENDING_MATCHES:
+                            skipped = True
+                        elif predicted and generate_betting_lines_auto(engine, league_config, args.date_from, args.date_to, args.env_file):
+                            generate_best_bets_auto(league_config, args.date_from, args.date_to, args.env_file)
+                            success = True
 
             elif args.mode == 'finish':
                 # Flujo: LOAD RESULTS → EVALUATE → VALIDATE BETTING → VALIDATE BEST BETS
@@ -531,7 +541,9 @@ def main():
                             success = True
 
             elif args.mode == 'predict':
-                success = mode_predict_auto(engine, league_config, args.date_from, args.date_to)
+                predicted = mode_predict_auto(engine, league_config, args.date_from, args.date_to)
+                skipped = predicted == NO_PENDING_MATCHES
+                success = predicted is True
 
             elif args.mode == 'retrain':
                 success = mode_retrain_auto(engine, league_config, args.env_file)
@@ -539,7 +551,10 @@ def main():
             elif args.mode == 'best-bets':
                 success = generate_best_bets_auto(league_config, args.date_from, args.date_to, args.env_file)
 
-            if success:
+            if skipped:
+                print_info(f"{league_config.league_name}: sin partidos pendientes, nada que predecir")
+                skipped_leagues.append(league_config.league_name)
+            elif success:
                 print_success(f"✓ {league_config.league_name} completada")
                 success_count += 1
             else:
@@ -558,10 +573,21 @@ def main():
 
     print(f"  Ligas procesadas: {success_count}/{len(leagues)}")
 
-    if success_count == len(leagues):
-        print_success("✅ Todas las ligas procesadas exitosamente")
+    if skipped_leagues:
+        print_info(f"Sin partidos pendientes en el rango: {', '.join(skipped_leagues)}")
+        if len(skipped_leagues) == len(leagues):
+            # No falla, pero queda visible en el resumen del run de GitHub: si
+            # NO es ventana FIFA, el rango de fechas o los fixtures están mal.
+            print(f"::warning::Ninguna liga tiene partidos pendientes entre "
+                  f"{args.date_from} y {args.date_to} (¿ventana FIFA o rango equivocado?)")
+
+    if not failed_leagues:
+        if skipped_leagues:
+            print_success(f"Sin errores ({success_count} procesadas, {len(skipped_leagues)} sin partidos pendientes)")
+        else:
+            print_success("✅ Todas las ligas procesadas exitosamente")
         sys.exit(0)
-    elif success_count > 0:
+    elif success_count > 0 or skipped_leagues:
         print_warning(f"⚠️  {len(failed_leagues)} liga(s) con problemas:")
         for league_name in failed_leagues:
             print(f"     • {league_name}")

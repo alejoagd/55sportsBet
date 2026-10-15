@@ -751,6 +751,58 @@ def get_team_statistics(
         }
 
 
+@router.get("/api/team-attack-quality")
+def get_team_attack_quality(
+    season_id: int = Query(..., description="ID de la temporada"),
+    window: int = Query(10, ge=3, le=38, description="Partidos recientes a considerar")
+):
+    """
+    Índice de Calidad de Ataque (AQI) por equipo: 100 = ataque promedio de la
+    liga. Se calcula con los últimos `window` partidos con estadísticas de la
+    temporada, usando tiros a puerta ajustados por la defensa rival (ver
+    src/predictions/attack_quality.py).
+
+    Sin match_stats (torneos sudamericanos, eliminatorias) devuelve
+    has_match_stats=false y ningún equipo: no se inventa un 100 con goles solos.
+    """
+    from src.predictions.attack_quality import compute_attack_quality, team_match_rows
+
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT m.id AS match_id, m.date, m.home_team_id, m.away_team_id,
+                   m.home_goals, m.away_goals,
+                   ms.home_shots_on_target AS home_sot, ms.away_shots_on_target AS away_sot,
+                   ms.home_shots, ms.away_shots
+            FROM matches m
+            JOIN match_stats ms ON ms.match_id = m.id
+            WHERE m.season_id = :season_id
+              AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL
+              AND ms.home_shots_on_target IS NOT NULL AND ms.away_shots_on_target IS NOT NULL
+              AND ms.home_shots IS NOT NULL AND ms.away_shots IS NOT NULL
+        """), {"season_id": season_id}).mappings().all()
+
+        if not rows:
+            return {"season_id": season_id, "has_match_stats": False,
+                    "window": window, "league": None, "teams": []}
+
+        result = compute_attack_quality(team_match_rows([dict(r) for r in rows]), window=window)
+        names = {
+            r.id: r.name for r in conn.execute(
+                text("SELECT id, name FROM teams WHERE id = ANY(:ids)"),
+                {"ids": list(result["teams"].keys())}
+            )
+        }
+
+    teams = [
+        {"team_id": tid, "team_name": names.get(tid, str(tid)), **vals}
+        for tid, vals in result["teams"].items()
+    ]
+    # Los equipos sin muestra suficiente (aqi=None) van al final.
+    teams.sort(key=lambda t: (t["aqi"] is None, -(t["aqi"] or 0)))
+    return {"season_id": season_id, "has_match_stats": True, "window": window,
+            "league": result["league"], "teams": teams}
+
+
 @router.get("/api/matches/upcoming")
 def get_upcoming_matches(
     season_id: int = Query(..., description="ID de la temporada"),

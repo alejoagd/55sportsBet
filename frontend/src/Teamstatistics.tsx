@@ -63,6 +63,25 @@ interface StatsResponse {
   referees: RefereeStats[];
 }
 
+interface AttackQualityTeam {
+  team_id: number;
+  team_name: string;
+  matches_used: number;
+  aqi: number | null;
+  volume_idx?: number;
+  finishing_idx?: number;
+  precision_pct?: number | null;
+  avg_shots_on_target?: number;
+  avg_goals?: number;
+  expected_goals?: number;
+}
+
+interface AttackQualityResponse {
+  has_match_stats: boolean;
+  window: number;
+  teams: AttackQualityTeam[];
+}
+
 export default function TeamStatistics({ embedded = false }: { embedded?: boolean } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const leagueParam = searchParams.get('league');
@@ -75,6 +94,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
   const [leagueEmoji, setLeagueEmoji] = useState<string>('⚽');
 
   const [data, setData] = useState<StatsResponse | null>(null);
+  const [attackQuality, setAttackQuality] = useState<AttackQualityResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Sin ?league= en la URL: tomar la primera liga activa (igual que ImprovedDashboard)
@@ -173,6 +193,18 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
       fetchStatistics(seasonId);
     }
   }, [seasonId, fetchStatistics]);
+
+  // Índice de Calidad de Ataque: independiente de /api/team-statistics, así que
+  // si falla solo se oculta su sección y el resto de la vista sigue igual.
+  useEffect(() => {
+    if (!seasonId || seasonId <= 0) return;
+    setAttackQuality(null);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${API_URL}/api/team-attack-quality?season_id=${seasonId}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((result: AttackQualityResponse) => setAttackQuality(result))
+      .catch(() => setAttackQuality(null));
+  }, [seasonId]);
 
   // Funciones para obtener rankings
   const getTopTeams = (key: keyof TeamStats, limit: number = 5, ascending: boolean = false) => {
@@ -385,6 +417,78 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             de aparentar un 0.00 real. */}
         {data.has_match_stats && (
           <>
+            {/* 2b. CALIDAD DE ATAQUE (AQI) */}
+            {attackQuality?.has_match_stats && attackQuality.teams.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold text-white">⚡ Calidad de Ataque</h2>
+                <div className="bg-slate-800/60 border border-slate-700 rounded-lg p-3 sm:p-4 text-xs sm:text-sm text-slate-300 space-y-3">
+                  <p>
+                    <span className="text-white font-semibold">¿Qué mide?</span> Qué tan peligroso es el ataque de un equipo
+                    en sus últimos {attackQuality.window} partidos. <span className="text-white font-semibold">100 es un ataque
+                    normal para esta liga</span>: más de 100 es mejor que el promedio y menos de 100 es peor.
+                  </p>
+                  <ul className="space-y-1.5">
+                    <li><span className="text-white font-semibold">Índice:</span> el resultado final. Resume las columnas siguientes en un solo número. Verde: 110 o más. Rojo: 90 o menos.</li>
+                    <li><span className="text-white font-semibold">Remates a puerta:</span> cuánto remata al arco comparado con el promedio, descontando la dificultad del rival (rematarle a una defensa débil vale menos). 120 = remata un 20% más que lo normal.</li>
+                    <li><span className="text-white font-semibold">Finalización:</span> qué tan bien convierte esos remates en gol. Se acerca al promedio a propósito, porque la puntería de un equipo cambia mucho de un mes a otro y no conviene fiarse de ella por sí sola.</li>
+                    <li><span className="text-white font-semibold">Precisión:</span> de cada 100 remates, cuántos van al arco.</li>
+                    <li><span className="text-white font-semibold">A puerta/p y Goles/p:</span> tiros a puerta y goles que promedia por partido.</li>
+                  </ul>
+                  {attackQuality.teams[0]?.aqi != null && (
+                    <p className="bg-slate-900/60 rounded px-3 py-2">
+                      <span className="text-white font-semibold">Ejemplo:</span> {attackQuality.teams[0].team_name} tiene un
+                      índice de {attackQuality.teams[0].aqi.toFixed(0)}. Como 100 es lo normal, se espera que anote
+                      un {Math.abs(attackQuality.teams[0].aqi - 100).toFixed(0)}% {attackQuality.teams[0].aqi >= 100 ? 'más' : 'menos'} goles que un equipo promedio
+                      de la liga. Un equipo con índice 80 anotaría un 20% menos.
+                    </p>
+                  )}
+                  <p className="text-slate-500">
+                    Es un indicador de tendencia para comparar equipos, no un pronóstico exacto: un equipo con índice alto puede igualmente no marcar en un partido.
+                  </p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 overflow-x-auto">
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead>
+                      <tr className="text-slate-400 text-left border-b border-slate-700">
+                        <th className="py-2 pr-2">#</th>
+                        <th className="py-2 pr-2">Equipo</th>
+                        <th className="py-2 pr-2 text-right" title="Índice de calidad de ataque (100 = promedio de la liga)">Índice</th>
+                        <th className="py-2 pr-2 text-right" title="Remates a puerta vs el promedio, ajustado por el rival (100 = promedio)">Remates a puerta</th>
+                        <th className="py-2 pr-2 text-right" title="Qué tan bien convierte sus remates en gol (100 = promedio)">Finalización</th>
+                        <th className="py-2 pr-2 text-right" title="De cada 100 remates, cuántos van al arco">Precisión</th>
+                        <th className="py-2 pr-2 text-right" title="Tiros a puerta por partido">A puerta/p</th>
+                        <th className="py-2 pr-2 text-right" title="Goles por partido">Goles/p</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attackQuality.teams.map((t, idx) => (
+                        <tr key={t.team_id} className="border-b border-slate-700/50 last:border-0">
+                          <td className="py-1.5 pr-2 text-slate-400">{t.aqi === null ? '–' : idx + 1}</td>
+                          <td className="py-1.5 pr-2 text-white font-medium whitespace-nowrap">{t.team_name}</td>
+                          {t.aqi === null ? (
+                            <td colSpan={6} className="py-1.5 text-right text-slate-500">
+                              Pocos partidos con datos ({t.matches_used})
+                            </td>
+                          ) : (
+                            <>
+                              <td className={`py-1.5 pr-2 text-right font-bold ${t.aqi >= 110 ? 'text-green-400' : t.aqi <= 90 ? 'text-red-400' : 'text-slate-200'}`}>
+                                {t.aqi.toFixed(0)}
+                              </td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.volume_idx?.toFixed(0)}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.finishing_idx?.toFixed(0)}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.precision_pct != null ? `${t.precision_pct.toFixed(0)}%` : '–'}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.avg_shots_on_target?.toFixed(1)}</td>
+                              <td className="py-1.5 pr-2 text-right text-slate-300">{t.avg_goals?.toFixed(1)}</td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* 3. CORNERS */}
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
