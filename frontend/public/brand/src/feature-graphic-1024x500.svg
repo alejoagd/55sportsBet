@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0A1A2F"/><stop offset="100%" stop-color="#02060D"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/><stop offset="100%" stop-color="#FF6A00"/>
+    </linearGradient>
+  </defs><rect width="1024" height="500" fill="url(#bg)"/><g transform="translate(100 100) scale(4.6875)">
+  <circle cx="32" cy="32" r="22" fill="none" stroke="url(#ring)" stroke-width="5"/>
+  <circle cx="32" cy="32" r="10" fill="#08121F"/>
+  <circle cx="29" cy="29" r="4" fill="#FFFFFF" opacity="0.08"/>
+  <text x="32" y="37" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="900" fill="#FFFFFF">55</text></g><text x="430" y="262" text-anchor="start" font-size="110" font-family="Arial, Helvetica, sans-serif" font-weight="900" fill="#FFFFFF" letter-spacing="1">55sports</text><text x="434" y="326" font-size="36" font-family="Arial, Helvetica, sans-serif" fill="#8AA0B8">Predicciones y análisis deportivo</text></svg>
