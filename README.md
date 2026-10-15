@@ -117,7 +117,7 @@ Notas:
 - El único error esperado es `unrecognized configuration parameter "transaction_timeout"` si cargas en una versión anterior a la 18. Es inofensivo.
 - La operación solo **lee** de producción.
 - Borra `render_dump.sql` al terminar si no lo necesitas.
-- **No uses `mi_backup.sql`:** es antiguo, está en UTF-16 y le faltan tablas. Si recibes un `.sql` generado en Windows con `>` de PowerShell, conviértelo antes: `iconv -f UTF-16 -t UTF-8 x.sql | tr -d '\r' > x_utf8.sql`. Al generar dumps usa siempre `pg_dump ... -f archivo`.
+- **Backups viejos:** el antiguo `mi_backup.sql` (UTF-16, desactualizado) ya no está en el repo. Si recibes un `.sql` generado en Windows con `>` de PowerShell, conviértelo antes: `iconv -f UTF-16 -t UTF-8 x.sql | tr -d '\r' > x_utf8.sql`. Al generar dumps usa siempre `pg_dump ... -f archivo`.
 
 Verificar:
 ```bash

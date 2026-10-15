@@ -180,8 +180,8 @@
 ├── update-local.bat                     ← Quick script for LOCAL
 ├── update-prod.bat                      ← Quick script for PRODUCTION
 │
-├── GITHUB_ACTIONS_SETUP.md             ← Quick start guide
-└── AUTOMATION_SUMMARY.md               ← Complete summary
+├── docs/GITHUB_ACTIONS_SETUP.md        ← Quick start guide
+└── docs/AUTOMATION_SUMMARY.md          ← Complete summary
 ```
 
 ## Configuration Flow
