@@ -75,6 +75,10 @@ function getTournamentAbbr(name: string): string {
   if (lower.includes('nations league')) return 'NL';
   if (lower.includes('africa cup') || lower.includes('afcon')) return 'ACN';
   if (lower.includes('asian cup') || lower.includes('afc asian')) return 'ACU';
+  // Antes cualquier "copa" caía en CA y Libertadores/Sudamericana se veían
+  // igual que la Copa América en la columna de cada partido.
+  if (lower.includes('libertadores')) return 'LIB';
+  if (lower.includes('sudamericana')) return 'SUD';
   if (lower.includes('copa america') || lower.includes('copa')) return 'CA';
   if (lower.includes('euro 20') || lower.includes('uefa euro')) return 'EUR';
   if (lower.includes('finalissima')) return 'FIN';
@@ -148,7 +152,7 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
                   : 'bg-slate-700/60 text-slate-400 hover:text-slate-200'
               }`}
             >
-              {getTournamentAbbr(t)}
+              {t}
             </button>
           ))}
         </div>
@@ -186,7 +190,7 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
                 </span>
 
                 {/* Tournament abbr */}
-                <span className="w-8 text-right flex-shrink-0 text-[10px] text-slate-500 font-medium">{abbr}</span>
+                <span title={m.tournament} className="w-8 text-right flex-shrink-0 text-[10px] text-slate-500 font-medium">{abbr}</span>
               </div>
             );
           })
