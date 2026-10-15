@@ -59,9 +59,9 @@ function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () 
           <div className="flex items-center h-12 sm:h-14 gap-2 sm:gap-4">
             {/* Logo — no encoge nunca */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              <img src="/55sports2.svg" alt="55sports Logo" className="w-7 h-7 sm:w-8 sm:h-8" />
+              <img src="/55sports2.svg" alt="55sports Stats Logo" className="w-7 h-7 sm:w-8 sm:h-8" />
               <h1 className="text-sm sm:text-xl font-bold text-white whitespace-nowrap">
-                55sports
+                55sports Stats
               </h1>
               {!isAdmin && (
                 <button
@@ -97,7 +97,7 @@ function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () 
                 <button
                   onClick={onSubscribe}
                   className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-sm"
-                  title="Suscríbete para mantenerte al tanto de 55sports"
+                  title="Suscríbete para mantenerte al tanto de 55sports Stats"
                   aria-label="Suscríbete"
                 >🔔</button>
               )}
@@ -202,7 +202,7 @@ function App() {
                          font-bold text-sm px-4 py-3 rounded-full shadow-lg
                          shadow-yellow-400/30 hover:shadow-yellow-400/50
                          transition-all hover:scale-105 active:scale-95"
-              title="Suscríbete para mantenerte al tanto de 55sports"
+              title="Suscríbete para mantenerte al tanto de 55sports Stats"
             >
               <span className="text-base">🔔</span>
               <span>Suscríbete</span>

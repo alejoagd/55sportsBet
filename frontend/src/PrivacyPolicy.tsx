@@ -17,15 +17,15 @@ export default function PrivacyPolicy() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <Link to="/" className="text-xs text-slate-400 hover:text-white">← Volver a 55sports</Link>
+        <Link to="/" className="text-xs text-slate-400 hover:text-white">← Volver a 55sports Stats</Link>
         <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-white">Política de Privacidad</h1>
         <p className="mt-1 text-xs text-slate-500">Vigente desde el {VIGENCIA}</p>
       </div>
 
       <Section title="1. Responsable del tratamiento">
         <p>
-          <strong className="text-slate-200">{RESPONSABLE}</strong>, titular de la plataforma 55sports
-          (en adelante, "55sports"), es el responsable del tratamiento de los datos personales
+          <strong className="text-slate-200">{RESPONSABLE}</strong>, titular de la plataforma 55sports Stats
+          (en adelante, "55sports Stats"), es el responsable del tratamiento de los datos personales
           descritos en esta política, conforme a la Ley 1581 de 2012, el Decreto 1377 de 2013 y las
           demás normas que los modifiquen o complementen.
         </p>
@@ -46,7 +46,7 @@ export default function PrivacyPolicy() {
 
       <Section title="3. Para qué usamos tus datos">
         <ul className="list-disc pl-5 space-y-1">
-          <li>Gestionar tu suscripción a 55sports.</li>
+          <li>Gestionar tu suscripción a 55sports Stats.</li>
           <li>Enviarte información sobre predicciones, resultados, análisis y novedades de la plataforma.</li>
           <li>Responder tus consultas y solicitudes.</li>
           <li>Mejorar el contenido y el funcionamiento del servicio.</li>
@@ -81,7 +81,7 @@ export default function PrivacyPolicy() {
 
       <Section title="6. Dónde se almacenan los datos">
         <p>
-          La infraestructura de 55sports (servidor, base de datos y sitio web) está alojada con
+          La infraestructura de 55sports Stats (servidor, base de datos y sitio web) está alojada con
           proveedores de servicios en la nube ubicados en Estados Unidos. Esto implica una
           transmisión internacional de datos, que se realiza con proveedores que aplican medidas de
           seguridad adecuadas.
@@ -98,20 +98,20 @@ export default function PrivacyPolicy() {
 
       <Section title="8. Menores de edad">
         <p>
-          55sports está dirigida a mayores de 18 años. No recolectamos intencionalmente datos de
+          55sports Stats está dirigida a mayores de 18 años. No recolectamos intencionalmente datos de
           menores de edad; si detectamos que se registró un menor, eliminaremos sus datos.
         </p>
       </Section>
 
       <Section title="9. Naturaleza informativa y marcas de terceros">
         <p>
-          55sports es una plataforma informativa y de análisis estadístico. No es una casa de
+          55sports Stats es una plataforma informativa y de análisis estadístico. No es una casa de
           apuestas, no recibe ni gestiona apuestas ni dinero, y sus predicciones son estimaciones
           que no garantizan resultados.
         </p>
         <p>
           Los nombres, escudos y marcas de equipos y competiciones pertenecen a sus respectivos
-          propietarios. 55sports es independiente y no está afiliada ni respaldada por ellos.
+          propietarios. 55sports Stats es independiente y no está afiliada ni respaldada por ellos.
         </p>
       </Section>
 
