@@ -33,7 +33,7 @@ En Windows, si un script imprime emojis y falla con `UnicodeEncodeError`, usar `
 
 ## Entorno macOS (zsh)
 
-El proyecto se creó en Windows (PowerShell); los documentos viejos (`docs/Flujo_comandosCLI.txt`, `docs/QUICK_START.md`, los `.bat`) usan sintaxis de Windows. En Mac:
+El proyecto se creó en Windows (PowerShell); los documentos viejos (`Flujo_comandosCLI.txt`, `docs/QUICK_START.md`, los `.bat`) usan sintaxis de Windows. En Mac:
 
 - **Venv:** `python3.12 -m venv .venv && source .venv/bin/activate` (en vez de `.\.venv\Scripts\Activate.ps1`). Cada comando que lanza Claude corre en un shell aparte, así que la activación no persiste: usar `.venv/bin/python -m pip ...` y `.venv/bin/python -m uvicorn ...`.
 - **Variables de entorno:** `ENV_FILE=.env.production python src/archivo.py` (en vez de `$env:ENV_FILE=...`); rutas con `/`, no `\`. Con `--env-file` de `run_update_automated.py` no hace falta nada más.
