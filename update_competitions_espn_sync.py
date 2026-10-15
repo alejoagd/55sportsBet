@@ -32,7 +32,7 @@ from datetime import date, timedelta
 
 from src.db import engine
 from src.ingest.competitions_config import COMPETITIONS, get_competition, get_or_create_league, get_or_create_season
-from src.ingest.espn_core_client import fetch_scoreboard_range, fetch_groups
+from src.ingest.espn_core_client import fetch_scoreboard_range, fetch_phase_groups
 from src.ingest.team_identity import TeamResolver
 from src.ingest.stage_mapping import map_stage
 from src.ingest.match_upsert import upsert_match
@@ -50,13 +50,18 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
     fixtures = fetch_scoreboard_range(comp["espn_slug"], start, end)
     print(f"   {len(fixtures)} fixtures encontrados ({start} → {end})")
 
-    # Se pide siempre, no solo para copas: varias ligas domésticas (Liga
-    # Argentina, Liga Betplay) también dividen la temporada en zonas/grupos
-    # (Grupo A / Grupo B), no son todas tabla única. Si la competencia no
-    # tiene grupos reales, fetch_groups devuelve {} y no cambia nada.
-    groups: dict[int, str] = fetch_groups(comp["espn_slug"])
-    if groups:
-        print(f"   {len(set(groups.values()))} grupo(s) activo(s) ({len(groups)} equipos)")
+    # Solo ligas: varias ligas domésticas (Liga Argentina, Liga Betplay)
+    # dividen el torneo en zonas (Group A / Group B), no son todas tabla
+    # única. Las copas traen su grupo embebido por partido (fx["group_name"]).
+    # Se pide por FASE ({"Torneo Clausura": {espn_team_id: "Group A"}}):
+    # fetch_groups() devolvía {} siempre desde que se pasó a la API core, así
+    # que ningún partido de la Liga Argentina tenía zona y la app mostraba una
+    # sola tabla de 30 equipos. Si la liga no tiene grupos, queda {}.
+    phase_groups: dict[str, dict[int, str]] = (
+        fetch_phase_groups(comp["espn_slug"]) if comp["kind"] == "league" else {}
+    )
+    for phase, members in phase_groups.items():
+        print(f"   {phase}: {len(set(members.values()))} grupo(s) ({len(members)} equipos)")
 
     if dry_run:
         for fx in fixtures[:5]:
@@ -86,6 +91,7 @@ def _sync_one(comp: dict, start: date, end: date, dry_run: bool) -> None:
                     # visitante quedan en zonas distintas, el partido no
                     # pertenece a ninguna de las dos — dejarlo en None evita
                     # contaminar la zona real de cualquiera de los 2 equipos.
+                    groups = phase_groups.get(fx["round_label"], {})
                     home_group = groups.get(fx["home_espn_id"])
                     away_group = groups.get(fx["away_espn_id"])
                     group_name = home_group if home_group == away_group else None
