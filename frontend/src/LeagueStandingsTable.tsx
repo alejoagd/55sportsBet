@@ -29,7 +29,7 @@ function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
   if (!url || failed) {
     return (
-      <span className="w-5 h-5 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 text-xs">
+      <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 text-[10px] sm:text-xs">
         ⚽
       </span>
     );
@@ -38,7 +38,7 @@ function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
     <img
       src={url}
       alt={alt}
-      className="w-5 h-5 object-contain shrink-0"
+      className="w-4 h-4 sm:w-5 sm:h-5 object-contain shrink-0"
       onError={() => setFailed(true)}
     />
   );
@@ -49,52 +49,70 @@ interface Group {
   standings: Standing[];
 }
 
+// En móvil la tabla debe verse COMPLETA sin scroll lateral: table-fixed con
+// columnas numéricas angostas, el equipo se recorta con "…" y GF/GC se
+// fusionan en una sola columna "GF:GC" (como Flashscore). Desde sm (≥640px)
+// vuelve al diseño amplio con GF y GC por separado.
 function Table({ standings, title }: { standings: Standing[]; title?: string }) {
   const { t: tr } = useTranslation();
+  const num = 'px-0.5 sm:px-2 py-2.5 text-center';
   return (
     <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
       {title && (
-        <div className="bg-slate-700/50 px-4 py-2 font-bold text-white">{title}</div>
+        <div className="bg-slate-700/50 px-3 sm:px-4 py-2 font-bold text-white">{title}</div>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-slate-400 text-xs">
-              <th className="text-left px-3 py-2">#</th>
-              <th className="text-left px-3 py-2">{tr('standings.team')}</th>
-              <th className="px-2 py-2">{tr('standings.played')}</th>
-              <th className="px-2 py-2">{tr('standings.won')}</th>
-              <th className="px-2 py-2">{tr('standings.drawn')}</th>
-              <th className="px-2 py-2">{tr('standings.lost')}</th>
-              <th className="px-2 py-2">{tr('standings.gf')}</th>
-              <th className="px-2 py-2">{tr('standings.ga')}</th>
-              <th className="px-2 py-2">{tr('standings.gd')}</th>
-              <th className="px-2 py-2 font-bold">{tr('standings.pts')}</th>
+      <table className="w-full table-fixed text-xs sm:text-sm">
+        <colgroup>
+          <col className="w-5 sm:w-10" />
+          <col />
+          <col className="w-5 sm:w-12" />
+          <col className="w-5 sm:w-12" />
+          <col className="w-5 sm:w-12" />
+          <col className="w-5 sm:w-12" />
+          <col className="hidden sm:table-column sm:w-12" />
+          <col className="hidden sm:table-column sm:w-12" />
+          <col className="w-[42px] sm:hidden" />
+          <col className="w-[30px] sm:w-12" />
+          <col className="w-7 sm:w-14" />
+        </colgroup>
+        <thead>
+          <tr className="text-slate-400 text-[11px] sm:text-xs">
+            <th className="pl-1.5 pr-0 sm:px-3 py-2 text-left">#</th>
+            <th className="px-1 sm:px-3 py-2 text-left">{tr('standings.team')}</th>
+            <th className={num}>{tr('standings.played')}</th>
+            <th className={num}>{tr('standings.won')}</th>
+            <th className={num}>{tr('standings.drawn')}</th>
+            <th className={num}>{tr('standings.lost')}</th>
+            <th className={`${num} hidden sm:table-cell`}>{tr('standings.gf')}</th>
+            <th className={`${num} hidden sm:table-cell`}>{tr('standings.ga')}</th>
+            <th className={`${num} sm:hidden`}>{tr('standings.gf')}:{tr('standings.ga')}</th>
+            <th className={num}>{tr('standings.gd')}</th>
+            <th className={`${num} pr-1.5 sm:pr-2 font-bold`}>{tr('standings.pts')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {standings.map((t, i) => (
+            <tr key={t.team_id} className={`border-t border-slate-700 ${i < 4 ? 'text-white' : 'text-slate-400'}`}>
+              <td className="pl-1.5 pr-0 sm:px-3 py-2.5 text-slate-500 tabular-nums">{i + 1}</td>
+              <td className="px-1 sm:px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                  <TeamLogo url={t.logo_url} alt={t.team} />
+                  <span className="truncate" title={t.team}>{t.team}</span>
+                </div>
+              </td>
+              <td className={`${num} tabular-nums`}>{t.played}</td>
+              <td className={`${num} tabular-nums`}>{t.won}</td>
+              <td className={`${num} tabular-nums`}>{t.drawn}</td>
+              <td className={`${num} tabular-nums`}>{t.lost}</td>
+              <td className={`${num} hidden sm:table-cell tabular-nums`}>{t.goals_for}</td>
+              <td className={`${num} hidden sm:table-cell tabular-nums`}>{t.goals_against}</td>
+              <td className={`${num} sm:hidden tabular-nums`}>{t.goals_for}:{t.goals_against}</td>
+              <td className={`${num} tabular-nums`}>{t.goal_diff > 0 ? `+${t.goal_diff}` : t.goal_diff}</td>
+              <td className={`${num} pr-1.5 sm:pr-2 font-bold tabular-nums`}>{t.points}</td>
             </tr>
-          </thead>
-          <tbody>
-            {standings.map((t, i) => (
-              <tr key={t.team_id} className={`border-t border-slate-700 ${i < 4 ? 'text-white' : 'text-slate-400'}`}>
-                <td className="px-3 py-2 text-slate-500">{i + 1}</td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <TeamLogo url={t.logo_url} alt={t.team} />
-                    <span>{t.team}</span>
-                  </div>
-                </td>
-                <td className="text-center px-2 py-2">{t.played}</td>
-                <td className="text-center px-2 py-2">{t.won}</td>
-                <td className="text-center px-2 py-2">{t.drawn}</td>
-                <td className="text-center px-2 py-2">{t.lost}</td>
-                <td className="text-center px-2 py-2">{t.goals_for}</td>
-                <td className="text-center px-2 py-2">{t.goals_against}</td>
-                <td className="text-center px-2 py-2">{t.goal_diff > 0 ? `+${t.goal_diff}` : t.goal_diff}</td>
-                <td className="text-center px-2 py-2 font-bold">{t.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
