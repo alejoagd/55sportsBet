@@ -6,11 +6,13 @@
 // con la liga elegida, para que el click siempre tenga efecto.
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useActiveLeagues } from './Hooks/useActiveLeagues';
 
 const LEAGUE_AWARE_PATHS = ['/'];
 
 export default function LeagueMobilePanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const { leagues, loading } = useActiveLeagues();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -37,7 +39,7 @@ export default function LeagueMobilePanel({ isOpen, onClose }: { isOpen: boolean
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-slate-950">
       <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-        <h2 className="text-base font-bold text-white">Ligas</h2>
+        <h2 className="text-base font-bold text-white">{t('sidebar.leagues')}</h2>
         <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white">
           <X className="h-5 w-5" />
         </button>
@@ -45,7 +47,7 @@ export default function LeagueMobilePanel({ isOpen, onClose }: { isOpen: boolean
 
       <div className="flex-1 overflow-y-auto px-2 py-3" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {loading ? (
-          <div className="px-2 py-3 text-sm text-slate-400">Cargando ligas...</div>
+          <div className="px-2 py-3 text-sm text-slate-400">{t('sidebar.loading')}</div>
         ) : (
           leagues.map((league) => {
             const isActive = String(league.id) === currentLeagueId;

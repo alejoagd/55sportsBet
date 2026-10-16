@@ -1,0 +1,201 @@
+import type { Dictionary } from './es';
+
+const pt: Dictionary = {
+  lang: { label: 'Idioma' },
+
+  common: {
+    retry: 'Tentar novamente',
+    timeTbd: 'Horário a confirmar',
+    dateTbd: 'Data a confirmar',
+    matchesCount_one: '{{count}} jogo',
+    matchesCount_other: '{{count}} jogos',
+  },
+
+  nav: {
+    home: 'Início',
+    bets: 'Apostas',
+    evolution: 'Evolução',
+    leagues: 'Ligas',
+    subscribe: 'Inscreva-se',
+    subscribeTooltip: 'Inscreva-se para ficar por dentro do 55sports Stats',
+    adminAccess: 'Acesso administrativo',
+    notFound: 'Página não encontrada',
+    backToDashboard: 'Voltar ao Painel',
+  },
+
+  tabs: {
+    today: 'Hoje',
+    matches: 'Jogos',
+    standings: 'Classificação',
+    bracket: 'Chaveamento',
+    news: 'Notícias',
+    stats: 'Estatísticas',
+  },
+
+  sidebar: {
+    leagues: 'Ligas',
+    expandMenu: 'Expandir menu de ligas',
+    collapseMenu: 'Recolher menu de ligas',
+    expand: 'Expandir',
+    collapse: 'Recolher',
+    loading: 'Carregando ligas...',
+  },
+
+  standings: {
+    team: 'Equipe',
+    played: 'J',
+    won: 'V',
+    drawn: 'E',
+    lost: 'D',
+    gf: 'GP',
+    ga: 'GC',
+    gd: 'SG',
+    pts: 'Pts',
+    group: 'Grupo {{name}}',
+    loading: 'Carregando classificação...',
+    error: 'Não foi possível carregar a tabela de classificação',
+    empty: 'Ainda não há jogos disputados nesta temporada',
+  },
+
+  today: {
+    title: 'Jogos de hoje',
+    loading: 'Carregando jogos de hoje...',
+    error: 'Não foi possível carregar os jogos de hoje',
+    empty: 'Não há jogos programados para hoje em nenhuma liga',
+  },
+
+  dashboard: {
+    loading: 'Carregando previsões...',
+    errorTitle: 'Erro ao carregar os dados',
+    unknownError: 'Erro desconhecido',
+    upcomingToday: 'Próximos de hoje',
+    playedToday: 'Disputados hoje',
+    noMatchesTodayLeague: 'Não há jogos desta liga hoje',
+    upcoming: 'Próximos Jogos',
+    recent: 'Resultados Recentes',
+    noMatches: 'Não há jogos disponíveis',
+  },
+
+  matchList: {
+    match: 'Jogo',
+    prob1x2: 'Probabilidade 1X2',
+    pred: 'Prev.',
+    score: 'Placar',
+    goals: 'Gols',
+    noPrediction: 'Sem previsão',
+    noPredictionAvailable: 'Sem previsão disponível',
+    prediction: 'Previsão',
+    avgGoals: 'Méd. de Gols',
+    fullTime: 'FT',
+  },
+
+  news: {
+    loading: 'Carregando notícias...',
+    error: 'Não foi possível carregar as notícias',
+    empty: 'Não há notícias recentes de {{league}}',
+    title: 'Notícias de {{league}}',
+    source: 'Fonte: Marca · atualizado a cada hora',
+    originalLanguage: 'As notícias são exibidas no idioma original (espanhol).',
+    readMore: 'Ler mais →',
+  },
+
+  footer: {
+    legal: '<b>+18.</b> Jogue com responsabilidade: apostar pode causar vício. O 55sports Stats é uma plataforma informativa e de análise; não é uma casa de apostas nem recebe apostas. As previsões são estimativas estatísticas e não garantem resultados.',
+    privacy: 'Política de Privacidade',
+  },
+
+  countries: { scotland: 'Escócia', england: 'Inglaterra', wales: 'País de Gales', other: 'Outro' },
+
+  subscribe: {
+    title: 'Inscreva-se no 55sports Stats',
+    subtitle: 'Fique por dentro de previsões, resultados e novidades',
+    close: 'Fechar',
+    successTitle: 'Inscrição realizada! Manteremos você informado.',
+    successBody: 'Manteremos você por dentro das previsões, análises e novidades do 55sports Stats.',
+    ok: 'Entendi!',
+    firstName: 'Nome',
+    lastName: 'Sobrenome',
+    email: 'E-mail',
+    phone: 'Telefone',
+    country: 'País',
+    city: 'Cidade',
+    firstNamePh: 'Ex.: João',
+    lastNamePh: 'Ex.: Silva',
+    cityPh: 'Ex.: Bogotá',
+    select: 'Selecionar...',
+    consent: 'Autorizo o 55sports Stats a tratar meus dados pessoais (nome, e-mail, telefone, país e cidade) para me enviar informações sobre previsões, resultados e novidades da plataforma, em conformidade com a <b>Lei 1581 de 2012</b> (Colômbia) e a <privacy>Política de Privacidade</privacy>. Posso retirar minha autorização a qualquer momento. <req>*Obrigatório</req>',
+    submit: 'Inscrever-me agora!',
+    submitting: 'Registrando...',
+    errRequired: 'Campo obrigatório',
+    errEmail: 'E-mail inválido',
+    errPhone: 'Telefone inválido',
+    errCountry: 'Selecione um país',
+    errAccept: 'Você deve aceitar para continuar',
+    errDuplicate: 'Este e-mail já está cadastrado.',
+    errInvalid: 'Verifique os dados e tente novamente.',
+    errGeneric: 'Ocorreu um erro. Tente novamente.',
+    errNetwork: 'Não foi possível conectar. Verifique sua conexão.',
+  },
+
+  privacy: {
+    title: 'Política de Privacidade',
+    back: '← Voltar ao 55sports Stats',
+    validSince: 'Em vigor desde {{date}}',
+    s1: {
+      title: '1. Responsável pelo tratamento',
+      p1: '<b>{{owner}}</b>, titular da plataforma 55sports Stats (doravante, "55sports Stats"), é o responsável pelo tratamento dos dados pessoais descritos nesta política, em conformidade com a Lei colombiana 1581 de 2012, o Decreto 1377 de 2013 e as demais normas que os modifiquem ou complementem.',
+      p2: 'Contato para consultas, reclamações e exercício de direitos: <b>{{email}}</b>',
+    },
+    s2: {
+      title: '2. Quais dados coletamos',
+      p1: 'Somente quando você se inscreve de forma voluntária: nome, sobrenome, e-mail, telefone, país e cidade. Não coletamos dados sensíveis nem solicitamos senhas, dados bancários ou meios de pagamento.',
+      p2: 'Também utilizamos análise web (Vercel Web Analytics), que registra métricas agregadas de uso do site, como páginas visitadas e tipo de dispositivo, para entender e melhorar a plataforma.',
+    },
+    s3: {
+      title: '3. Para que usamos seus dados',
+      i1: 'Gerenciar sua inscrição no 55sports Stats.',
+      i2: 'Enviar informações sobre previsões, resultados, análises e novidades da plataforma.',
+      i3: 'Responder às suas consultas e solicitações.',
+      i4: 'Melhorar o conteúdo e o funcionamento do serviço.',
+      p1: 'Não vendemos nem cedemos seus dados a terceiros para fins comerciais.',
+    },
+    s4: {
+      title: '4. Autorização',
+      p1: 'O tratamento é realizado com sua autorização prévia, expressa e informada, que você concede ao marcar a caixa do formulário de inscrição. Você pode revogá-la a qualquer momento escrevendo para {{email}}.',
+    },
+    s5: {
+      title: '5. Seus direitos',
+      p1: 'Como titular dos dados, você tem direito a:',
+      i1: 'Conhecer, atualizar e retificar seus dados pessoais.',
+      i2: 'Solicitar comprovante da autorização concedida.',
+      i3: 'Ser informado sobre o uso que foi dado aos seus dados.',
+      i4: 'Revogar a autorização e/ou solicitar a exclusão dos seus dados.',
+      i5: 'Apresentar reclamações à Superintendência de Indústria e Comércio (SIC) da Colômbia.',
+      i6: 'Acessar gratuitamente seus dados pessoais.',
+      p2: 'Para exercê-los, escreva para {{email}} informando seu nome e o e-mail da inscrição. As consultas são respondidas em até 10 dias úteis e as reclamações em até 15 dias úteis, prorrogáveis nos termos da lei.',
+    },
+    s6: {
+      title: '6. Onde os dados são armazenados',
+      p1: 'A infraestrutura do 55sports Stats (servidor, banco de dados e site) está hospedada em provedores de serviços em nuvem localizados nos Estados Unidos. Isso implica uma transmissão internacional de dados, realizada com provedores que aplicam medidas de segurança adequadas.',
+    },
+    s7: {
+      title: '7. Segurança e conservação',
+      p1: 'Aplicamos medidas técnicas e administrativas razoáveis para proteger seus dados contra acesso não autorizado, perda ou alteração. Nós os conservamos enquanto sua inscrição estiver ativa ou até que você solicite a exclusão.',
+    },
+    s8: {
+      title: '8. Menores de idade',
+      p1: 'O 55sports Stats é destinado a maiores de 18 anos. Não coletamos intencionalmente dados de menores; se detectarmos que um menor se cadastrou, excluiremos seus dados.',
+    },
+    s9: {
+      title: '9. Natureza informativa e marcas de terceiros',
+      p1: 'O 55sports Stats é uma plataforma informativa e de análise estatística. Não é uma casa de apostas, não recebe nem administra apostas ou dinheiro, e suas previsões são estimativas que não garantem resultados.',
+      p2: 'Os nomes, escudos e marcas de equipes e competições pertencem aos seus respectivos proprietários. O 55sports Stats é independente e não é afiliado nem endossado por eles.',
+    },
+    s10: {
+      title: '10. Alterações nesta política',
+      p1: 'Podemos atualizar esta política. A versão em vigor estará sempre publicada nesta página, com sua data de vigência.',
+    },
+  },
+};
+
+export default pt;

@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 // Menú de pestañas por liga, mismo patrón visual que TabNav de
 // WorldCupDashboard.tsx, generalizado para cualquier liga/copa. "Bracket"
@@ -9,13 +10,13 @@ import { useSearchParams } from 'react-router-dom';
 
 export type LeagueTab = 'today' | 'matches' | 'standings' | 'bracket' | 'news' | 'stats';
 
-const TAB_META: Record<LeagueTab, { label: string; icon: string }> = {
-  today: { label: 'Hoy', icon: '📅' },
-  matches: { label: 'Partidos', icon: '⚽' },
-  standings: { label: 'Posiciones', icon: '📊' },
-  bracket: { label: 'Bracket', icon: '🗺️' },
-  news: { label: 'Noticias', icon: '📰' },
-  stats: { label: 'Estadísticas', icon: '🏅' },
+const TAB_META: Record<LeagueTab, { labelKey: string; icon: string }> = {
+  today: { labelKey: 'tabs.today', icon: '📅' },
+  matches: { labelKey: 'tabs.matches', icon: '⚽' },
+  standings: { labelKey: 'tabs.standings', icon: '📊' },
+  bracket: { labelKey: 'tabs.bracket', icon: '🗺️' },
+  news: { labelKey: 'tabs.news', icon: '📰' },
+  stats: { labelKey: 'tabs.stats', icon: '🏅' },
 };
 
 const VALID_TABS: LeagueTab[] = ['today', 'matches', 'standings', 'bracket', 'news', 'stats'];
@@ -46,6 +47,7 @@ export default function LeagueTabNav({
   leagueId: number;
   showBracket: boolean;
 }) {
+  const { t: tr } = useTranslation();
   const tabs: LeagueTab[] = showBracket
     ? ['today', 'matches', 'standings', 'bracket', 'news', 'stats']
     : ['today', 'matches', 'standings', 'news', 'stats'];
@@ -65,7 +67,7 @@ export default function LeagueTabNav({
         {tabs.map((t) => (
           <button key={t} onClick={() => onChange(t)} className={buttonClass(active === t)}>
             <span>{TAB_META[t].icon}</span>
-            <span>{TAB_META[t].label}</span>
+            <span>{tr(TAB_META[t].labelKey)}</span>
           </button>
         ))}
       </div>

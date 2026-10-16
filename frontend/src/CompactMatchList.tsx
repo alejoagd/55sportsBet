@@ -1,4 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n, { localeTag } from './i18n';
 import { useIsMobile } from './Hooks/useIsMobile';
 
 // Fila compacta de partidos, agrupada por fecha (no por jornada — no hay
@@ -103,13 +105,17 @@ function matchDate(m: CompactMatch): Date | null {
 
 function formatDateHeader(m: CompactMatch): string {
   const d = matchDate(m);
-  return d ? d.toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long' }) : 'Fecha por confirmar';
+  return d
+    ? d.toLocaleDateString(localeTag(), { weekday: 'long', day: '2-digit', month: 'long' })
+    : i18n.t('common.dateTbd');
 }
 
 function formatTime(m: CompactMatch): string {
-  if (!m.kickoff_at) return 'Hora por confirmar';
+  if (!m.kickoff_at) return i18n.t('common.timeTbd');
   const d = new Date(m.kickoff_at);
-  return isNaN(d.getTime()) ? 'Hora por confirmar' : d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  return isNaN(d.getTime())
+    ? i18n.t('common.timeTbd')
+    : d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
 }
 
 function resultLabel(r?: string | null): string {
@@ -163,17 +169,18 @@ function DesktopTable({
   mode: 'upcoming' | 'results';
   onMatchClick: (matchId: number) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="bg-slate-800 rounded-xl border border-slate-700/70 shadow-lg shadow-black/10 overflow-hidden">
       <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm border-collapse">
         <thead>
           <tr className="text-slate-400 text-xs uppercase tracking-wide border-b border-slate-700 bg-slate-900/50">
-            <th className="text-left font-semibold px-4 py-3">Partido</th>
-            <th className="font-semibold px-3 py-3 w-44">Probabilidad 1X2</th>
-            <th className="font-semibold px-2 py-3">Pred.</th>
-            <th className="font-semibold px-2 py-3">Marcador</th>
-            <th className="font-semibold px-2 py-3">Goles</th>
+            <th className="text-left font-semibold px-4 py-3">{t('matchList.match')}</th>
+            <th className="font-semibold px-3 py-3 w-44">{t('matchList.prob1x2')}</th>
+            <th className="font-semibold px-2 py-3">{t('matchList.pred')}</th>
+            <th className="font-semibold px-2 py-3">{t('matchList.score')}</th>
+            <th className="font-semibold px-2 py-3">{t('matchList.goals')}</th>
           </tr>
         </thead>
         <tbody>
@@ -218,7 +225,7 @@ function DesktopTable({
                         </td>
                       </>
                     ) : (
-                      <td colSpan={4} className="text-center text-slate-500 text-xs px-2">Sin predicción</td>
+                      <td colSpan={4} className="text-center text-slate-500 text-xs px-2">{t('matchList.noPrediction')}</td>
                     )}
                   </tr>
                 );
@@ -242,6 +249,7 @@ function MobileCards({
   mode: 'upcoming' | 'results';
   onMatchClick: (matchId: number) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-5">
       {groups.map((groupMatches) => (
@@ -264,7 +272,7 @@ function MobileCards({
                       🕐 {formatTime(m)}
                     </span>
                     {row.actualScore && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded-full font-bold">FT</span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded-full font-bold">{t('matchList.fullTime')}</span>
                     )}
                   </div>
 
@@ -293,21 +301,21 @@ function MobileCards({
                         <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg px-2.5 py-1.5">
                           <ResultBadge row={row} mode={mode} />
                           <div className="min-w-0">
-                            <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">Predicción</div>
+                            <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">{t('matchList.prediction')}</div>
                             <div className="text-white font-mono font-bold text-sm leading-tight">{row.predictedScore}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg px-2.5 py-1.5">
                           <span className="text-base leading-none">⚽</span>
                           <div className="min-w-0">
-                            <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">Prom. Goles</div>
+                            <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">{t('matchList.avgGoals')}</div>
                             <div className="text-white font-bold text-sm leading-tight">{row.avgGoals}</div>
                           </div>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="text-slate-500 text-xs text-center py-1.5 bg-slate-900/30 rounded-lg">Sin predicción disponible</div>
+                    <div className="text-slate-500 text-xs text-center py-1.5 bg-slate-900/30 rounded-lg">{t('matchList.noPredictionAvailable')}</div>
                   )}
                 </div>
               );

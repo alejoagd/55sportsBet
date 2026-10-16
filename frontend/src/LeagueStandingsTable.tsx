@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -49,6 +50,7 @@ interface Group {
 }
 
 function Table({ standings, title }: { standings: Standing[]; title?: string }) {
+  const { t: tr } = useTranslation();
   return (
     <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
       {title && (
@@ -59,15 +61,15 @@ function Table({ standings, title }: { standings: Standing[]; title?: string }) 
           <thead>
             <tr className="text-slate-400 text-xs">
               <th className="text-left px-3 py-2">#</th>
-              <th className="text-left px-3 py-2">Equipo</th>
-              <th className="px-2 py-2">PJ</th>
-              <th className="px-2 py-2">G</th>
-              <th className="px-2 py-2">E</th>
-              <th className="px-2 py-2">P</th>
-              <th className="px-2 py-2">GF</th>
-              <th className="px-2 py-2">GC</th>
-              <th className="px-2 py-2">DG</th>
-              <th className="px-2 py-2 font-bold">Pts</th>
+              <th className="text-left px-3 py-2">{tr('standings.team')}</th>
+              <th className="px-2 py-2">{tr('standings.played')}</th>
+              <th className="px-2 py-2">{tr('standings.won')}</th>
+              <th className="px-2 py-2">{tr('standings.drawn')}</th>
+              <th className="px-2 py-2">{tr('standings.lost')}</th>
+              <th className="px-2 py-2">{tr('standings.gf')}</th>
+              <th className="px-2 py-2">{tr('standings.ga')}</th>
+              <th className="px-2 py-2">{tr('standings.gd')}</th>
+              <th className="px-2 py-2 font-bold">{tr('standings.pts')}</th>
             </tr>
           </thead>
           <tbody>
@@ -98,15 +100,16 @@ function Table({ standings, title }: { standings: Standing[]; title?: string }) 
 }
 
 export default function LeagueStandingsTable({ seasonId }: { seasonId: number }) {
+  const { t } = useTranslation();
   const [standings, setStandings] = useState<Standing[] | null>(null);
   const [groups, setGroups] = useState<Group[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!seasonId) return;
     setLoading(true);
-    setError(null);
+    setError(false);
     setStandings(null);
     setGroups(null);
     fetch(`${API_URL}/api/competitions/${seasonId}/standings`)
@@ -115,25 +118,25 @@ export default function LeagueStandingsTable({ seasonId }: { seasonId: number })
         if (data.groups) setGroups(data.groups);
         else setStandings(data.standings || []);
       })
-      .catch(() => setError('No se pudo cargar la tabla de posiciones'))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [seasonId]);
 
   if (loading) {
-    return <div className="text-center py-16 text-slate-400">Cargando posiciones...</div>;
+    return <div className="text-center py-16 text-slate-400">{t('standings.loading')}</div>;
   }
   if (error) {
-    return <div className="text-center py-16 text-red-400">{error}</div>;
+    return <div className="text-center py-16 text-red-400">{t('standings.error')}</div>;
   }
   if ((!groups || groups.length === 0) && (!standings || standings.length === 0)) {
-    return <div className="text-center py-16 text-slate-500">Todavía no hay partidos jugados esta temporada</div>;
+    return <div className="text-center py-16 text-slate-500">{t('standings.empty')}</div>;
   }
 
   if (groups) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {groups.map((g) => (
-          <Table key={g.group_name} standings={g.standings} title={`Grupo ${g.group_name.replace(/^Group\s*/i, '')}`} />
+          <Table key={g.group_name} standings={g.standings} title={t('standings.group', { name: g.group_name.replace(/^Group\s*/i, '') })} />
         ))}
       </div>
     );

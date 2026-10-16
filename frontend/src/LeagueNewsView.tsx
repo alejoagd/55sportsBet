@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatRelativeTime } from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -18,15 +20,7 @@ interface NewsArticle {
 
 function formatRelativeDate(isoStr: string): string {
   try {
-    const diffMs = Date.now() - new Date(isoStr).getTime();
-    const diffM = Math.floor(diffMs / 60000);
-    if (diffM < 2) return 'ahora';
-    if (diffM < 60) return `hace ${diffM}m`;
-    const diffH = Math.floor(diffM / 60);
-    if (diffH < 24) return `hace ${diffH}h`;
-    const diffD = Math.floor(diffH / 24);
-    if (diffD === 1) return 'ayer';
-    return `hace ${diffD} días`;
+    return formatRelativeTime(isoStr);
   } catch {
     return '';
   }
@@ -41,6 +35,7 @@ const CARD_GRADIENTS = [
 ];
 
 function NewsCard({ article, index }: { article: NewsArticle; index: number }) {
+  const { t } = useTranslation();
   const [imgError, setImgError] = useState(false);
   const gradient = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
   const showImg = article.image && !imgError;
@@ -84,7 +79,7 @@ function NewsCard({ article, index }: { article: NewsArticle; index: number }) {
           <p className="text-slate-400 text-xs leading-relaxed line-clamp-3">{article.description}</p>
         )}
         <span className="mt-auto pt-2 text-xs text-yellow-500/70 font-medium group-hover:text-yellow-400 transition-colors">
-          Leer más →
+          {t('news.readMore')}
         </span>
       </div>
     </a>
@@ -92,6 +87,7 @@ function NewsCard({ article, index }: { article: NewsArticle; index: number }) {
 }
 
 export default function LeagueNewsView({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
+  const { t } = useTranslation();
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -110,7 +106,7 @@ export default function LeagueNewsView({ leagueId, leagueName }: { leagueId: num
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
         <div className="text-5xl animate-pulse">📰</div>
-        <p className="text-sm">Cargando noticias...</p>
+        <p className="text-sm">{t('news.loading')}</p>
       </div>
     );
   }
@@ -119,7 +115,7 @@ export default function LeagueNewsView({ leagueId, leagueName }: { leagueId: num
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-500">
         <div className="text-5xl">📭</div>
-        <p className="text-sm">No se pudieron cargar las noticias</p>
+        <p className="text-sm">{t('news.error')}</p>
       </div>
     );
   }
@@ -128,19 +124,21 @@ export default function LeagueNewsView({ leagueId, leagueName }: { leagueId: num
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-500">
         <div className="text-5xl">📭</div>
-        <p className="text-sm">No hay noticias recientes de {leagueName}</p>
+        <p className="text-sm">{t('news.empty', { league: leagueName })}</p>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-white font-bold text-lg">Noticias de {leagueName}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+        <h2 className="text-white font-bold text-lg">{t('news.title', { league: leagueName })}</h2>
         <span className="text-xs text-slate-500 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-          Fuente: Marca · actualizado cada hora
+          {t('news.source')}
         </span>
       </div>
+      {/* Los artículos vienen de Marca (RSS) en español: no se traducen. */}
+      <p className="mb-5 text-xs text-slate-500">{t('news.originalLanguage')}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {news.map((article, i) => (
           <NewsCard key={i} article={article} index={i} />

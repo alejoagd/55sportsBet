@@ -16,6 +16,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useActiveLeagues } from './Hooks/useActiveLeagues';
 
 const LEAGUE_AWARE_PATHS = ['/'];
@@ -29,6 +30,7 @@ function getInitialCollapsed(): boolean {
 }
 
 export default function LeagueSidebar() {
+  const { t } = useTranslation();
   const { leagues, loading } = useActiveLeagues();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -58,19 +60,19 @@ export default function LeagueSidebar() {
       <div className="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden py-3">
         <div className={`flex items-center pb-2 ${collapsed ? 'justify-center px-1' : 'justify-between px-4'}`}>
           {!collapsed && (
-            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Ligas</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{t('sidebar.leagues')}</span>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="flex items-center justify-center w-6 h-6 rounded text-slate-500 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-            aria-label={collapsed ? 'Expandir menú de ligas' : 'Contraer menú de ligas'}
-            title={collapsed ? 'Expandir' : 'Contraer'}
+            aria-label={collapsed ? t('sidebar.expandMenu') : t('sidebar.collapseMenu')}
+            title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
         {loading ? (
-          !collapsed && <div className="px-4 py-3 text-sm text-slate-400">Cargando ligas...</div>
+          !collapsed && <div className="px-4 py-3 text-sm text-slate-400">{t('sidebar.loading')}</div>
         ) : (
           <nav className={`space-y-0.5 ${collapsed ? 'px-1.5' : 'px-2'}`}>
             {leagues.map((league) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAdminMode } from './Hooks/useAdminMode';
 import WorldCupDashboard from './WorldCupDashboard';
 import CompetitionDashboard from './CompetitionDashboard';
@@ -75,6 +76,7 @@ interface Match {
 }
 
 export default function ImprovedDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -183,7 +185,7 @@ export default function ImprovedDashboard() {
       setRecentMatches(recentData);
     } catch (error) {
       console.error('Error fetching data:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : t('dashboard.unknownError'));
     } finally {
       setLoading(false);
     }
@@ -200,7 +202,7 @@ export default function ImprovedDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-900">
-        <div className="text-slate-400 text-xl">⏳ Cargando predicciones...</div>
+        <div className="text-slate-400 text-xl">⏳ {t('dashboard.loading')}</div>
       </div>
     );
   }
@@ -208,13 +210,13 @@ export default function ImprovedDashboard() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-900 p-6">
-        <div className="text-red-400 text-xl mb-4">❌ Error al cargar datos</div>
+        <div className="text-red-400 text-xl mb-4">❌ {t('dashboard.errorTitle')}</div>
         <div className="text-slate-400 text-sm mb-4">{error}</div>
         <button 
           onClick={fetchData}
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          Reintentar
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -282,18 +284,18 @@ export default function ImprovedDashboard() {
               <div className="space-y-8">
                 {todayUpcoming.length > 0 && (
                   <section>
-                    <h2 className="text-xl font-bold text-white mb-4">🔮 Próximos de hoy</h2>
+                    <h2 className="text-xl font-bold text-white mb-4">🔮 {t('dashboard.upcomingToday')}</h2>
                     <CompactMatchList matches={todayUpcoming} mode="upcoming" onMatchClick={matchClickHandler} />
                   </section>
                 )}
                 {todayRecent.length > 0 && (
                   <section>
-                    <h2 className="text-xl font-bold text-white mb-4">📋 Jugados hoy</h2>
+                    <h2 className="text-xl font-bold text-white mb-4">📋 {t('dashboard.playedToday')}</h2>
                     <CompactMatchList matches={todayRecent} mode="results" onMatchClick={matchClickHandler} />
                   </section>
                 )}
                 {todayUpcoming.length === 0 && todayRecent.length === 0 && (
-                  <div className="text-center py-12 text-slate-400">No hay partidos de esta liga hoy</div>
+                  <div className="text-center py-12 text-slate-400">{t('dashboard.noMatchesTodayLeague')}</div>
                 )}
               </div>
             )}
@@ -303,9 +305,9 @@ export default function ImprovedDashboard() {
                 {upcomingMatches.length > 0 && (
                   <section>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-2xl font-bold text-white">🔮 Próximos Partidos</h2>
+                      <h2 className="text-2xl font-bold text-white">🔮 {t('dashboard.upcoming')}</h2>
                       <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
-                        {upcomingMatches.length} partidos
+                        {t('common.matchesCount', { count: upcomingMatches.length })}
                       </span>
                     </div>
                     <CompactMatchList matches={upcomingMatches} mode="upcoming" onMatchClick={matchClickHandler} />
@@ -314,9 +316,9 @@ export default function ImprovedDashboard() {
                 {recentMatches.length > 0 && (
                   <section>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-2xl font-bold text-white">📋 Resultados Recientes</h2>
+                      <h2 className="text-2xl font-bold text-white">📋 {t('dashboard.recent')}</h2>
                       <span className="text-slate-400 text-sm bg-slate-800 px-3 py-1 rounded-full">
-                        {recentMatches.length} partidos
+                        {t('common.matchesCount', { count: recentMatches.length })}
                       </span>
                     </div>
                     <CompactMatchList matches={recentMatches} mode="results" onMatchClick={matchClickHandler} />
@@ -324,7 +326,7 @@ export default function ImprovedDashboard() {
                 )}
                 {upcomingMatches.length === 0 && recentMatches.length === 0 && (
                   <div className="text-center py-12">
-                    <div className="text-slate-400 text-lg">No hay partidos disponibles</div>
+                    <div className="text-slate-400 text-lg">{t('dashboard.noMatches')}</div>
                   </div>
                 )}
               </div>
