@@ -1,5 +1,5 @@
 // App.tsx - Con Sistema de Permisos Administrativos
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import MetricsEvolutionChart from "./MetricsEvolutionChart";
 import ImprovedDashboard from './ImprovedDashboard';
@@ -145,11 +145,36 @@ function BottomTabBar({ onOpenLeagues }: { onOpenLeagues: () => void }) {
   );
 }
 
+// Al cambiar de liga (?league=) la lista debe partir desde arriba, en
+// cualquier tab. En mobile el scroll vive en <main> (overflow-y-auto) y en
+// desktop en la ventana; el contenido se reemplaza sin remontar el
+// contenedor, así que el scroll anterior se heredaba (ej. quedaba abajo,
+// en el aviso legal, de la liga previa).
+// Solo cuenta un cambio de liga estando ya en "/": volver a "/" desde el
+// detalle de un partido no debe resetear la posición de la lista.
+function ScrollToTopOnLeagueChange({ scrollRef }: { scrollRef: React.RefObject<HTMLElement | null> }) {
+  const { pathname, search } = useLocation();
+  const league = new URLSearchParams(search).get('league');
+  const prev = useRef({ pathname, league });
+
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = { pathname, league };
+    if (before.pathname === '/' && pathname === '/' && before.league !== league) {
+      scrollRef.current?.scrollTo({ top: 0 });
+      window.scrollTo({ top: 0 });
+    }
+  }, [pathname, league, scrollRef]);
+
+  return null;
+}
+
 // Componente principal de la aplicación
 function App() {
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [showLeaguePanel, setShowLeaguePanel] = useState(false);
   const isMobile = useIsMobile();
+  const mainRef = useRef<HTMLElement>(null);
 
   const routesElement = (
     <Routes>
@@ -181,7 +206,9 @@ function App() {
 
           <div className={isMobile ? 'flex-1 flex overflow-hidden' : 'flex'}>
             {!isMobile && <LeagueSidebar />}
+            <ScrollToTopOnLeagueChange scrollRef={mainRef} />
             <main
+              ref={mainRef}
               className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0 pb-24'}
               style={isMobile ? { paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom))' } : undefined}
             >
