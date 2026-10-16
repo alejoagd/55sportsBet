@@ -17,6 +17,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminOnly } from './AdminButton';
 import ScoreRangeEffectiveness from './Scorerangeeffectiveness';
+import i18n, { localeTag } from './i18n';
 
 interface H2HTopPick {
   match_id: number;
@@ -79,6 +80,16 @@ function TeamLogo({ url, alt }: { url?: string | null; alt: string }) {
   );
 }
 
+// Etiqueta traducida del stat de cada pick H2H (el backend la manda en español).
+const PICK_STAT_KEYS: Record<string, string> = {
+  goles: 'bestBets.goles',
+  tiros: 'bestBets.tiros',
+  tiros_al_arco: 'bestBets.tirosAPuerta',
+  faltas: 'bestBets.faltas',
+  tarjetas: 'bestBets.tarjetas',
+  corners: 'bestBets.corners',
+};
+
 export default function BestBetsSection() {
   const navigate = useNavigate();
   const [topBets, setTopBets] = useState<BestBet[]>([]);
@@ -108,7 +119,7 @@ export default function BestBetsSection() {
       setH2hPicks(data.picks || []);
     } catch (error) {
       console.error('❌ Error fetching top H2H picks:', error);
-      setH2hPicksError(error instanceof Error ? error.message : 'Error desconocido');
+      setH2hPicksError(error instanceof Error ? error.message : i18n.t('bestBets.errorDesconocido'));
     } finally {
       setH2hPicksLoading(false);
     }
@@ -142,7 +153,7 @@ export default function BestBetsSection() {
       
     } catch (error) {
       console.error('❌ Error fetching best bets:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : i18n.t('bestBets.errorDesconocido'));
     } finally {
       setLoading(false);
     }
@@ -170,11 +181,11 @@ export default function BestBetsSection() {
           setRefreshing(false);
         }, 1000);
       } else {
-        throw new Error('Error al actualizar');
+        throw new Error(i18n.t('bestBets.errorAlActualizar'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('❌ Error al actualizar análisis. Asegúrate de que el endpoint /analysis-multiliga esté disponible.');
+      alert(i18n.t('bestBets.errorAlActualizarAnalisisAsegurate'));
       setRefreshing(false);
     }
   };
@@ -183,7 +194,7 @@ export default function BestBetsSection() {
     if (!dateString) return '';
     const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
     const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-ES', {
+    return date.toLocaleDateString(localeTag(), {
       weekday: 'short',
       day: '2-digit',
       month: 'short'
@@ -208,11 +219,11 @@ export default function BestBetsSection() {
       'OVER_25': 'Over/Under 2.5',
       'Over/Under': 'Over/Under 2.5',
       'BTTS': 'BTTS',
-      'CORNERS': 'Corners',
-      'SHOTS': 'Tiros',
-      'SHOTS_ON_TARGET': 'Tiros a puerta',
-      'CARDS': 'Tarjetas',
-      'FOULS': 'Faltas'
+      'CORNERS': i18n.t('bestBets.corners'),
+      'SHOTS': i18n.t('bestBets.tiros'),
+      'SHOTS_ON_TARGET': i18n.t('bestBets.tirosAPuerta'),
+      'CARDS': i18n.t('bestBets.tarjetas'),
+      'FOULS': i18n.t('bestBets.faltas')
     };
     return types[betType] || betType;
   };
@@ -230,7 +241,7 @@ export default function BestBetsSection() {
   if (loading) {
     return (
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-        <div className="text-center text-slate-400">⏳ Cargando mejores apuestas...</div>
+        <div className="text-center text-slate-400">{i18n.t('bestBets.cargandoMejoresApuestas')}</div>
       </div>
     );
   }
@@ -244,8 +255,7 @@ export default function BestBetsSection() {
             onClick={fetchBestBets}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
           >
-            🔄 Reintentar
-          </button>
+            {i18n.t('bestBets.reintentar')}</button>
         </div>
       </div>
     );
@@ -256,7 +266,7 @@ export default function BestBetsSection() {
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <div className="text-center text-slate-400">
           <div className="text-6xl mb-4">🎯</div>
-          <div className="text-xl font-bold text-white mb-2">No hay apuestas recomendadas aún</div>
+          <div className="text-xl font-bold text-white mb-2">{i18n.t('bestBets.noHayApuestasRecomendadasAun')}</div>
         </div>
       </div>
     );
@@ -273,15 +283,15 @@ export default function BestBetsSection() {
             <span className="text-3xl sm:text-4xl">🎯</span>
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-white">
-                Top 4 Apuestas Recomendadas
+                {i18n.t('bestBets.top4')}
                 {Object.keys(leagueStats).length > 1 && (
-                  <span className="ml-2 text-xs sm:text-sm font-normal text-green-400">✨ Multiliga</span>
+                  <span className="ml-2 text-xs sm:text-sm font-normal text-green-400">{i18n.t('bestBets.multiliga')}</span>
                 )}
               </h2>
               <p className="text-slate-400 text-xs sm:text-sm">
                 {Object.keys(leagueStats).length > 1
-                  ? 'Análisis de todas las ligas disponibles'
-                  : 'Mejores apuestas de la semana'}
+                  ? i18n.t('bestBets.analisisDeTodasLasLigas')
+                  : i18n.t('bestBets.mejoresApuestasDeLaSemana')}
               </p>
             </div>
           </div>
@@ -292,7 +302,7 @@ export default function BestBetsSection() {
               disabled={refreshing}
               className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white rounded-lg transition-colors text-sm font-semibold"
             >
-              {refreshing ? '⏳ Actualizando...' : '🔄 Actualizar'}
+              {refreshing ? i18n.t('bestBets.actualizando') : i18n.t('bestBets.actualizar')}
             </button>
           </AdminOnly>
         </div>
@@ -300,10 +310,10 @@ export default function BestBetsSection() {
         {/* Estadísticas de ligas */}
         {Object.keys(leagueStats).length > 0 && (
           <div className="flex gap-2 sm:gap-3 flex-wrap">
-            <div className="text-slate-400 text-xs sm:text-sm font-semibold">Ligas:</div>
+            <div className="text-slate-400 text-xs sm:text-sm font-semibold">{i18n.t('bestBets.ligas')}</div>
             {Object.entries(leagueStats).map(([league, count]) => (
               <div key={league} className="bg-slate-800/50 rounded-full px-2 sm:px-3 py-1 text-xs sm:text-sm">
-                <span className="text-white font-semibold">{league || 'Liga'}</span>
+                <span className="text-white font-semibold">{league || i18n.t('bestBets.liga')}</span>
                 <span className="text-slate-400 ml-1">({count})</span>
               </div>
             ))}
@@ -356,7 +366,7 @@ export default function BestBetsSection() {
             {/* Predicción */}
             <div className="bg-slate-900/50 rounded-lg p-3 sm:p-4 mb-4">
               <div className="text-center">
-                <div className="text-slate-400 text-xs sm:text-sm mb-1">Apuesta Recomendada</div>
+                <div className="text-slate-400 text-xs sm:text-sm mb-1">{i18n.t('bestBets.apuestaRecomendada')}</div>
                 <div className="text-xl sm:text-2xl font-bold text-green-400 mb-2">
                   {bet.prediction}
                 </div>
@@ -376,14 +386,14 @@ export default function BestBetsSection() {
               </div>
 
               <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-                <div className="text-slate-400 text-xs mb-1">Confianza</div>
+                <div className="text-slate-400 text-xs mb-1">{i18n.t('bestBets.confianza')}</div>
                 <div className="text-xl font-bold text-blue-400">
                   {bet.confidence.toFixed(0)}%
                 </div>
               </div>
 
               <div className="bg-slate-900/50 rounded-lg p-3 text-center">
-                <div className="text-slate-400 text-xs mb-1">Histórico</div>
+                <div className="text-slate-400 text-xs mb-1">{i18n.t('bestBets.historico')}</div>
                 <div className="text-xl font-bold text-purple-400">
                   {bet.historical_accuracy.toFixed(0)}%
                 </div>
@@ -395,15 +405,14 @@ export default function BestBetsSection() {
               <span className={`text-sm font-semibold capitalize ${
                 bet.model === 'poisson' ? 'text-blue-400' : 'text-orange-400'
               }`}>
-                Modelo: {bet.model}
+                {i18n.t('bestBets.modelValue', { model: bet.model })}
               </span>
             </div>
 
             {/* Indicadores */}
             {bet.combined_score >= 50 && (
               <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg whitespace-nowrap">
-                ⭐ ALTA CONFIANZA
-              </div>
+                {i18n.t('bestBets.altaConfianza')}</div>
             )}
 
             {bet.hit !== null && (
@@ -411,7 +420,7 @@ export default function BestBetsSection() {
                 bet.hit ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 
                 'bg-red-500/20 text-red-400 border border-red-500/30'
               }`}>
-                {bet.hit ? '✅ Acertó' : '❌ Falló'}
+                {bet.hit ? i18n.t('bestBets.acerto') : i18n.t('bestBets.fallo')}
               </div>
             )}
           </div>
@@ -421,28 +430,24 @@ export default function BestBetsSection() {
       {/* Explicación */}
       <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
         <div className="text-slate-300 text-sm space-y-2">
-          <div className="font-semibold text-white mb-2">📖 ¿Cómo funciona?</div>
+          <div className="font-semibold text-white mb-2">{i18n.t('bestBets.comoFunciona')}</div>
           
           <div className="mb-3">
             <span className="text-green-400 font-mono">Score</span> = 
-            <span className="text-blue-400 font-mono"> Confianza</span> × 
-            <span className="text-purple-400 font-mono"> Histórico</span>
+            <span className="text-blue-400 font-mono"> {i18n.t('bestBets.confianza')}</span> × 
+            <span className="text-purple-400 font-mono"> {i18n.t('bestBets.historico')}</span>
           </div>
           
           <ul className="list-disc list-inside space-y-1 text-slate-400 ml-2">
             <li>
-              <strong className="text-blue-400">Confianza:</strong> Probabilidad que asigna el modelo
-            </li>
+              <strong className="text-blue-400">{i18n.t('bestBets.confianza2')}</strong> {i18n.t('bestBets.probabilidadQueAsignaElModelo')}</li>
             <li>
-              <strong className="text-purple-400">Histórico:</strong> % de aciertos del modelo
-            </li>
+              <strong className="text-purple-400">{i18n.t('bestBets.historico2')}</strong> {i18n.t('bestBets.deAciertosDelModelo')}</li>
             <li>
-              <strong className="text-green-400">Score:</strong> Mayor score = Mayor probabilidad
-            </li>
+              <strong className="text-green-400">Score:</strong> {i18n.t('bestBets.mayorScoreMayorProbabilidad')}</li>
             {Object.keys(leagueStats).length > 1 && (
               <li>
-                <strong className="text-yellow-400">Multiliga:</strong> Se analizan todas las ligas simultáneamente
-              </li>
+                <strong className="text-yellow-400">{i18n.t('bestBets.multiliga2')}</strong> {i18n.t('bestBets.seAnalizanTodasLasLigas')}</li>
             )}
           </ul>
         </div>
@@ -453,21 +458,19 @@ export default function BestBetsSection() {
         <div className="flex items-center gap-2 sm:gap-3 mb-1">
           <span className="text-3xl sm:text-4xl">🔬</span>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white">Pronósticos H2H con Mayor Respaldo Histórico</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-white">{i18n.t('bestBets.pronosticosH2hConMayorRespaldo')}</h2>
             <p className="text-slate-400 text-xs sm:text-sm">
-              Los 4 pronósticos con mayor acierto real histórico entre todos los partidos de este fin de semana — sin importar si se repite el mismo tipo de apuesta, siempre en partidos distintos
-            </p>
+              {i18n.t('bestBets.los4PronosticosConMayor')}</p>
           </div>
         </div>
 
         {h2hPicksLoading ? (
-          <div className="text-center text-slate-400 py-8">⏳ Calculando puntuaciones H2H en vivo...</div>
+          <div className="text-center text-slate-400 py-8">{i18n.t('bestBets.calculandoPuntuacionesH2hEnVivo')}</div>
         ) : h2hPicksError ? (
           <div className="text-center text-red-400 py-8">❌ {h2hPicksError}</div>
         ) : h2hPicks.length === 0 ? (
           <div className="text-center text-slate-400 py-8">
-            No hay pronósticos próximos con suficiente respaldo histórico todavía.
-          </div>
+            {i18n.t('bestBets.noHayPronosticosProximosCon')}</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {h2hPicks.map((pick, i) => {
@@ -496,24 +499,24 @@ export default function BestBetsSection() {
                   </div>
 
                   <div className="bg-slate-900/50 rounded-lg p-3 mb-3 text-center">
-                    <div className="text-slate-400 text-xs mb-1">Pronóstico H2H</div>
+                    <div className="text-slate-400 text-xs mb-1">{i18n.t('bestBets.pronosticoH2h')}</div>
                     <div className="text-lg font-bold text-purple-300">
-                      {isOver ? 'Más de' : 'Menos de'} {pick.line} {pick.stat_label}
+                      {isOver ? i18n.t('bestBets.masDe') : i18n.t('bestBets.menosDe')} {pick.line} {PICK_STAT_KEYS[pick.stat] ? i18n.t(PICK_STAT_KEYS[pick.stat]) : pick.stat_label}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-slate-900/50 rounded-lg p-2.5 text-center">
-                      <div className="text-slate-400 text-xs mb-1">Puntuación H2H</div>
+                      <div className="text-slate-400 text-xs mb-1">{i18n.t('bestBets.puntuacionH2h')}</div>
                       <div className="text-lg font-bold text-white">{pick.score}/{pick.h2h_valid_matches}</div>
                     </div>
                     <div className="bg-green-500/20 rounded-lg p-2.5 text-center">
-                      <div className="text-slate-400 text-xs mb-1">Acierto real histórico</div>
+                      <div className="text-slate-400 text-xs mb-1">{i18n.t('bestBets.aciertoRealHistorico')}</div>
                       <div className="text-lg font-bold text-green-400">{pick.historical_accuracy.toFixed(0)}%</div>
                     </div>
                   </div>
                   <div className="text-center text-slate-500 text-[11px] mt-2">
-                    Basado en {pick.historical_sample} partidos pasados con esta misma puntuación en {pick.league}
+                    {i18n.t('bestBets.basedOnPast', { n: pick.historical_sample, league: pick.league })}
                   </div>
                 </div>
               );

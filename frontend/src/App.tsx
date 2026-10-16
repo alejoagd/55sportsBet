@@ -1,5 +1,5 @@
 // App.tsx - Con Sistema de Permisos Administrativos
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -176,7 +176,7 @@ function ScrollToTopOnLeagueChange({ scrollRef }: { scrollRef: React.RefObject<H
 
 // Componente principal de la aplicación
 function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [showLeaguePanel, setShowLeaguePanel] = useState(false);
   const isMobile = useIsMobile();
@@ -220,8 +220,12 @@ function App() {
               className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0 pb-24'}
               style={isMobile ? { paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom))' } : undefined}
             >
-              {routesElement}
-              <LegalFooter />
+              {/* key: al cambiar de idioma se remonta el contenido, así los textos que se
+                  calculan al renderizar se recalculan todos (el estado de datos se recarga). */}
+              <Fragment key={i18n.language}>
+                {routesElement}
+                <LegalFooter />
+              </Fragment>
             </main>
           </div>
 

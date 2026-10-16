@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useIsMobile } from './Hooks/useIsMobile';
+import i18n from './i18n';
 
 interface BetTypeStats {
   hit: number;
@@ -83,7 +84,7 @@ export default function BettingLinesStats() {
 
     } catch (error) {
       console.error('Error fetching betting lines stats:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : i18n.t('bettingLines.errorDesconocido'));
     } finally {
       setLoading(false);
     }
@@ -126,7 +127,7 @@ export default function BettingLinesStats() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-slate-400">⏳ Cargando estadísticas...</div>
+        <div className="text-slate-400">{i18n.t('bettingLines.cargandoEstadisticas')}</div>
       </div>
     );
   }
@@ -139,8 +140,7 @@ export default function BettingLinesStats() {
           onClick={fetchStats}
           className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
         >
-          🔄 Reintentar
-        </button>
+          {i18n.t('bettingLines.reintentar')}</button>
       </div>
     );
   }
@@ -149,18 +149,18 @@ export default function BettingLinesStats() {
     return (
       <div className="text-center text-slate-400 py-12">
         <div className="text-6xl mb-4">📊</div>
-        <div className="text-xl">No hay estadísticas disponibles</div>
+        <div className="text-xl">{i18n.t('bettingLines.noHayEstadisticasDisponibles')}</div>
       </div>
     );
   }
 
   const betTypes = ['TIROS', 'TIROS AL ARCO', 'CORNERS', 'TARJETAS', 'FALTAS'] as const;
   const betTypeLabels: Record<(typeof betTypes)[number], string> = {
-    'TIROS': 'Tiros',
-    'TIROS AL ARCO': 'T. Arco',
-    'CORNERS': 'Corners',
-    'TARJETAS': 'Tarjetas',
-    'FALTAS': 'Faltas',
+    'TIROS': i18n.t('bettingLines.tiros'),
+    'TIROS AL ARCO': i18n.t('bettingLines.tArco'),
+    'CORNERS': i18n.t('bettingLines.corners'),
+    'TARJETAS': i18n.t('bettingLines.tarjetas'),
+    'FALTAS': i18n.t('bettingLines.faltas'),
   };
 
   // El tipo de apuesta con mejor precisión dentro de una liga — no filtra ni
@@ -175,15 +175,14 @@ export default function BettingLinesStats() {
         <div className="flex items-center gap-3 mb-2">
           <span className="text-4xl">📊</span>
           <div>
-            <h3 className="text-2xl font-bold text-white">Estadísticas de Betting Lines</h3>
+            <h3 className="text-2xl font-bold text-white">{i18n.t('bettingLines.estadisticasDeBettingLines')}</h3>
             <p className="text-slate-400 text-sm">
-              Rendimiento por liga y tipo de apuesta
-            </p>
+              {i18n.t('bettingLines.rendimientoPorLigaYTipo')}</p>
           </div>
         </div>
         <div className="mt-4 flex gap-4 text-sm">
           <div className="bg-slate-800/50 rounded-lg px-4 py-2">
-            <span className="text-slate-400">Total Ligas: </span>
+            <span className="text-slate-400">{i18n.t('bettingLines.totalLigas')}</span>
             <span className="text-white font-bold">{data.total_leagues}</span>
           </div>
         </div>
@@ -198,10 +197,9 @@ export default function BettingLinesStats() {
           que se acomodan solos en más de una línea en vez de desbordar. */}
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         <div className="p-3 sm:p-4 border-b border-slate-700">
-          <h4 className="text-white font-bold text-sm sm:text-base">🏆 Mejor apuesta por liga</h4>
+          <h4 className="text-white font-bold text-sm sm:text-base">{i18n.t('bettingLines.mejorApuestaPorLiga')}</h4>
           <p className="text-slate-400 text-[11px] sm:text-xs mt-0.5">
-            El badge marcado es el tipo de apuesta con más precisión en esa liga
-          </p>
+            {i18n.t('bettingLines.elBadgeMarcadoEsEl')}</p>
         </div>
 
         {/* Desktop: tabla liga × tipo de apuesta */}
@@ -210,13 +208,13 @@ export default function BettingLinesStats() {
           <table className="w-full">
             <thead>
               <tr className="bg-slate-900/50">
-                <th className="px-3 py-2 text-left text-slate-400 font-semibold text-sm">Liga</th>
+                <th className="px-3 py-2 text-left text-slate-400 font-semibold text-sm">{i18n.t('bettingLines.liga')}</th>
                 {betTypes.map((bt) => (
                   <th key={bt} className="px-2 py-2 text-center text-slate-400 font-semibold text-sm whitespace-nowrap">
                     {betTypeLabels[bt]}
                   </th>
                 ))}
-                <th className="px-2 py-2 text-center text-slate-400 font-semibold text-sm">General</th>
+                <th className="px-2 py-2 text-center text-slate-400 font-semibold text-sm">{i18n.t('bettingLines.general')}</th>
               </tr>
             </thead>
             <tbody>
@@ -237,7 +235,7 @@ export default function BettingLinesStats() {
                         <td key={bt} className="px-2 py-2 text-center">
                           <div
                             className={`inline-flex items-center justify-center gap-0.5 rounded px-2 py-1 ${getAccuracyBgColor(stats.accuracy)} ${isBest ? 'ring-2 ring-yellow-400' : ''}`}
-                            title={`${betTypeLabels[bt]}: ${stats.hit}/${stats.total} aciertos`}
+                            title={i18n.t('bettingLines.hitsTitle', { label: betTypeLabels[bt], hit: stats.hit, total: stats.total })}
                           >
                             {isBest && <span className="text-[10px] shrink-0">🏆</span>}
                             <span className={`font-bold text-sm whitespace-nowrap ${getAccuracyColor(stats.accuracy)}`}>
@@ -274,7 +272,7 @@ export default function BettingLinesStats() {
                     <span className="text-white font-medium text-xs truncate">{league.league_name}</span>
                   </div>
                   <span className={`shrink-0 font-bold text-xs px-1.5 py-0.5 rounded ${getAccuracyBgColor(league.overall_accuracy)} ${getAccuracyColor(league.overall_accuracy)}`}>
-                    Gral {league.overall_accuracy.toFixed(0)}%
+                    {i18n.t('bettingLines.overallShort', { n: league.overall_accuracy.toFixed(0) })}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -316,12 +314,12 @@ export default function BettingLinesStats() {
                 <div>
                   <h4 className="text-xl font-bold text-white">{league.league_name}</h4>
                   <p className="text-slate-400 text-sm">
-                    {league.total_matches} partidos analizados
+                    {i18n.t('bettingLines.matchesAnalyzed', { n: league.total_matches })}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-slate-400 text-sm mb-1">Precisión General</div>
+                <div className="text-slate-400 text-sm mb-1">{i18n.t('bettingLines.precisionGeneral')}</div>
                 <div className={`text-3xl font-bold ${getAccuracyColor(league.overall_accuracy)}`}>
                   {league.overall_accuracy.toFixed(1)}%
                 </div>
@@ -344,7 +342,7 @@ export default function BettingLinesStats() {
                   >
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-white font-medium text-sm flex items-center gap-1">
-                        {isBest && <span title="Mejor apuesta de esta liga">🏆</span>}
+                        {isBest && <span title={i18n.t('bettingLines.mejorApuestaDeEstaLiga')}>🏆</span>}
                         {betType}
                       </span>
                       <div className={`${getAccuracyBgColor(stats.accuracy)} rounded-full px-2 py-0.5 shrink-0`}>
@@ -368,20 +366,16 @@ export default function BettingLinesStats() {
                 <thead>
                   <tr className="bg-slate-900/50">
                     <th className="px-4 py-3 text-left text-slate-400 font-semibold text-sm">
-                      Tipo de Apuesta
-                    </th>
+                      {i18n.t('bettingLines.tipoDeApuesta')}</th>
                     <th className="px-4 py-3 text-center text-slate-400 font-semibold text-sm">
-                      ✅ Aciertos
-                    </th>
+                      {i18n.t('bettingLines.aciertos')}</th>
                     <th className="px-4 py-3 text-center text-slate-400 font-semibold text-sm">
-                      ❌ Fallos
-                    </th>
+                      {i18n.t('bettingLines.fallos')}</th>
                     <th className="px-4 py-3 text-center text-slate-400 font-semibold text-sm">
                       Total
                     </th>
                     <th className="px-4 py-3 text-center text-slate-400 font-semibold text-sm">
-                      Precisión
-                    </th>
+                      {i18n.t('bettingLines.precision')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -396,7 +390,7 @@ export default function BettingLinesStats() {
                         } ${isBest ? 'ring-1 ring-inset ring-yellow-400/50' : ''}`}
                       >
                         <td className="px-4 py-3 text-white font-medium">
-                          {isBest && <span className="mr-1.5" title="Mejor apuesta de esta liga">🏆</span>}
+                          {isBest && <span className="mr-1.5" title={i18n.t('bettingLines.mejorApuestaDeEstaLiga')}>🏆</span>}
                           {betType}
                         </td>
                         <td className="px-4 py-3 text-center text-green-400 font-semibold">
@@ -430,23 +424,23 @@ export default function BettingLinesStats() {
       {/* Legend */}
       <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
         <div className="text-slate-300 text-sm space-y-2">
-          <div className="font-semibold text-white mb-2">📖 Interpretación de colores</div>
+          <div className="font-semibold text-white mb-2">{i18n.t('bettingLines.interpretacionDeColores')}</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span className="text-slate-400">≥ 70% - Excelente</span>
+              <span className="text-slate-400">{i18n.t('bettingLines.k70Excelente')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <span className="text-slate-400">60-69% - Bueno</span>
+              <span className="text-slate-400">{i18n.t('bettingLines.k6069Bueno')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-              <span className="text-slate-400">50-59% - Regular</span>
+              <span className="text-slate-400">{i18n.t('bettingLines.k5059Regular')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <span className="text-slate-400">&lt; 50% - Bajo</span>
+              <span className="text-slate-400">{i18n.t('bettingLines.lt50Bajo')}</span>
             </div>
           </div>
         </div>
@@ -460,10 +454,9 @@ export default function BettingLinesStats() {
             <div className="flex items-center gap-3 mb-2">
               <span className="text-4xl">📈</span>
               <div>
-                <h3 className="text-2xl font-bold text-white">Efectividad del H2H Score</h3>
+                <h3 className="text-2xl font-bold text-white">{i18n.t('bettingLines.efectividadDelH2hScore')}</h3>
                 <p className="text-slate-400 text-sm">
-                  Análisis detallado de precisión por score (0-13) para cada estadística
-                </p>
+                  {i18n.t('bettingLines.analisisDetalladoDePrecisionPor')}</p>
               </div>
             </div>
           </div>

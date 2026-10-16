@@ -5,6 +5,7 @@ import MatchH2HNarrative from './MatchH2HNarrative';
 import H2HScoring from './H2Hscoring';
 import TeamFormSection from './TeamFormSection';
 import { useIsMobile } from './Hooks/useIsMobile';
+import i18n, { localeTag } from './i18n';
 
 interface MatchStats {
   match_id: number;
@@ -174,14 +175,14 @@ export default function MatchDetail() {
       );
       
       if (!response.ok) {
-        throw new Error('Error al cargar detalles del partido');
+        throw new Error(i18n.t('matchDetail.errorAlCargarDetallesDel'));
       }
       
       const data = await response.json();
       setMatch(data);
     } catch (error) {
       console.error('Error:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : i18n.t('matchDetail.errorDesconocido'));
     } finally {
       setLoading(false);
     }
@@ -266,7 +267,7 @@ export default function MatchDetail() {
     const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
     const date = new Date(year, month - 1, day); // month - 1 porque JavaScript usa 0-11
     
-    return date.toLocaleDateString('es-ES', {
+    return date.toLocaleDateString(localeTag(), {
       weekday: 'long',
       day: '2-digit',
       month: 'long',
@@ -284,7 +285,7 @@ export default function MatchDetail() {
   // de predicción en H2HScoring (OVER/UNDER + línea juntos en un solo chip).
   const renderBettingLine = (line: BettingLine | undefined) => {
     if (!line) {
-      return <span className="text-slate-500 text-xs">Sin línea</span>;
+      return <span className="text-slate-500 text-xs">{i18n.t('matchDetail.sinLinea')}</span>;
     }
 
     const isFinished = line.actual_total !== null;
@@ -301,9 +302,9 @@ export default function MatchDetail() {
         <div className="flex items-center gap-1.5 shrink-0">
           {predictionBadge}
           {line.hit ? (
-            <span className="text-green-500 text-sm" title={`Real: ${line.actual_total}`}>✅</span>
+            <span className="text-green-500 text-sm" title={i18n.t('matchDetail.actual', { n: line.actual_total })}>✅</span>
           ) : (
-            <span className="text-red-500 text-sm" title={`Real: ${line.actual_total}`}>❌</span>
+            <span className="text-red-500 text-sm" title={i18n.t('matchDetail.actual', { n: line.actual_total })}>❌</span>
           )}
         </div>
       );
@@ -345,14 +346,13 @@ export default function MatchDetail() {
       <div className="min-h-screen bg-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6">
-            <h2 className="text-red-400 text-2xl font-bold mb-4">Error</h2>
+            <h2 className="text-red-400 text-2xl font-bold mb-4">{i18n.t('matchDetail.error')}</h2>
             <p className="text-red-300">{error}</p>
             <button
               onClick={goBack}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
             >
-              Volver al Dashboard
-            </button>
+              {i18n.t('matchDetail.volverAlDashboard')}</button>
           </div>
         </div>
       </div>
@@ -376,7 +376,7 @@ export default function MatchDetail() {
           <button
             onClick={goBack}
             className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-700/80 text-white hover:bg-slate-600 active:bg-slate-500 transition-colors shrink-0"
-            aria-label="Volver"
+            aria-label={i18n.t('matchDetail.volver')}
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
           </button>
@@ -396,8 +396,7 @@ export default function MatchDetail() {
             onClick={goBack}
             className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
-            ← Volver al Dashboard
-          </button>
+            {i18n.t('matchDetail.volverAlDashboard2')}</button>
           
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex-1">
@@ -421,14 +420,14 @@ export default function MatchDetail() {
               </div>
               {match.referee && (
                 <div className="text-slate-400 text-sm text-center">
-                  Árbitro: {match.referee}
+                  {i18n.t('matchDetail.referee', { name: match.referee })}
                 </div>
               )}
             </div>
 
             {isFinished && (
               <div className="bg-slate-900 rounded-lg p-4">
-                <div className="text-slate-400 text-sm mb-1">Resultado Final</div>
+                <div className="text-slate-400 text-sm mb-1">{i18n.t('matchDetail.resultadoFinal')}</div>
                 <div className="text-4xl font-bold text-center">
                   <span className="text-blue-400">{match.home_goals}</span>
                   <span className="text-slate-500 mx-3">-</span>
@@ -469,12 +468,12 @@ export default function MatchDetail() {
         {(match.weinston_shots_home != null || match.weinston_fouls_home != null ||
           match.weinston_cards_home != null || match.weinston_corners_home != null) && (
         <div className="bg-slate-800 rounded-lg p-4 sm:p-6 shadow-xl border border-orange-500/20">
-          <h2 className="text-xl sm:text-2xl font-bold text-orange-400 mb-4 sm:mb-6">📊 Predicciones de Estadísticas (Weinston)</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-orange-400 mb-4 sm:mb-6">{i18n.t('matchDetail.prediccionesDeEstadisticasWeinston')}</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
             {match.weinston_shots_home != null && match.weinston_shots_away != null && (
               <StatPredictionCard
-                label="Shots"
+                label={i18n.t('matchDetail.shots')}
                 homeValue={match.weinston_shots_home}
                 awayValue={match.weinston_shots_away}
                 homeTeam={match.home_team}
@@ -485,7 +484,7 @@ export default function MatchDetail() {
             )}
             {match.weinston_shots_on_target_home != null && match.weinston_shots_on_target_away != null && (
               <StatPredictionCard
-                label="Shots OT"
+                label={i18n.t('matchDetail.shotsOt')}
                 homeValue={match.weinston_shots_on_target_home}
                 awayValue={match.weinston_shots_on_target_away}
                 homeTeam={match.home_team}
@@ -496,7 +495,7 @@ export default function MatchDetail() {
             )}
             {match.weinston_fouls_home != null && match.weinston_fouls_away != null && (
               <StatPredictionCard
-                label="Fouls"
+                label={i18n.t('matchDetail.fouls')}
                 homeValue={match.weinston_fouls_home}
                 awayValue={match.weinston_fouls_away}
                 homeTeam={match.home_team}
@@ -507,7 +506,7 @@ export default function MatchDetail() {
             )}
             {match.weinston_cards_home != null && match.weinston_cards_away != null && (
               <StatPredictionCard
-                label="Cards"
+                label={i18n.t('matchDetail.cards')}
                 homeValue={match.weinston_cards_home}
                 awayValue={match.weinston_cards_away}
                 homeTeam={match.home_team}
@@ -518,7 +517,7 @@ export default function MatchDetail() {
             )}
             {match.weinston_corners_home != null && match.weinston_corners_away != null && (
               <StatPredictionCard
-                label="Corners"
+                label={i18n.t('matchDetail.corners')}
                 homeValue={match.weinston_corners_home}
                 awayValue={match.weinston_corners_away}
                 homeTeam={match.home_team}
@@ -532,23 +531,23 @@ export default function MatchDetail() {
           {/* Leyenda de Betting Lines */}
           {!isFinished && bettingLines && (
             <div className="mt-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-              <p className="text-slate-300 text-sm font-semibold mb-3">🎯 Leyenda de Betting Lines:</p>
+              <p className="text-slate-300 text-sm font-semibold mb-3">{i18n.t('matchDetail.leyendaDeBettingLines')}</p>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="text-green-400">🔥 50-100%</span>
-                  <span className="text-slate-400">= Alta confianza (apostar)</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.altaConfianzaApostar')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-yellow-400">🟢 30-50%</span>
-                  <span className="text-slate-400">= Buena confianza</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.buenaConfianza')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-orange-400">🟡 15-30%</span>
-                  <span className="text-slate-400">= Media confianza</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.mediaConfianza')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-500">⚪ 0-15%</span>
-                  <span className="text-slate-400">= Baja confianza (no apostar)</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.bajaConfianzaNoApostar')}</span>
                 </div>
               </div>
             </div>
@@ -559,39 +558,39 @@ export default function MatchDetail() {
         {/* Estadísticas Reales (si el partido está finalizado) */}
         {isFinished && match.has_real_stats && (
           <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-green-500/20">
-            <h2 className="text-2xl font-bold text-green-400 mb-6">📈 Estadísticas Reales del Partido</h2>
+            <h2 className="text-2xl font-bold text-green-400 mb-6">{i18n.t('matchDetail.estadisticasRealesDelPartido')}</h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3">
                 <StatRow 
-                  label="Tiros"
+                  label={i18n.t('matchDetail.tiros')}
                   homeValue={match.home_shots}
                   awayValue={match.away_shots}
                 />
                 <StatRow 
-                  label="Tiros a Puerta"
+                  label={i18n.t('matchDetail.tirosAPuerta')}
                   homeValue={match.home_shots_on_target}
                   awayValue={match.away_shots_on_target}
                 />
                 <StatRow 
-                  label="Faltas"
+                  label={i18n.t('matchDetail.faltas')}
                   homeValue={match.home_fouls}
                   awayValue={match.away_fouls}
                 />
               </div>
               <div className="space-y-3">
                 <StatRow 
-                  label="Corners"
+                  label={i18n.t('matchDetail.corners')}
                   homeValue={match.home_corners}
                   awayValue={match.away_corners}
                 />
                 <StatRow 
-                  label="Tarjetas Amarillas"
+                  label={i18n.t('matchDetail.tarjetasAmarillas')}
                   homeValue={match.home_yellow_cards}
                   awayValue={match.away_yellow_cards}
                   color="yellow"
                 />
                 <StatRow 
-                  label="Tarjetas Rojas"
+                  label={i18n.t('matchDetail.tarjetasRojas')}
                   homeValue={match.home_red_cards}
                   awayValue={match.away_red_cards}
                   color="red"
@@ -606,11 +605,11 @@ export default function MatchDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Poisson */}
           <div className="bg-slate-800 rounded-lg p-4 sm:p-6 border border-blue-500/20">
-            <h3 className="text-xl font-bold text-blue-400 mb-4">Predicción Poisson</h3>
+            <h3 className="text-xl font-bold text-blue-400 mb-4">{i18n.t('matchDetail.prediccionPoisson')}</h3>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Marcador esperado:</span>
+                <span className="text-slate-400">{i18n.t('matchDetail.marcadorEsperado')}</span>
                 <span className="text-white font-mono text-lg">
                   {safeNumber(match.poisson_home_goals).toFixed(1)} - {safeNumber(match.poisson_away_goals).toFixed(1)}
                 </span>
@@ -618,15 +617,15 @@ export default function MatchDetail() {
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Victoria Local (1):</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.victoriaLocal1')}</span>
                   <span className="text-blue-300 font-mono">{(safeNumber(match.poisson_prob_home) * 100).toFixed(0)}%</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Empate (X):</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.empateX')}</span>
                   <span className="text-slate-300 font-mono">{(safeNumber(match.poisson_prob_draw) * 100).toFixed(0)}%</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Victoria Visitante (2):</span>
+                  <span className="text-slate-400">{i18n.t('matchDetail.victoriaVisitante2')}</span>
                   <span className="text-orange-300 font-mono">{(safeNumber(match.poisson_prob_away) * 100).toFixed(0)}%</span>
                 </div>
               </div>
@@ -662,18 +661,18 @@ export default function MatchDetail() {
 
           {/* Weinston */}
           <div className="bg-slate-800 rounded-lg p-6 border border-orange-500/20">
-            <h3 className="text-xl font-bold text-orange-400 mb-4">Predicción Weinston</h3>
+            <h3 className="text-xl font-bold text-orange-400 mb-4">{i18n.t('matchDetail.prediccionWeinston')}</h3>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Marcador esperado:</span>
+                <span className="text-slate-400">{i18n.t('matchDetail.marcadorEsperado')}</span>
                 <span className="text-white font-mono text-lg">
                   {safeNumber(match.weinston_home_goals).toFixed(1)} - {safeNumber(match.weinston_away_goals).toFixed(1)}
                 </span>
               </div>
 
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Resultado predicho:</span>
+                <span className="text-slate-400">{i18n.t('matchDetail.resultadoPredicho')}</span>
                 <span className="text-orange-300 font-mono text-lg font-bold">
                   {getResultLabel(match.weinston_result)}
                 </span>

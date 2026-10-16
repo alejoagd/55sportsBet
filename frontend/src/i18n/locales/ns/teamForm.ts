@@ -1,0 +1,58 @@
+// Generado para TeamFormSection.tsx. en/pt/fr se tipan contra es (mismas claves).
+const es = {
+  ultimos6Partidos: 'Últimos 6 Partidos',
+  todos: 'Todos',
+  sinPartidos: 'Sin partidos',
+  tendenciaDeLaTemporada: 'Tendencia de la Temporada',
+  k1tPartido: '1T/partido',
+  k2tPartido: '2T/partido',
+  partidosDeEstaTemporadaQue: 'Partidos de esta temporada que respaldan este promedio',
+  ultimosPartidos: '📈 Últimos Partidos',
+  win: 'Victoria {{n}}',
+  draw: 'Empate {{n}}',
+  loss: 'Derrota {{n}}',
+  sample: '{{n}} PJ',
+};
+const en: typeof es = {
+  ultimos6Partidos: 'Last 6 Matches',
+  todos: 'All',
+  sinPartidos: 'No matches',
+  tendenciaDeLaTemporada: 'Season Trend',
+  k1tPartido: '1H/match',
+  k2tPartido: '2H/match',
+  partidosDeEstaTemporadaQue: 'Matches this season backing this average',
+  ultimosPartidos: '📈 Recent Matches',
+  win: 'Win {{n}}',
+  draw: 'Draw {{n}}',
+  loss: 'Loss {{n}}',
+  sample: '{{n}} MP',
+};
+const pt: typeof es = {
+  ultimos6Partidos: 'Últimos 6 Jogos',
+  todos: 'Todos',
+  sinPartidos: 'Sem jogos',
+  tendenciaDeLaTemporada: 'Tendência da Temporada',
+  k1tPartido: '1T/jogo',
+  k2tPartido: '2T/jogo',
+  partidosDeEstaTemporadaQue: 'Jogos desta temporada que sustentam esta média',
+  ultimosPartidos: '📈 Últimos Jogos',
+  win: 'Vitória {{n}}',
+  draw: 'Empate {{n}}',
+  loss: 'Derrota {{n}}',
+  sample: '{{n}} J',
+};
+const fr: typeof es = {
+  ultimos6Partidos: '6 derniers matchs',
+  todos: 'Tous',
+  sinPartidos: 'Aucun match',
+  tendenciaDeLaTemporada: 'Tendance de la saison',
+  k1tPartido: '1MT/match',
+  k2tPartido: '2MT/match',
+  partidosDeEstaTemporadaQue: 'Matchs de cette saison qui appuient cette moyenne',
+  ultimosPartidos: '📈 Derniers matchs',
+  win: 'Victoire {{n}}',
+  draw: 'Nul {{n}}',
+  loss: 'Défaite {{n}}',
+  sample: '{{n}} J',
+};
+export default { es, en, pt, fr };

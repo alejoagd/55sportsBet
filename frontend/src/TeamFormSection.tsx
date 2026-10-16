@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import i18n from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -125,7 +126,7 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
         <span className="text-xl leading-none">{flag}</span>
         <div>
           <span className="text-sm font-bold text-slate-200 tracking-wide">{code}</span>
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest">Últimos 6 Partidos</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest">{i18n.t('teamForm.ultimos6Partidos')}</p>
         </div>
       </div>
 
@@ -140,8 +141,7 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
                 : 'bg-slate-700/60 text-slate-400 hover:text-slate-200'
             }`}
           >
-            Todos
-          </button>
+            {i18n.t('teamForm.todos')}</button>
           {tournaments.map(t => (
             <button
               key={t}
@@ -161,7 +161,7 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
       {/* Match rows */}
       <div className="space-y-1.5">
         {displayed.length === 0 ? (
-          <p className="text-xs text-slate-500 italic">Sin partidos</p>
+          <p className="text-xs text-slate-500 italic">{i18n.t('teamForm.sinPartidos')}</p>
         ) : (
           displayed.map((m, i) => {
             const { top, bottom } = formatFormDate(m.date);
@@ -201,9 +201,9 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
       {displayed.length > 0 && (
         <div className="mt-3 pt-2.5 border-t border-slate-700/60">
           <div className="flex gap-4 text-xs mb-1.5">
-            <span className="text-green-400 font-semibold">Victoria {wins}</span>
-            <span className="text-yellow-400 font-semibold">Empate {draws}</span>
-            <span className="text-red-400 font-semibold">Derrota {losses}</span>
+            <span className="text-green-400 font-semibold">{i18n.t('teamForm.win', { n: wins })}</span>
+            <span className="text-yellow-400 font-semibold">{i18n.t('teamForm.draw', { n: draws })}</span>
+            <span className="text-red-400 font-semibold">{i18n.t('teamForm.loss', { n: losses })}</span>
           </div>
           <div className="flex h-1.5 rounded-full overflow-hidden">
             <div className="bg-green-500" style={{ width: `${(wins / total) * 100}%` }} />
@@ -225,24 +225,23 @@ function TeamFormPanel({ team, form, trend }: { team: string; form: FormMatch[];
       {trend.avg_goals_1h !== null && trend.avg_goals_2h !== null && (
         <div className="mt-2.5 pt-2.5 border-t border-slate-700/60">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">
-            Tendencia de la Temporada
-          </p>
+            {i18n.t('teamForm.tendenciaDeLaTemporada')}</p>
           <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1">
               <span>🕐</span>
               <span className="text-slate-300 font-semibold">{trend.avg_goals_1h.toFixed(2)}</span>
-              <span className="text-slate-500">1T/partido</span>
+              <span className="text-slate-500">{i18n.t('teamForm.k1tPartido')}</span>
             </span>
             <span className="flex items-center gap-1">
               <span>🕕</span>
               <span className="text-slate-300 font-semibold">{trend.avg_goals_2h.toFixed(2)}</span>
-              <span className="text-slate-500">2T/partido</span>
+              <span className="text-slate-500">{i18n.t('teamForm.k2tPartido')}</span>
             </span>
             <span
               className={`text-[9px] font-medium px-1 rounded ${trend.sample < 3 ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
-              title="Partidos de esta temporada que respaldan este promedio"
+              title={i18n.t('teamForm.partidosDeEstaTemporadaQue')}
             >
-              {trend.sample} PJ
+              {i18n.t('teamForm.sample', { n: trend.sample })}
             </span>
           </div>
         </div>
@@ -278,8 +277,7 @@ export default function TeamFormSection({ matchId }: { matchId: number }) {
   return (
     <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-slate-700">
       <h2 className="text-lg font-bold text-slate-200 mb-5 flex items-center gap-2">
-        📈 Últimos Partidos
-      </h2>
+        {i18n.t('teamForm.ultimosPartidos')}</h2>
       <div className="flex flex-col sm:flex-row gap-6">
         <TeamFormPanel team={data.home_team} form={data.home_form} trend={data.home_halftime_trend} />
         <div className="hidden sm:block w-px bg-slate-700 flex-shrink-0" />

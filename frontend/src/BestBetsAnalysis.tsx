@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Target, Award, CheckCircle, XCircle } from 'lucide-react';
 import { AdminOnly } from './AdminButton';
+import { Trans } from 'react-i18next';
+import i18n, { localeTag } from './i18n';
 
 // Por debajo de esto, un accuracy% se marca visualmente como poco confiable —
 // una sola apuesta acertada mostrando "100%" no es una tendencia.
@@ -63,14 +65,17 @@ interface H2HTopPick {
   historical_sample: number;
 }
 
-const H2H_STAT_LABELS: Record<string, string> = {
-  GOLES: 'Goles (Over/Under 2.5)',
-  TIROS: 'Tiros',
-  'TIROS AL ARCO': 'Tiros a puerta',
-  FALTAS: 'Faltas',
-  TARJETAS: 'Tarjetas',
-  CORNERS: 'Corners',
+// Claves de traducción por stat (se resuelven al renderizar, no al cargar el módulo).
+const H2H_STAT_LABEL_KEYS: Record<string, string> = {
+  GOLES: 'bestBetsAnalysis.golesOverUnder25',
+  TIROS: 'bestBetsAnalysis.tiros',
+  'TIROS AL ARCO': 'bestBetsAnalysis.tirosAPuerta',
+  FALTAS: 'bestBetsAnalysis.faltas',
+  TARJETAS: 'bestBetsAnalysis.tarjetas',
+  CORNERS: 'bestBetsAnalysis.corners',
 };
+const h2hStatLabel = (stat: string): string =>
+  H2H_STAT_LABEL_KEYS[stat] ? i18n.t(H2H_STAT_LABEL_KEYS[stat]) : stat;
 
 interface GeneralStats {
   total_bets: number;
@@ -198,7 +203,7 @@ export default function BestBetsAnalysis() {
       setRecPicksAccuracy(data);
     } catch (error) {
       console.error('❌ Error fetching recommended picks accuracy:', error);
-      setRecPicksError(error instanceof Error ? error.message : 'Error desconocido');
+      setRecPicksError(error instanceof Error ? error.message : i18n.t('bestBetsAnalysis.errorDesconocido'));
     } finally {
       setRecPicksLoading(false);
     }
@@ -220,7 +225,7 @@ export default function BestBetsAnalysis() {
       setTop10Picks(data.picks || []);
     } catch (error) {
       console.error('❌ Error fetching top 10 H2H picks:', error);
-      setTop10Error(error instanceof Error ? error.message : 'Error desconocido');
+      setTop10Error(error instanceof Error ? error.message : i18n.t('bestBetsAnalysis.errorDesconocido'));
     } finally {
       setTop10Loading(false);
     }
@@ -240,7 +245,7 @@ export default function BestBetsAnalysis() {
       setH2hData(data);
     } catch (error) {
       console.error('❌ Error fetching H2H effectiveness:', error);
-      setH2hError(error instanceof Error ? error.message : 'Error desconocido');
+      setH2hError(error instanceof Error ? error.message : i18n.t('bestBetsAnalysis.errorDesconocido'));
     } finally {
       setH2hLoading(false);
     }
@@ -262,7 +267,7 @@ export default function BestBetsAnalysis() {
       setStats(data);
     } catch (error) {
       console.error('❌ Error fetching stats:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : i18n.t('bestBetsAnalysis.errorDesconocido'));
     } finally {
       setLoading(false);
     }
@@ -293,13 +298,13 @@ export default function BestBetsAnalysis() {
       const response = await fetch(`${API_URL}/api/best-bets/validate`, { method: 'POST' });
       const result = await response.json();
 
-      alert(`✅ Validación completada (MULTILIGA):\n- Validadas: ${result.validated}\n- Aciertos: ${result.hits}\n- Fallos: ${result.misses}\n- Accuracy: ${result.accuracy}%`);
+      alert(i18n.t('bestBetsAnalysis.validationDone', { validated: result.validated, hits: result.hits, misses: result.misses, accuracy: result.accuracy }));
 
       fetchStats();
       fetchHistory();
     } catch (error) {
       console.error('Error validating:', error);
-      alert('❌ Error al validar best bets');
+      alert(i18n.t('bestBetsAnalysis.errorAlValidarBestBets'));
     } finally {
       setValidating(false);
     }
@@ -309,7 +314,7 @@ export default function BestBetsAnalysis() {
     if (!dateString) return '';
     const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
     const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' });
+    return date.toLocaleDateString(localeTag(), { weekday: 'short', day: '2-digit', month: 'short' });
   };
 
   const getBetTypeLabel = (type: string) => {
@@ -317,11 +322,11 @@ export default function BestBetsAnalysis() {
       'OVER_25': 'Over/Under 2.5',
       'BTTS': 'BTTS',
       '1X2': '1X2',
-      'CORNERS': 'Corners',
-      'SHOTS': 'Tiros',
-      'SHOTS_ON_TARGET': 'Tiros a puerta',
-      'CARDS': 'Tarjetas',
-      'FOULS': 'Faltas'
+      'CORNERS': i18n.t('bestBetsAnalysis.corners'),
+      'SHOTS': i18n.t('bestBetsAnalysis.tiros'),
+      'SHOTS_ON_TARGET': i18n.t('bestBetsAnalysis.tirosAPuerta'),
+      'CARDS': i18n.t('bestBetsAnalysis.tarjetas'),
+      'FOULS': i18n.t('bestBetsAnalysis.faltas')
     };
     return labels[type] || type;
   };
@@ -360,8 +365,8 @@ export default function BestBetsAnalysis() {
     return (
       <div className="flex items-center justify-center h-96 bg-slate-900">
         <div className="text-center">
-          <div className="text-slate-400 text-xl mb-4">⏳ Cargando análisis...</div>
-          <div className="text-slate-500 text-sm">Consultando base de datos...</div>
+          <div className="text-slate-400 text-xl mb-4">{i18n.t('bestBetsAnalysis.cargandoAnalisis')}</div>
+          <div className="text-slate-500 text-sm">{i18n.t('bestBetsAnalysis.consultandoBaseDeDatos')}</div>
         </div>
       </div>
     );
@@ -373,7 +378,7 @@ export default function BestBetsAnalysis() {
       <div className="flex items-center justify-center min-h-96 bg-slate-900 p-6">
         <div className="max-w-2xl w-full">
           <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6">
-            <h2 className="text-red-400 text-2xl font-bold mb-4">❌ Error al cargar datos</h2>
+            <h2 className="text-red-400 text-2xl font-bold mb-4">{i18n.t('bestBetsAnalysis.errorAlCargarDatos')}</h2>
             <div className="text-red-300 mb-4 font-mono text-sm bg-red-950/50 p-3 rounded">
               {error}
             </div>
@@ -382,8 +387,7 @@ export default function BestBetsAnalysis() {
                 onClick={fetchStats}
                 className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold"
               >
-                🔄 Reintentar
-              </button>
+                {i18n.t('bestBetsAnalysis.reintentar')}</button>
             </div>
           </div>
         </div>
@@ -398,16 +402,14 @@ export default function BestBetsAnalysis() {
         <div className="max-w-2xl w-full">
           <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 text-center">
             <div className="text-6xl mb-4">📊</div>
-            <h2 className="text-yellow-400 text-2xl font-bold mb-4">No hay datos aún</h2>
+            <h2 className="text-yellow-400 text-2xl font-bold mb-4">{i18n.t('bestBetsAnalysis.noHayDatosAun')}</h2>
             <p className="text-slate-300 mb-6">
-              Aún no se han guardado "Best Bets" para analizar.
-            </p>
+              {i18n.t('bestBetsAnalysis.aunNoSeHanGuardado')}</p>
             <a
               href="/best-bets"
               className="inline-block px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold"
             >
-              🎯 Ir a Mejores Apuestas
-            </a>
+              {i18n.t('bestBetsAnalysis.irAMejoresApuestas')}</a>
           </div>
         </div>
       </div>
@@ -427,11 +429,9 @@ export default function BestBetsAnalysis() {
             <Target className="w-10 h-10 text-green-400" />
             <div>
               <h1 className="text-3xl font-bold text-white">
-                📊 Efectividad de Mejores Apuestas
-              </h1>
+                {i18n.t('bestBetsAnalysis.efectividadDeMejoresApuestas')}</h1>
               <p className="text-slate-300 text-sm">
-                Qué tan acertivo ha sido cada modelo, tipo y liga en las Top 4 recomendaciones
-              </p>
+                {i18n.t('bestBetsAnalysis.queTanAcertivoHaSido')}</p>
             </div>
           </div>
           <AdminOnly hideCompletely={true}>
@@ -440,7 +440,7 @@ export default function BestBetsAnalysis() {
             disabled={validating}
             className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white rounded-lg transition-colors font-semibold flex items-center gap-2"
           >
-            {validating ? '⏳ Validando...' : '🔄 Validar Resultados'}
+            {validating ? i18n.t('bestBetsAnalysis.validando') : i18n.t('bestBetsAnalysis.validarResultados')}
           </button>
           </AdminOnly>
         </div>
@@ -450,31 +450,31 @@ export default function BestBetsAnalysis() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Total Apuestas</span>
+            <span className="text-slate-400 text-sm">{i18n.t('bestBetsAnalysis.totalApuestas')}</span>
             <Award className="w-5 h-5 text-blue-400" />
           </div>
           <div className="text-3xl font-bold text-white">{general.total_bets}</div>
           <div className="text-xs text-slate-400 mt-1">
-            {general.hits} aciertos • {general.total_bets - general.hits} fallos
+            {i18n.t('bestBetsAnalysis.hitsMisses', { hits: general.hits, misses: general.total_bets - general.hits })}
           </div>
         </div>
 
         <div className="bg-slate-800 rounded-lg p-6 border border-green-500/30">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Accuracy General</span>
+            <span className="text-slate-400 text-sm">{i18n.t('bestBetsAnalysis.accuracyGeneral')}</span>
             <CheckCircle className="w-5 h-5 text-green-400" />
           </div>
           <div className={`text-3xl font-bold ${getAccuracyColor(general.accuracy_pct)}`}>
             {general.accuracy_pct.toFixed(1)}%
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Confianza promedio del modelo: {general.avg_confidence.toFixed(1)}%
+            {i18n.t('bestBetsAnalysis.confidenceAvg', { n: general.avg_confidence.toFixed(1) })}
           </div>
         </div>
 
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Tipo más acertivo</span>
+            <span className="text-slate-400 text-sm">{i18n.t('bestBetsAnalysis.tipoMasAcertivo')}</span>
             <span className="text-lg">🎯</span>
           </div>
           {bestType ? (
@@ -489,7 +489,7 @@ export default function BestBetsAnalysis() {
 
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-400 text-sm">Liga más acertiva</span>
+            <span className="text-slate-400 text-sm">{i18n.t('bestBetsAnalysis.ligaMasAcertiva')}</span>
             <span className="text-lg">🌍</span>
           </div>
           {bestLeague ? (
@@ -512,9 +512,9 @@ export default function BestBetsAnalysis() {
 
         return (
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-1">🎯 Efectividad por Tipo de Apuesta</h2>
+            <h2 className="text-xl font-bold text-white mb-1">{i18n.t('bestBetsAnalysis.efectividadPorTipoDeApuesta')}</h2>
             <p className="text-slate-400 text-xs mb-4">
-              Ordenado de mejor a peor accuracy. El número entre paréntesis es cuántas apuestas respaldan ese dato — menos de {LOW_SAMPLE_THRESHOLD} se marca como muestra baja.
+              {i18n.t('bestBetsAnalysis.typeHint', { n: LOW_SAMPLE_THRESHOLD })}
             </p>
 
             {best && worst && best.bet_type !== worst.bet_type && (
@@ -522,7 +522,7 @@ export default function BestBetsAnalysis() {
                 <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 flex items-center gap-3">
                   <span className="text-2xl">🏆</span>
                   <div>
-                    <div className="text-green-400 text-xs font-semibold">Más acertivo</div>
+                    <div className="text-green-400 text-xs font-semibold">{i18n.t('bestBetsAnalysis.masAcertivo')}</div>
                     <div className="text-white font-bold">{getBetTypeLabel(best.bet_type)}</div>
                     <div className="text-slate-400 text-[11px]">{best.total} apuestas</div>
                   </div>
@@ -531,7 +531,7 @@ export default function BestBetsAnalysis() {
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 flex items-center gap-3">
                   <span className="text-2xl">⚠️</span>
                   <div>
-                    <div className="text-red-400 text-xs font-semibold">Menos acertivo</div>
+                    <div className="text-red-400 text-xs font-semibold">{i18n.t('bestBetsAnalysis.menosAcertivo')}</div>
                     <div className="text-white font-bold">{getBetTypeLabel(worst.bet_type)}</div>
                     <div className="text-slate-400 text-[11px]">{worst.total} apuestas</div>
                   </div>
@@ -546,7 +546,7 @@ export default function BestBetsAnalysis() {
                 return (
                   <div key={type.bet_type} className={`flex items-center gap-3 text-sm ${lowSample ? 'opacity-60' : ''}`}>
                     <div className="w-32 sm:w-44 shrink-0 text-white font-medium truncate flex items-center gap-1">
-                      {lowSample && <span title={`Muestra baja: solo ${type.total} apuestas`}>⚠️</span>}
+                      {lowSample && <span title={i18n.t('bestBetsAnalysis.lowSampleBets', { n: type.total })}>⚠️</span>}
                       {getBetTypeLabel(type.bet_type)}
                     </div>
                     <div className="flex-1 h-5 relative bg-slate-900/50 rounded overflow-hidden">
@@ -571,17 +571,16 @@ export default function BestBetsAnalysis() {
         const ranked = [...by_league].sort((a, b) => b.accuracy_pct - a.accuracy_pct);
         return (
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-1">🌍 Efectividad por Liga</h2>
+            <h2 className="text-xl font-bold text-white mb-1">{i18n.t('bestBetsAnalysis.efectividadPorLiga')}</h2>
             <p className="text-slate-400 text-xs mb-4">
-              Se agrupa por la liga actual del partido — no por la liga guardada cuando se generó la recomendación, para que siga siendo correcto si la temporada cambió de id.
-            </p>
+              {i18n.t('bestBetsAnalysis.seAgrupaPorLaLiga')}</p>
             <div className="space-y-2.5">
               {ranked.map((league) => {
                 const lowSample = league.total < LOW_SAMPLE_THRESHOLD;
                 return (
                   <div key={league.league} className={`flex items-center gap-3 text-sm ${lowSample ? 'opacity-60' : ''}`}>
                     <div className="w-32 sm:w-44 shrink-0 text-white font-medium truncate flex items-center gap-1">
-                      {lowSample && <span title={`Muestra baja: solo ${league.total} apuestas`}>⚠️</span>}
+                      {lowSample && <span title={i18n.t('bestBetsAnalysis.lowSampleBets', { n: league.total })}>⚠️</span>}
                       {league.league}
                     </div>
                     <div className="flex-1 h-5 relative bg-slate-900/50 rounded overflow-hidden">
@@ -603,19 +602,20 @@ export default function BestBetsAnalysis() {
 
       {/* Validación del H2H Scoring System */}
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-        <h2 className="text-xl font-bold text-white mb-1">🔬 Validación del Sistema de Puntuación H2H</h2>
+        <h2 className="text-xl font-bold text-white mb-1">{i18n.t('bestBetsAnalysis.validacionDelSistemaDePuntuacion')}</h2>
         <p className="text-slate-400 text-xs mb-4">
-          Cada pronóstico trae una puntuación 0-12: cuántos de los últimos hasta-12 enfrentamientos directos
-          <em> anteriores</em> a ese partido cumplían lo mismo que Weinston predijo (ej: "más de 9.5 corners se dio en 10 de los últimos 12 H2H" → puntuación 10).
-          Acá comparamos esa puntuación contra lo que <strong className="text-white">realmente pasó</strong> en cada partido ya jugado, para saber si una puntuación alta de verdad predice mejor.
+          <Trans
+            i18nKey="bestBetsAnalysis.h2hExplain"
+            components={{ em: <em />, strong: <strong className="text-white" /> }}
+          />
         </p>
 
         {h2hLoading ? (
-          <div className="text-center text-slate-400 py-8">⏳ Cargando validación H2H...</div>
+          <div className="text-center text-slate-400 py-8">{i18n.t('bestBetsAnalysis.cargandoValidacionH2h')}</div>
         ) : h2hError ? (
           <div className="text-center text-red-400 py-8">❌ {h2hError}</div>
         ) : !h2hData || h2hData.total_leagues === 0 ? (
-          <div className="text-center text-slate-400 py-8">No hay datos de H2H scoring todavía.</div>
+          <div className="text-center text-slate-400 py-8">{i18n.t('bestBetsAnalysis.noHayDatosDeH2h')}</div>
         ) : (() => {
           // Aplanar todo en (liga, stat, score, total, hits, accuracy) para el Top 4
           type FlatEntry = { league: string; stat: string; score: number; total: number; accuracy: number };
@@ -645,7 +645,7 @@ export default function BestBetsAnalysis() {
             <>
               {/* Top 4 más efectivas de todas las ligas */}
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-slate-300 mb-3">🏆 Top 4 puntuaciones más efectivas (todas las ligas, mín. {LOW_SAMPLE_THRESHOLD} partidos)</h3>
+                <h3 className="text-sm font-semibold text-slate-300 mb-3">{i18n.t('bestBetsAnalysis.top4Title', { n: LOW_SAMPLE_THRESHOLD })}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {top4.map((e, i) => (
                     <div key={i} className={`rounded-lg p-4 border ${getAccuracyBgColor(e.accuracy)} border-slate-700`}>
@@ -653,13 +653,13 @@ export default function BestBetsAnalysis() {
                         <span className="text-xs text-slate-400">#{i + 1}</span>
                         <span className={`text-2xl font-bold ${getAccuracyColor(e.accuracy)}`}>{e.accuracy.toFixed(1)}%</span>
                       </div>
-                      <div className="text-white font-semibold text-sm">{H2H_STAT_LABELS[e.stat] || e.stat}</div>
-                      <div className="text-slate-400 text-xs">{e.league} · puntuación {e.score}</div>
-                      <div className="text-slate-500 text-xs mt-1">{e.total} partidos analizados</div>
+                      <div className="text-white font-semibold text-sm">{h2hStatLabel(e.stat)}</div>
+                      <div className="text-slate-400 text-xs">{i18n.t('bestBetsAnalysis.leagueScore', { league: e.league, score: e.score })}</div>
+                      <div className="text-slate-500 text-xs mt-1">{i18n.t('bestBetsAnalysis.matchesAnalyzed', { n: e.total })}</div>
                     </div>
                   ))}
                   {top4.length === 0 && (
-                    <div className="col-span-full text-slate-500 text-sm">Todavía no hay suficientes partidos con muestra grande.</div>
+                    <div className="col-span-full text-slate-500 text-sm">{i18n.t('bestBetsAnalysis.todaviaNoHaySuficientesPartidos')}</div>
                   )}
                 </div>
               </div>
@@ -667,7 +667,7 @@ export default function BestBetsAnalysis() {
               {/* Matriz puntuación (0-12) x liga, para el item seleccionado */}
               <div>
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <h3 className="text-sm font-semibold text-slate-300">Todas las puntuaciones (0-12) por liga</h3>
+                  <h3 className="text-sm font-semibold text-slate-300">{i18n.t('bestBetsAnalysis.todasLasPuntuaciones012')}</h3>
                   <div className="flex gap-1.5 flex-wrap">
                     {statsAvailable.map(s => (
                       <button
@@ -677,7 +677,7 @@ export default function BestBetsAnalysis() {
                           activeStat === s ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                         }`}
                       >
-                        {H2H_STAT_LABELS[s] || s}
+                        {h2hStatLabel(s)}
                       </button>
                     ))}
                   </div>
@@ -686,7 +686,7 @@ export default function BestBetsAnalysis() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-slate-700">
-                        <th className="text-left text-slate-400 p-2">Puntuación</th>
+                        <th className="text-left text-slate-400 p-2">{i18n.t('bestBetsAnalysis.puntuacion')}</th>
                         {leagues.map(l => (
                           <th key={l} className="text-center text-slate-400 p-2 whitespace-nowrap">{l}</th>
                         ))}
@@ -706,7 +706,7 @@ export default function BestBetsAnalysis() {
                                 ) : (
                                   <div
                                     className={`inline-flex flex-col items-center rounded px-2 py-1 ${getAccuracyBgColor(data.accuracy)} ${lowSample ? 'opacity-60' : ''}`}
-                                    title={lowSample ? `Muestra baja: solo ${data.total} partidos` : undefined}
+                                    title={lowSample ? i18n.t('bestBetsAnalysis.lowSampleMatches', { n: data.total }) : undefined}
                                   >
                                     <span className={`font-bold ${getAccuracyColor(data.accuracy)}`}>
                                       {lowSample && '⚠️ '}{data.accuracy.toFixed(0)}%
@@ -732,7 +732,7 @@ export default function BestBetsAnalysis() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Por Modelo */}
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h2 className="text-xl font-bold text-white mb-4">🎯 Por Modelo</h2>
+          <h2 className="text-xl font-bold text-white mb-4">{i18n.t('bestBetsAnalysis.porModelo')}</h2>
           <div className="space-y-3">
             {(() => {
               const bestModel = pickBest(by_model);
@@ -742,7 +742,7 @@ export default function BestBetsAnalysis() {
                     <div className="flex items-center gap-2">
                       <span className="text-white font-semibold capitalize">{model.model}</span>
                       {bestModel?.model === model.model && (
-                        <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-bold">🏆 Más acertivo</span>
+                        <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-bold">{i18n.t('bestBetsAnalysis.masAcertivo2')}</span>
                       )}
                     </div>
                     <span className="text-slate-400 text-xs">{model.total} apuestas</span>
@@ -759,7 +759,7 @@ export default function BestBetsAnalysis() {
 
         {/* Por Ranking */}
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h2 className="text-xl font-bold text-white mb-4">🏆 Por Ranking</h2>
+          <h2 className="text-xl font-bold text-white mb-4">{i18n.t('bestBetsAnalysis.porRanking')}</h2>
           <div className="space-y-3">
             {by_rank.map((rank) => (
               <div key={rank.rank} className="bg-slate-900/50 rounded-lg p-4">
@@ -769,8 +769,8 @@ export default function BestBetsAnalysis() {
                       #{rank.rank}
                     </div>
                     <div>
-                      <div className="text-white font-semibold">Posición {rank.rank}</div>
-                      <div className="text-slate-400 text-xs">{rank.total} apuestas</div>
+                      <div className="text-white font-semibold">{i18n.t('bestBetsAnalysis.positionN', { n: rank.rank })}</div>
+                      <div className="text-slate-400 text-xs">{i18n.t('bestBetsAnalysis.betsCount', { n: rank.total })}</div>
                     </div>
                   </div>
                   <div className={`text-2xl font-bold ${getAccuracyColor(rank.accuracy_pct)}`}>
@@ -785,7 +785,7 @@ export default function BestBetsAnalysis() {
 
       {/* Evolución Temporal */}
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-        <h2 className="text-xl font-bold text-white mb-4">📈 Evolución del Accuracy</h2>
+        <h2 className="text-xl font-bold text-white mb-4">{i18n.t('bestBetsAnalysis.evolucionDelAccuracy')}</h2>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={evolution}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -811,22 +811,22 @@ export default function BestBetsAnalysis() {
       {/* Historial */}
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">📋 Historial de Apuestas</h2>
+          <h2 className="text-xl font-bold text-white">{i18n.t('bestBetsAnalysis.historialDeApuestas')}</h2>
           <select
             value={showHistory}
             onChange={(e) => setShowHistory(e.target.value as any)}
             className="bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-2 text-sm"
           >
-            <option value="validated">Validadas</option>
-            <option value="pending">Pendientes</option>
-            <option value="all">Todas</option>
+            <option value="validated">{i18n.t('bestBetsAnalysis.validadas')}</option>
+            <option value="pending">{i18n.t('bestBetsAnalysis.pendientes')}</option>
+            <option value="all">{i18n.t('bestBetsAnalysis.todas')}</option>
           </select>
         </div>
 
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {history.length === 0 ? (
             <div className="text-center text-slate-400 py-8">
-              No hay apuestas {showHistory === 'validated' ? 'validadas' : showHistory === 'pending' ? 'pendientes' : ''} aún
+              {i18n.t(showHistory === 'validated' ? 'bestBetsAnalysis.noBetsValidated' : showHistory === 'pending' ? 'bestBetsAnalysis.noBetsPending' : 'bestBetsAnalysis.noBetsAny')}
             </div>
           ) : (
             history.map((bet) => (
@@ -846,7 +846,7 @@ export default function BestBetsAnalysis() {
                           {bet.home_team} vs {bet.away_team}
                         </div>
                         <div className="text-slate-400 text-xs">
-                          {new Date(bet.date).toLocaleDateString('es-ES', {
+                          {new Date(bet.date).toLocaleDateString(localeTag(), {
                             weekday: 'short', day: '2-digit', month: 'short'
                           })}
                         </div>
@@ -854,34 +854,34 @@ export default function BestBetsAnalysis() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
                       <div>
-                        <div className="text-slate-400 text-xs">Apuesta</div>
+                        <div className="text-slate-400 text-xs">{i18n.t('bestBetsAnalysis.apuesta')}</div>
                         <div className="text-white font-semibold text-xs sm:text-sm truncate">
                           {bet.prediction}
                         </div>
                         <div className="text-slate-500 text-xs">({getBetTypeLabel(bet.bet_type)})</div>
                       </div>
                       <div>
-                        <div className="text-slate-400 text-xs">Modelo</div>
+                        <div className="text-slate-400 text-xs">{i18n.t('bestBetsAnalysis.modelo')}</div>
                         <div className="text-white capitalize text-xs sm:text-sm">{bet.model}</div>
                       </div>
                       <div>
-                        <div className="text-slate-400 text-xs">Confianza</div>
+                        <div className="text-slate-400 text-xs">{i18n.t('bestBetsAnalysis.confianza')}</div>
                         <div className="text-white text-xs sm:text-sm">{bet.confidence.toFixed(0)}%</div>
                       </div>
                     </div>
                   </div>
                   <div className="text-center sm:text-right w-full sm:w-auto sm:ml-4 flex-shrink-0">
                     {bet.hit === null ? (
-                      <div className="text-slate-400">⏳ Pendiente</div>
+                      <div className="text-slate-400">{i18n.t('bestBetsAnalysis.pendiente')}</div>
                     ) : bet.hit ? (
                       <div className="flex sm:flex-col items-center gap-1">
                         <CheckCircle className="w-8 h-8 text-green-400" />
-                        <span className="text-green-400 font-bold text-sm">Acertó</span>
+                        <span className="text-green-400 font-bold text-sm">{i18n.t('bestBetsAnalysis.acerto')}</span>
                       </div>
                     ) : (
                       <div className="flex sm:flex-col items-center gap-1">
                         <XCircle className="w-8 h-8 text-red-400" />
-                        <span className="text-red-400 font-bold text-sm">Falló</span>
+                        <span className="text-red-400 font-bold text-sm">{i18n.t('bestBetsAnalysis.fallo')}</span>
                       </div>
                     )}
                     {bet.home_goals !== null && (
@@ -900,30 +900,28 @@ export default function BestBetsAnalysis() {
       {/* Explicación */}
       <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
         <div className="text-slate-300 text-sm space-y-2">
-          <div className="font-semibold text-white mb-2">💡 Cómo leer el accuracy</div>
+          <div className="font-semibold text-white mb-2">{i18n.t('bestBetsAnalysis.comoLeerElAccuracy')}</div>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li><strong>Accuracy:</strong> aciertos ÷ apuestas validadas de ese corte (tipo, modelo, liga, etc.), en %</li>
-            <li><strong>Confianza:</strong> la probabilidad que el modelo le asignó a la predicción antes de saber el resultado</li>
-            <li><strong className="text-yellow-400">⚠️ Muestra baja:</strong> menos de {LOW_SAMPLE_THRESHOLD} apuestas respaldan ese %, así que puede cambiar mucho con el próximo resultado — tómalo con cautela</li>
+            <li><strong>Accuracy:</strong> {i18n.t('bestBetsAnalysis.aciertosApuestasValidadasDeEse')}</li>
+            <li><strong>{i18n.t('bestBetsAnalysis.confianza2')}</strong> {i18n.t('bestBetsAnalysis.laProbabilidadQueElModelo')}</li>
+            <li><Trans i18nKey="bestBetsAnalysis.lowSampleNote" values={{ n: LOW_SAMPLE_THRESHOLD }} components={{ y: <strong className="text-yellow-400" /> }} /></li>
           </ul>
         </div>
       </div>
 
       {/* Top 10 apuestas H2H de alta confianza (este fin de semana) */}
       <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg p-4 sm:p-6 border border-purple-500/30">
-        <h2 className="text-xl font-bold text-white mb-1">🎯 Top 10 Apuestas H2H de Alta Confianza</h2>
+        <h2 className="text-xl font-bold text-white mb-1">{i18n.t('bestBetsAnalysis.top10ApuestasH2hDe')}</h2>
         <p className="text-slate-400 text-xs sm:text-sm mb-4">
-          De todos los partidos de este fin de semana: puntuaciones H2H (0-12) con accuracy real ≥ 70% y respaldadas por más de 10 partidos pasados.
-        </p>
+          {i18n.t('bestBetsAnalysis.deTodosLosPartidosDe')}</p>
 
         {top10Loading ? (
-          <div className="text-center text-slate-400 py-8">⏳ Calculando puntuaciones H2H en vivo...</div>
+          <div className="text-center text-slate-400 py-8">{i18n.t('bestBetsAnalysis.calculandoPuntuacionesH2hEnVivo')}</div>
         ) : top10Error ? (
           <div className="text-center text-red-400 py-8">❌ {top10Error}</div>
         ) : top10Picks.length === 0 ? (
           <div className="text-center text-slate-400 py-8">
-            Ningún pronóstico de este fin de semana llega a 70% de accuracy real con más de 10 partidos de respaldo.
-          </div>
+            {i18n.t('bestBetsAnalysis.ningunPronosticoDeEsteFin')}</div>
         ) : (
           <div className="space-y-2.5">
             {top10Picks.map((pick, i) => {
@@ -946,19 +944,19 @@ export default function BestBetsAnalysis() {
                     </div>
                   </div>
                   <div className="text-slate-300 text-sm shrink-0">
-                    <span className="text-purple-300 font-semibold">{isOver ? 'Más de' : 'Menos de'} {pick.line} {pick.stat_label}</span>
+                    <span className="text-purple-300 font-semibold">{isOver ? i18n.t('bestBetsAnalysis.masDe') : i18n.t('bestBetsAnalysis.menosDe')} {pick.line} {H2H_STAT_LABEL_KEYS[pick.stat.toUpperCase().replace(/_/g, ' ')] ? h2hStatLabel(pick.stat.toUpperCase().replace(/_/g, ' ')) : pick.stat_label}</span>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <div className="bg-slate-800 rounded px-2.5 py-1 text-center">
-                      <div className="text-slate-500 text-[10px]">Puntuación</div>
+                      <div className="text-slate-500 text-[10px]">{i18n.t('bestBetsAnalysis.puntuacion')}</div>
                       <div className="text-white font-bold text-sm">{pick.score}/{pick.h2h_valid_matches}</div>
                     </div>
                     <div className={`rounded px-2.5 py-1 text-center ${getAccuracyBgColor(pick.historical_accuracy)}`}>
-                      <div className="text-slate-500 text-[10px]">Accuracy real</div>
+                      <div className="text-slate-500 text-[10px]">{i18n.t('bestBetsAnalysis.accuracyReal')}</div>
                       <div className={`font-bold text-sm ${getAccuracyColor(pick.historical_accuracy)}`}>{pick.historical_accuracy.toFixed(0)}%</div>
                     </div>
                     <div className="bg-slate-800 rounded px-2.5 py-1 text-center">
-                      <div className="text-slate-500 text-[10px]">Muestra</div>
+                      <div className="text-slate-500 text-[10px]">{i18n.t('bestBetsAnalysis.muestra')}</div>
                       <div className="text-white font-bold text-sm">{pick.historical_sample}</div>
                     </div>
                   </div>
@@ -976,37 +974,35 @@ export default function BestBetsAnalysis() {
           pick la primera vez que aparece, y este panel lo valida en cuanto
           el partido termina. */}
       <div className="bg-gradient-to-r from-emerald-900/20 to-teal-900/20 rounded-lg p-4 sm:p-6 border border-emerald-500/30">
-        <h2 className="text-xl font-bold text-white mb-1">📊 Eficacia Real de las Recomendaciones</h2>
+        <h2 className="text-xl font-bold text-white mb-1">{i18n.t('bestBetsAnalysis.eficaciaRealDeLasRecomendaciones')}</h2>
         <p className="text-slate-400 text-xs sm:text-sm mb-4">
-          Seguimiento de los pronósticos que se mostraron en el Top 4 y Top 10 — agrupado por puntuación H2H, una vez jugados los partidos.
-        </p>
+          {i18n.t('bestBetsAnalysis.seguimientoDeLosPronosticosQue')}</p>
 
         {recPicksLoading ? (
-          <div className="text-center text-slate-400 py-8">⏳ Cargando...</div>
+          <div className="text-center text-slate-400 py-8">{i18n.t('bestBetsAnalysis.cargando')}</div>
         ) : recPicksError ? (
           <div className="text-center text-red-400 py-8">❌ {recPicksError}</div>
         ) : !recPicksAccuracy || recPicksAccuracy.total_recommended === 0 ? (
           <div className="text-center text-slate-400 py-8">
-            Todavía no se ha recomendado ningún pronóstico para hacerle seguimiento.
-          </div>
+            {i18n.t('bestBetsAnalysis.todaviaNoSeHaRecomendado')}</div>
         ) : (
           <>
             <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-sm">
               <div>
-                <span className="text-slate-500">Recomendados: </span>
+                <span className="text-slate-500">{i18n.t('bestBetsAnalysis.recomendados')}</span>
                 <span className="text-white font-bold">{recPicksAccuracy.total_recommended}</span>
               </div>
               <div>
-                <span className="text-slate-500">Validados: </span>
+                <span className="text-slate-500">{i18n.t('bestBetsAnalysis.validados')}</span>
                 <span className="text-white font-bold">{recPicksAccuracy.total_validated}</span>
               </div>
               <div>
-                <span className="text-slate-500">Pendientes: </span>
+                <span className="text-slate-500">{i18n.t('bestBetsAnalysis.pendientes2')}</span>
                 <span className="text-amber-400 font-bold">{recPicksAccuracy.total_pending}</span>
               </div>
               {recPicksAccuracy.overall_accuracy !== null && (
                 <div>
-                  <span className="text-slate-500">Accuracy general: </span>
+                  <span className="text-slate-500">{i18n.t('bestBetsAnalysis.accuracyGeneral2')}</span>
                   <span className={`font-bold ${getAccuracyColor(recPicksAccuracy.overall_accuracy)}`}>
                     {recPicksAccuracy.overall_accuracy.toFixed(0)}%
                   </span>
@@ -1037,12 +1033,12 @@ export default function BestBetsAnalysis() {
                           {row.accuracy_pct.toFixed(0)}%
                         </span>
                       ) : (
-                        <span className="text-slate-500 text-xs">Sin validar</span>
+                        <span className="text-slate-500 text-xs">{i18n.t('bestBetsAnalysis.sinValidar')}</span>
                       )}
                     </div>
                     <div className="w-28 shrink-0 text-right text-xs text-slate-500">
-                      {row.hits}/{row.validated}{row.pending > 0 ? ` (+${row.pending} pend.)` : ''}
-                      {lowSample && <span className="text-amber-400" title={`Menos de ${LOW_SAMPLE_THRESHOLD} recomendaciones validadas`}> ⚠️</span>}
+                      {row.hits}/{row.validated}{row.pending > 0 ? i18n.t('bestBetsAnalysis.pendShort', { n: row.pending }) : ''}
+                      {lowSample && <span className="text-amber-400" title={i18n.t('bestBetsAnalysis.lessThanValidated', { n: LOW_SAMPLE_THRESHOLD })}> ⚠️</span>}
                     </div>
                   </div>
                 );

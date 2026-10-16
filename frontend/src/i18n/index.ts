@@ -4,6 +4,7 @@ import es from './locales/es';
 import en from './locales/en';
 import pt from './locales/pt';
 import fr from './locales/fr';
+import { nsBundles } from './locales/ns';
 
 export const LANGUAGES = [
   { code: 'es', label: 'Español', short: 'ES', locale: 'es-CO' },
@@ -42,12 +43,19 @@ function detectLanguage(): LangCode {
   return preferred.length > 0 && preferred[0] ? 'en' : 'es';
 }
 
+// Diccionario base + los de cada pantalla (locales/ns), bajo su propio espacio
+// de nombres: t('matchDetail.algo').
+const withScreens = (lang: LangCode, base: object) => ({
+  ...base,
+  ...Object.fromEntries(Object.entries(nsBundles).map(([ns, bundle]) => [ns, bundle[lang]])),
+});
+
 i18n.use(initReactI18next).init({
   resources: {
-    es: { translation: es },
-    en: { translation: en },
-    pt: { translation: pt },
-    fr: { translation: fr },
+    es: { translation: withScreens('es', es) },
+    en: { translation: withScreens('en', en) },
+    pt: { translation: withScreens('pt', pt) },
+    fr: { translation: withScreens('fr', fr) },
   },
   lng: detectLanguage(),
   fallbackLng: 'es',
