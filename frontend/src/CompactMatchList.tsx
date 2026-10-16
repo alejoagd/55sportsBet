@@ -1,7 +1,8 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n, { localeTag } from './i18n';
 import { useIsMobile } from './Hooks/useIsMobile';
+import ProbabilityBar from './ProbabilityBar';
 
 // Fila compacta de partidos, agrupada por fecha (no por jornada — no hay
 // número de jornada real disponible para ninguna liga todavía). Muestra
@@ -49,33 +50,6 @@ function TeamLogo({ url, alt, size = 'sm' }: { url?: string | null; alt: string;
       className={`${dim} object-contain shrink-0`}
       onError={() => setFailed(true)}
     />
-  );
-}
-
-// Barra de probabilidad 1X2 — mismo azul/naranja que usa el resto de la app
-// para local/visitante (MatchDetail, etc.), gris para el empate.
-function ProbabilityBar({
-  home, draw, away, size = 'sm',
-}: {
-  home?: number | null; draw?: number | null; away?: number | null; size?: 'sm' | 'lg';
-}) {
-  const h = Math.max(0, (home ?? 0) * 100);
-  const d = Math.max(0, (draw ?? 0) * 100);
-  const a = Math.max(0, (away ?? 0) * 100);
-  const barH = size === 'lg' ? 'h-2.5' : 'h-1.5';
-  return (
-    <div className="w-full">
-      <div className={`flex ${barH} rounded-full overflow-hidden bg-slate-700/60`}>
-        <div className="bg-blue-500" style={{ width: `${h}%` }} />
-        <div className="bg-slate-400" style={{ width: `${d}%` }} />
-        <div className="bg-orange-500" style={{ width: `${a}%` }} />
-      </div>
-      <div className="flex justify-between mt-1 text-[10px] sm:text-[11px] font-semibold tabular-nums">
-        <span className="text-blue-400">{h.toFixed(0)}%</span>
-        <span className="text-slate-400">{d.toFixed(0)}%</span>
-        <span className="text-orange-400">{a.toFixed(0)}%</span>
-      </div>
-    </div>
   );
 }
 
@@ -258,7 +232,7 @@ function MobileCards({
             <span className="w-1 h-4 bg-yellow-400/70 rounded-full" />
             {formatDateHeader(groupMatches[0])}
           </h3>
-          <div className="space-y-2.5">
+          <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))' }}>
             {groupMatches.map((m) => {
               const row = buildRow(m, mode);
               return (
@@ -336,7 +310,20 @@ export default function CompactMatchList({
   mode: 'upcoming' | 'results';
   onMatchClick: (matchId: number) => void;
 }) {
-  const isMobile = useIsMobile();
+  const isMobileViewport = useIsMobile();
+
+  // La tabla necesita ~720px. Se decide por el ancho REAL del contenedor (no de
+  // la pantalla): en tablet con el menú de ligas abierto la pantalla es ancha
+  // pero el contenido no, y la tabla quedaba cortada a la derecha.
+  const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
+  const [containerNarrow, setContainerNarrow] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!wrapEl) return;
+    const ro = new ResizeObserver(([entry]) => setContainerNarrow(entry.contentRect.width < 720));
+    ro.observe(wrapEl);
+    return () => ro.disconnect();
+  }, [wrapEl]);
+  const isMobile = containerNarrow ?? isMobileViewport;
 
   const groups = useMemo(() => {
     const map = new Map<string, CompactMatch[]>();
@@ -362,7 +349,11 @@ export default function CompactMatchList({
 
   if (groups.length === 0) return null;
 
-  return isMobile
-    ? <MobileCards groups={groups} mode={mode} onMatchClick={onMatchClick} />
-    : <DesktopTable groups={groups} mode={mode} onMatchClick={onMatchClick} />;
+  return (
+    <div ref={setWrapEl}>
+      {isMobile
+        ? <MobileCards groups={groups} mode={mode} onMatchClick={onMatchClick} />
+        : <DesktopTable groups={groups} mode={mode} onMatchClick={onMatchClick} />}
+    </div>
+  );
 }

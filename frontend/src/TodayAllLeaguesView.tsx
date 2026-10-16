@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n, { localeTag } from './i18n';
+import ProbabilityBar from './ProbabilityBar';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -24,6 +25,13 @@ interface TodayMatch {
   away_team_logo: string | null;
   home_goals: number | null;
   away_goals: number | null;
+  // Predicción Weinston (null si el partido aún no tiene)
+  weinston_home_goals: number | null;
+  weinston_away_goals: number | null;
+  weinston_prob_home: number | null;
+  weinston_prob_draw: number | null;
+  weinston_prob_away: number | null;
+  weinston_result: 'H' | 'D' | 'A' | null;
 }
 
 function formatTime(kickoffAt: string | null): string {
@@ -56,15 +64,86 @@ function isToday(m: { date: string; kickoff_at: string | null }): boolean {
 function TeamLogo({ url, alt }: { url: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
   if (!url || failed) {
-    return <span className="text-base leading-none shrink-0">⚽</span>;
+    return (
+      <span className="w-6 h-6 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 text-xs">⚽</span>
+    );
   }
   return (
     <img
       src={url}
       alt={alt}
-      className="w-5 h-5 object-contain shrink-0"
+      className="w-6 h-6 object-contain shrink-0"
       onError={() => setFailed(true)}
     />
+  );
+}
+
+// Mismo código de colores que las tarjetas de la liga: 1 local, X empate, 2 visitante.
+const OUTCOME_STYLE: Record<string, string> = {
+  '1': 'bg-blue-500/20 text-blue-400',
+  'X': 'bg-slate-500/20 text-slate-300',
+  '2': 'bg-orange-500/20 text-orange-400',
+};
+
+// Predicción compacta del partido, a la derecha de los equipos: arriba el
+// pronóstico (1/X/2) y el marcador esperado (+ goles promedio desde sm), abajo
+// una mini barra 1X2. Ancho fijo: no se estira en pantallas grandes ni se
+// aprieta en móvil. Si el partido ya terminó, el pronóstico se pinta
+// verde/rojo según acertó.
+function PredictionStrip({ m, finished }: { m: TodayMatch; finished: boolean }) {
+  const { t } = useTranslation();
+  if (m.weinston_home_goals == null || m.weinston_away_goals == null || m.weinston_prob_home == null) {
+    return <div className="text-right text-[11px] leading-tight text-slate-500">{t('matchList.noPrediction')}</div>;
+  }
+  const probs = { H: m.weinston_prob_home, D: m.weinston_prob_draw ?? 0, A: m.weinston_prob_away ?? 0 };
+  const predicted = m.weinston_result ?? (Object.keys(probs) as ('H' | 'D' | 'A')[]).sort((a, b) => probs[b] - probs[a])[0];
+  const label = predicted === 'H' ? '1' : predicted === 'A' ? '2' : 'X';
+  const actual = finished ? (m.home_goals! > m.away_goals! ? 'H' : m.home_goals! < m.away_goals! ? 'A' : 'D') : null;
+  const badgeStyle = finished
+    ? (actual === predicted ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')
+    : OUTCOME_STYLE[label];
+
+  return (
+    <div className="flex flex-col gap-1.5" title={t('matchList.prediction')}>
+      <div className="flex items-center justify-end gap-1.5">
+        {finished && (
+          <span className="mr-auto text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t('matchList.pred')}</span>
+        )}
+        <span className={`inline-flex min-w-[1.25rem] items-center justify-center rounded px-1 py-0.5 text-[11px] font-bold ${badgeStyle}`}>
+          {label}
+        </span>
+        <span className="rounded bg-slate-900/60 px-1.5 py-0.5 font-mono text-xs font-bold text-white">
+          {Math.round(m.weinston_home_goals)} - {Math.round(m.weinston_away_goals)}
+        </span>
+        <span className="hidden text-[11px] font-medium text-slate-300 sm:inline" title={t('matchList.avgGoals')}>
+          ⚽ {(m.weinston_home_goals + m.weinston_away_goals).toFixed(1)}
+        </span>
+      </div>
+      <ProbabilityBar home={m.weinston_prob_home} draw={m.weinston_prob_draw} away={m.weinston_prob_away} />
+    </div>
+  );
+}
+
+// Una fila por equipo (escudo + nombre + goles), como en Sofascore/Flashscore:
+// el nombre ocupa todo el ancho disponible y se recorta con "…" en vez de
+// partirse letra por letra, sin importar qué tan angosta quede la tarjeta
+// (tablet con el menú de ligas abierto, por ejemplo).
+function TeamLine({ name, logo, goals, winner }: { name: string; logo: string | null; goals: number | null; winner: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <TeamLogo url={logo} alt={name} />
+      <span
+        className={`flex-1 min-w-0 truncate text-sm ${winner ? 'font-bold text-white' : 'font-medium text-slate-200'}`}
+        title={name}
+      >
+        {name}
+      </span>
+      {goals !== null && (
+        <span className={`w-5 text-right text-base tabular-nums ${winner ? 'font-bold text-white' : 'font-semibold text-slate-300'}`}>
+          {goals}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -83,7 +162,8 @@ export default function TodayAllLeaguesView() {
       .finally(() => setLoading(false));
   }, []);
 
-  const todayMatches = matches.filter(m => isToday(m));
+  // Orden cronológico dentro de cada liga
+  const todayMatches = matches.filter(m => isToday(m)).sort((a, b) => (a.kickoff_at ?? '').localeCompare(b.kickoff_at ?? ''));
 
   const byLeague = todayMatches.reduce<Record<string, TodayMatch[]>>((acc, m) => {
     (acc[m.league_name] ||= []).push(m);
@@ -93,11 +173,12 @@ export default function TodayAllLeaguesView() {
   const today = new Date().toLocaleDateString(localeTag(), { weekday: 'long', day: '2-digit', month: 'long' });
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
-          <h1 className="text-2xl font-bold text-white mb-1">📅 {t('today.title')}</h1>
-          <p className="text-slate-300 capitalize">{today}</p>
+    <div className="min-h-screen bg-slate-900 p-4 sm:p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 via-slate-800 to-slate-700/80 rounded-xl p-5 sm:p-6 shadow-xl border border-slate-700">
+          <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-yellow-400/10 blur-2xl" />
+          <h1 className="relative text-xl sm:text-2xl font-bold text-white mb-1">📅 {t('today.title')}</h1>
+          <p className="relative text-slate-300 text-sm capitalize">{today}</p>
         </div>
 
         {loading && (
@@ -113,38 +194,71 @@ export default function TodayAllLeaguesView() {
         )}
 
         {!loading && !error && Object.entries(byLeague).map(([leagueName, leagueMatches]) => (
-          <section key={leagueName} className="space-y-3">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-              <span>{leagueMatches[0].league_emoji}</span>
-              {leagueName}
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {leagueMatches.map((m) => (
-                <div
-                  key={m.match_id}
-                  onClick={() => navigate(`/match/${m.match_id}`, { state: { returnPath: '/' } })}
-                  className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:bg-slate-700/50 transition-colors cursor-pointer"
-                >
-                  <div className="text-slate-400 text-xs mb-2">{formatTime(m.kickoff_at)}</div>
-                  <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                    <div className="flex items-center justify-end gap-2 text-right text-white font-semibold text-sm min-w-0">
-                      <span className="line-clamp-2 break-words leading-tight" title={m.home_team}>{m.home_team}</span>
-                      <TeamLogo url={m.home_team_logo} alt={m.home_team} />
-                    </div>
-                    <div className="text-center min-w-[48px]">
-                      {m.home_goals !== null && m.away_goals !== null ? (
-                        <span className="text-lg font-bold text-white">{m.home_goals} - {m.away_goals}</span>
-                      ) : (
-                        <span className="text-slate-500 text-sm">vs</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-left text-white font-semibold text-sm min-w-0">
-                      <TeamLogo url={m.away_team_logo} alt={m.away_team} />
-                      <span className="line-clamp-2 break-words leading-tight" title={m.away_team}>{m.away_team}</span>
+          // Una tarjeta por liga con una fila por partido (patrón Flashscore/
+          // Sofascore): usa todo el ancho disponible, con el menú de ligas
+          // abierto o colapsado, y deja a los nombres todo el espacio posible.
+          <section key={leagueName} className="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-800/60 shadow-lg shadow-black/10">
+            <div className="flex items-center gap-2.5 border-b border-slate-700/70 bg-slate-800 px-4 py-2.5">
+              <span className="text-xl leading-none">{leagueMatches[0].league_emoji}</span>
+              {/* El nombre de la liga lleva a la liga (pestaña Partidos) */}
+              <Link
+                to={`/?league=${leagueMatches[0].league_id}`}
+                className="group/league flex min-w-0 items-center gap-1.5 text-sm sm:text-base font-bold text-white transition-colors hover:text-yellow-400"
+                title={leagueName}
+              >
+                <h2 className="truncate">{leagueName}</h2>
+                <span className="text-slate-500 transition-colors group-hover/league:text-yellow-400" aria-hidden>›</span>
+              </Link>
+              <span className="ml-auto rounded-full bg-slate-900/60 px-2.5 py-0.5 text-xs font-medium text-slate-400">
+                {t('common.matchesCount', { count: leagueMatches.length })}
+              </span>
+            </div>
+            <div className="divide-y divide-slate-700/50">
+              {leagueMatches.map((m) => {
+                const finished = m.home_goals !== null && m.away_goals !== null;
+                return (
+                  <div
+                    key={m.match_id}
+                    onClick={() => navigate(`/match/${m.match_id}`, { state: { returnPath: '/' } })}
+                    className="group cursor-pointer px-3 sm:px-4 py-3 transition-colors hover:bg-slate-700/40 active:bg-slate-700/60"
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                      <div className="hidden w-20 shrink-0 flex-col items-center justify-center gap-1 text-center sm:flex">
+                        <span className="whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-300 tabular-nums">
+                          {formatTime(m.kickoff_at)}
+                        </span>
+                        {finished && (
+                          <span className="rounded-full bg-green-500/20 px-1.5 py-0.5 text-[10px] font-bold text-green-400">
+                            {t('matchList.fullTime')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 sm:border-l sm:border-slate-700/60 sm:pl-3">
+                        {/* Móvil: la hora va aquí (en vez de una columna lateral) para dar el
+                            ancho a los nombres de los equipos. */}
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 tabular-nums sm:hidden">
+                          <span>{formatTime(m.kickoff_at)}</span>
+                          {finished && (
+                            <span className="rounded-full bg-green-500/20 px-1.5 text-[10px] font-bold text-green-400">{t('matchList.fullTime')}</span>
+                          )}
+                        </div>
+                        <TeamLine
+                          name={m.home_team} logo={m.home_team_logo} goals={m.home_goals}
+                          winner={finished && m.home_goals! > m.away_goals!}
+                        />
+                        <TeamLine
+                          name={m.away_team} logo={m.away_team_logo} goals={m.away_goals}
+                          winner={finished && m.away_goals! > m.home_goals!}
+                        />
+                      </div>
+                      <div className="w-[6rem] shrink-0 border-l border-slate-700/60 pl-2 sm:w-[9.5rem] sm:pl-3">
+                        <PredictionStrip m={m} finished={finished} />
+                      </div>
+                      <span className="shrink-0 text-slate-600 transition-colors group-hover:text-yellow-400">›</span>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         ))}

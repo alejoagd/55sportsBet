@@ -913,13 +913,29 @@ def get_todays_matches():
             ta.name as away_team,
             ta.logo_url as away_team_logo,
             m.home_goals,
-            m.away_goals
+            m.away_goals,
+
+            -- Predicción Weinston (la misma que muestran las tarjetas de la liga).
+            -- Sin COALESCE: si el partido aún no tiene predicción llegan NULL y la
+            -- app muestra "Sin predicción", no un 0% que parezca real.
+            wp.local_goals   AS weinston_home_goals,
+            wp.away_goals    AS weinston_away_goals,
+            wp.prob_home_win AS weinston_prob_home,
+            wp.prob_draw     AS weinston_prob_draw,
+            wp.prob_away_win AS weinston_prob_away,
+            CASE
+                WHEN wp.result_1x2 = 0 THEN 'D'
+                WHEN wp.result_1x2 = 1 THEN 'H'
+                WHEN wp.result_1x2 = 2 THEN 'A'
+                ELSE NULL
+            END AS weinston_result
 
         FROM matches m
         JOIN teams th ON th.id = m.home_team_id
         JOIN teams ta ON ta.id = m.away_team_id
         JOIN seasons s ON s.id = m.season_id
         JOIN leagues l ON l.id = s.league_id
+        LEFT JOIN weinston_predictions wp ON wp.match_id = m.id
         WHERE m.date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 1
         ORDER BY m.kickoff_at NULLS LAST, l.name
     """)

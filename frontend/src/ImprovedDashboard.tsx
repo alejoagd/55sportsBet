@@ -245,7 +245,7 @@ export default function ImprovedDashboard() {
 
       {/* MENÚ DE PESTAÑAS (todas las ligas menos el Mundial) */}
       {!isWorldCup && currentLeagueId && (
-        <div className="min-h-screen bg-slate-900 p-6">
+        <div className="min-h-screen bg-slate-900 p-2 sm:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <LeagueTabNav
               active={activeTab}
