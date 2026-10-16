@@ -85,39 +85,41 @@ const OUTCOME_STYLE: Record<string, string> = {
   '2': 'bg-orange-500/20 text-orange-400',
 };
 
-// Predicción del partido (probabilidades 1X2, pronóstico, marcador esperado y
-// goles promedio), igual a la de la pestaña Partidos de cada liga. Si el
-// partido ya terminó, el pronóstico se pinta verde/rojo según acertó.
-function PredictionStrip({ m }: { m: TodayMatch }) {
+// Predicción compacta del partido, a la derecha de los equipos: arriba el
+// pronóstico (1/X/2) y el marcador esperado (+ goles promedio desde sm), abajo
+// una mini barra 1X2. Ancho fijo: no se estira en pantallas grandes ni se
+// aprieta en móvil. Si el partido ya terminó, el pronóstico se pinta
+// verde/rojo según acertó.
+function PredictionStrip({ m, finished }: { m: TodayMatch; finished: boolean }) {
   const { t } = useTranslation();
   if (m.weinston_home_goals == null || m.weinston_away_goals == null || m.weinston_prob_home == null) {
-    return <div className="text-xs text-slate-500">{t('matchList.noPrediction')}</div>;
+    return <div className="text-right text-[11px] leading-tight text-slate-500">{t('matchList.noPrediction')}</div>;
   }
   const probs = { H: m.weinston_prob_home, D: m.weinston_prob_draw ?? 0, A: m.weinston_prob_away ?? 0 };
   const predicted = m.weinston_result ?? (Object.keys(probs) as ('H' | 'D' | 'A')[]).sort((a, b) => probs[b] - probs[a])[0];
   const label = predicted === 'H' ? '1' : predicted === 'A' ? '2' : 'X';
-  const finished = m.home_goals !== null && m.away_goals !== null;
   const actual = finished ? (m.home_goals! > m.away_goals! ? 'H' : m.home_goals! < m.away_goals! ? 'A' : 'D') : null;
   const badgeStyle = finished
     ? (actual === predicted ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')
     : OUTCOME_STYLE[label];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="min-w-[8.5rem] flex-1">
-        <ProbabilityBar home={m.weinston_prob_home} draw={m.weinston_prob_draw} away={m.weinston_prob_away} />
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold ${badgeStyle}`} title={t('matchList.prediction')}>
+    <div className="flex flex-col gap-1.5" title={t('matchList.prediction')}>
+      <div className="flex items-center justify-end gap-1.5">
+        {finished && (
+          <span className="mr-auto text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t('matchList.pred')}</span>
+        )}
+        <span className={`inline-flex min-w-[1.25rem] items-center justify-center rounded px-1 py-0.5 text-[11px] font-bold ${badgeStyle}`}>
           {label}
         </span>
-        <span className="rounded-md bg-slate-900/60 px-2 py-0.5 font-mono text-sm font-bold text-white" title={t('matchList.prediction')}>
+        <span className="rounded bg-slate-900/60 px-1.5 py-0.5 font-mono text-xs font-bold text-white">
           {Math.round(m.weinston_home_goals)} - {Math.round(m.weinston_away_goals)}
         </span>
-        <span className="text-xs font-medium text-slate-300" title={t('matchList.avgGoals')}>
+        <span className="hidden text-[11px] font-medium text-slate-300 sm:inline" title={t('matchList.avgGoals')}>
           ⚽ {(m.weinston_home_goals + m.weinston_away_goals).toFixed(1)}
         </span>
       </div>
+      <ProbabilityBar home={m.weinston_prob_home} draw={m.weinston_prob_draw} away={m.weinston_prob_away} />
     </div>
   );
 }
@@ -221,8 +223,8 @@ export default function TodayAllLeaguesView() {
                     className="group cursor-pointer px-3 sm:px-4 py-3 transition-colors hover:bg-slate-700/40 active:bg-slate-700/60"
                   >
                     <div className="flex items-center gap-2.5 sm:gap-3">
-                      <div className="flex w-[3.75rem] sm:w-20 shrink-0 flex-col items-center justify-center gap-1 text-center">
-                        <span className="text-xs sm:text-[13px] font-semibold leading-tight text-slate-300 tabular-nums sm:whitespace-nowrap">
+                      <div className="hidden w-20 shrink-0 flex-col items-center justify-center gap-1 text-center sm:flex">
+                        <span className="whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-300 tabular-nums">
                           {formatTime(m.kickoff_at)}
                         </span>
                         {finished && (
@@ -231,7 +233,15 @@ export default function TodayAllLeaguesView() {
                           </span>
                         )}
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 border-l border-slate-700/60 pl-2.5 sm:pl-3">
+                      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 sm:border-l sm:border-slate-700/60 sm:pl-3">
+                        {/* Móvil: la hora va aquí (en vez de una columna lateral) para dar el
+                            ancho a los nombres de los equipos. */}
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 tabular-nums sm:hidden">
+                          <span>{formatTime(m.kickoff_at)}</span>
+                          {finished && (
+                            <span className="rounded-full bg-green-500/20 px-1.5 text-[10px] font-bold text-green-400">{t('matchList.fullTime')}</span>
+                          )}
+                        </div>
                         <TeamLine
                           name={m.home_team} logo={m.home_team_logo} goals={m.home_goals}
                           winner={finished && m.home_goals! > m.away_goals!}
@@ -241,12 +251,10 @@ export default function TodayAllLeaguesView() {
                           winner={finished && m.away_goals! > m.home_goals!}
                         />
                       </div>
+                      <div className="w-[6rem] shrink-0 border-l border-slate-700/60 pl-2 sm:w-[9.5rem] sm:pl-3">
+                        <PredictionStrip m={m} finished={finished} />
+                      </div>
                       <span className="shrink-0 text-slate-600 transition-colors group-hover:text-yellow-400">›</span>
-                    </div>
-                    {/* La predicción ocupa todo el ancho de la tarjeta (debajo de los equipos):
-                        así la barra 1X2 no se sale en pantallas angostas. */}
-                    <div className="mt-2.5 border-t border-slate-700/40 pt-2.5">
-                      <PredictionStrip m={m} />
                     </div>
                   </div>
                 );
