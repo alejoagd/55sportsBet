@@ -127,10 +127,10 @@ export default function SubscribeModal({ isOpen, onClose }: Props) {
             </svg>
           </button>
           <div className="flex items-center gap-3">
-            <span className="text-3xl">🏆</span>
+            <span className="text-3xl">🔔</span>
             <div>
-              <h2 className="text-slate-900 font-bold text-lg leading-tight">Suscríbete al Mundial</h2>
-              <p className="text-slate-800 text-xs mt-0.5">Recibe predicciones y noticias exclusivas</p>
+              <h2 className="text-slate-900 font-bold text-lg leading-tight">Suscríbete a 55sports Stats</h2>
+              <p className="text-slate-800 text-xs mt-0.5">Mantente al tanto de predicciones, resultados y novedades</p>
             </div>
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function SubscribeModal({ isOpen, onClose }: Props) {
               <div className="text-6xl">🎉</div>
               <p className="text-white font-semibold text-lg">{serverMsg}</p>
               <p className="text-slate-400 text-sm">
-                Te enviaremos predicciones, análisis y las mejores apuestas del Mundial 2026.
+                Te mantendremos al tanto de las predicciones, análisis y novedades de 55sports Stats.
               </p>
               <button
                 onClick={handleClose}
@@ -227,9 +227,19 @@ export default function SubscribeModal({ isOpen, onClose }: Props) {
                     className="mt-0.5 w-4 h-4 accent-yellow-400 flex-shrink-0 cursor-pointer"
                   />
                   <span className="text-xs text-slate-400 leading-relaxed group-hover:text-slate-300 transition-colors">
-                    Autorizo el tratamiento de mis datos personales conforme a la{' '}
-                    <strong className="text-slate-300">Ley 1581 de 2012</strong> (Colombia) y
-                    acepto recibir comunicaciones de 55sportsBet relacionadas con el Mundial 2026.{' '}
+                    Autorizo a 55sports Stats el tratamiento de mis datos personales (nombre, correo,
+                    teléfono, país y ciudad) para enviarme información sobre predicciones,
+                    resultados y novedades de la plataforma, conforme a la{' '}
+                    <strong className="text-slate-300">Ley 1581 de 2012</strong> (Colombia) y a la{' '}
+                    <a
+                      href="/privacidad"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-yellow-400 underline hover:text-yellow-300"
+                    >
+                      Política de Privacidad
+                    </a>
+                    . Puedo retirar mi autorización en cualquier momento.{' '}
                     <span className="text-yellow-500">*Obligatorio</span>
                   </span>
                 </label>
