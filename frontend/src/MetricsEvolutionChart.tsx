@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import BestBetsAnalysis from './BestBetsAnalysis';
 import BettingLinesStats from './BettingLinesStats';
+import i18n from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -30,12 +31,12 @@ function WC2026AccuracyView() {
       .catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-slate-400 text-center py-16">Cargando métricas del Mundial...</div>;
-  if (!wc || wc.total_matches === 0) return <div className="text-slate-500 text-center py-16">Sin partidos completados aún</div>;
+  if (loading) return <div className="text-slate-400 text-center py-16">{i18n.t('evolution.cargandoMetricasDelMundial')}</div>;
+  if (!wc || wc.total_matches === 0) return <div className="text-slate-500 text-center py-16">{i18n.t('evolution.sinPartidosCompletadosAun')}</div>;
 
   const metricKey = selectedMetric;
-  const metricLabel = selectedMetric === 'acc_1x2' ? 'Acierto 1X2'
-    : selectedMetric === 'acc_over25' ? 'Acierto O/U 2.5' : 'Acierto BTTS';
+  const metricLabel = selectedMetric === 'acc_1x2' ? i18n.t('evolution.acierto1x2')
+    : selectedMetric === 'acc_over25' ? i18n.t('evolution.aciertoOU25') : i18n.t('evolution.aciertoBtts');
 
   const chartData = wc.by_date.map(d => ({
     date: d.date.slice(5),
@@ -64,8 +65,8 @@ function WC2026AccuracyView() {
           <div className="flex items-center gap-3">
             <span className="text-3xl">🏆</span>
             <div>
-              <h2 className="text-xl font-black text-white">Mundial 2026 — Aciertos de Predicción</h2>
-              <p className="text-slate-400 text-sm">{wc.total_matches} partidos completados · Fase de Grupos</p>
+              <h2 className="text-xl font-black text-white">{i18n.t('evolution.mundial2026AciertosDePrediccion')}</h2>
+              <p className="text-slate-400 text-sm">{i18n.t('evolution.completedGroup', { n: wc.total_matches })}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -101,12 +102,12 @@ function WC2026AccuracyView() {
                 <div className={`text-center rounded-lg p-3 ${winner === 'poisson' ? 'bg-blue-500/20 ring-1 ring-blue-400' : 'bg-slate-700/40'}`}>
                   <div className="text-xs text-blue-400 font-semibold mb-1">Poisson</div>
                   <div className="text-2xl font-black text-blue-300">{pv != null ? `${pv.toFixed(1)}%` : 'N/A'}</div>
-                  {winner === 'poisson' && <div className="text-[10px] text-yellow-400 mt-1">⭐ mejor</div>}
+                  {winner === 'poisson' && <div className="text-[10px] text-yellow-400 mt-1">{i18n.t('evolution.mejor')}</div>}
                 </div>
                 <div className={`text-center rounded-lg p-3 ${winner === 'weinston' ? 'bg-orange-500/20 ring-1 ring-orange-400' : 'bg-slate-700/40'}`}>
                   <div className="text-xs text-orange-400 font-semibold mb-1">Weinston</div>
                   <div className="text-2xl font-black text-orange-300">{wv != null ? `${wv.toFixed(1)}%` : 'N/A'}</div>
-                  {winner === 'weinston' && <div className="text-[10px] text-yellow-400 mt-1">⭐ mejor</div>}
+                  {winner === 'weinston' && <div className="text-[10px] text-yellow-400 mt-1">{i18n.t('evolution.mejor')}</div>}
                 </div>
               </div>
             </div>
@@ -116,7 +117,7 @@ function WC2026AccuracyView() {
 
       {/* Gráfico de evolución por fecha para la métrica seleccionada */}
       <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-        <h3 className="text-white font-bold mb-4">{metricLabel} por fecha</h3>
+        <h3 className="text-white font-bold mb-4">{i18n.t('evolution.byDate', { metric: metricLabel })}</h3>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData} barCategoryGap="30%">
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -136,14 +137,14 @@ function WC2026AccuracyView() {
       {/* Tabla por fecha */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-900/60 px-5 py-3 border-b border-slate-700">
-          <h3 className="text-white font-bold text-sm">Detalle por fecha</h3>
+          <h3 className="text-white font-bold text-sm">{i18n.t('evolution.detallePorFecha')}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700 bg-slate-900/40">
-                <th className="text-left text-slate-400 px-4 py-2.5">Fecha</th>
-                <th className="text-center text-slate-400 px-3 py-2.5">Partidos</th>
+                <th className="text-left text-slate-400 px-4 py-2.5">{i18n.t('evolution.fecha')}</th>
+                <th className="text-center text-slate-400 px-3 py-2.5">{i18n.t('evolution.partidos')}</th>
                 <th className="text-center text-blue-400 px-3 py-2.5">Poisson 1X2</th>
                 <th className="text-center text-orange-400 px-3 py-2.5">Weinston 1X2</th>
                 <th className="text-center text-blue-400 px-3 py-2.5">Poisson O/U</th>
@@ -258,11 +259,13 @@ type EvolutionTab = 'metrics' | 'best-bets' | 'betting-lines' | 'wc2026';
 // otras dos ya usaban el compacto responsivo, así que la barra "saltaba" de
 // tamaño al cambiar de tab. Con un solo componente esto no puede volver a
 // desalinearse entre pestañas.
-const EVOLUTION_TABS: { id: EvolutionTab; icon: string; full?: string; short: string; activeBorder: string }[] = [
-  { id: 'metrics', icon: '📈', full: 'Evolución de ', short: 'Métricas', activeBorder: 'border-blue-500' },
-  { id: 'best-bets', icon: '🎯', full: 'Análisis de ', short: 'Best Bets', activeBorder: 'border-green-500' },
-  { id: 'betting-lines', icon: '📊', full: 'Estadísticas ', short: 'Betting Lines', activeBorder: 'border-blue-500' },
-  { id: 'wc2026', icon: '🏆', short: 'Mundial 2026', activeBorder: 'border-yellow-500' },
+// Claves de traducción (se resuelven al renderizar, no al cargar el módulo).
+// fullKey: etiqueta completa para desktop; shortKey: etiqueta corta (mobile).
+const EVOLUTION_TABS: { id: EvolutionTab; icon: string; fullKey?: string; shortKey: string; activeBorder: string }[] = [
+  { id: 'metrics', icon: '📈', fullKey: 'evolution.tabMetricsFull', shortKey: 'evolution.tabMetrics', activeBorder: 'border-blue-500' },
+  { id: 'best-bets', icon: '🎯', fullKey: 'evolution.tabBestBetsFull', shortKey: 'evolution.tabBestBets', activeBorder: 'border-green-500' },
+  { id: 'betting-lines', icon: '📊', fullKey: 'evolution.tabLinesFull', shortKey: 'evolution.tabLines', activeBorder: 'border-blue-500' },
+  { id: 'wc2026', icon: '🏆', shortKey: 'evolution.tabWc', activeBorder: 'border-yellow-500' },
 ];
 
 function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab; setActiveTab: (t: EvolutionTab) => void }) {
@@ -276,8 +279,13 @@ function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab;
             activeTab === tab.id ? `text-white border-b-2 ${tab.activeBorder}` : 'text-slate-400 hover:text-white'
           }`}
         >
-          {tab.icon} {tab.full && <span className="hidden sm:inline">{tab.full}</span>}
-          {tab.short}
+          {tab.icon}{' '}
+          {tab.fullKey ? (
+            <>
+              <span className="hidden sm:inline">{i18n.t(tab.fullKey)}</span>
+              <span className="sm:hidden">{i18n.t(tab.shortKey)}</span>
+            </>
+          ) : i18n.t(tab.shortKey)}
         </button>
       ))}
     </div>
@@ -381,7 +389,7 @@ export default function MetricsEvolutionChart() {
     return (
       <div className="min-h-screen bg-slate-900 p-6">
         <div className="flex items-center justify-center h-96">
-          <div className="text-slate-400">Cargando evolución...</div>
+          <div className="text-slate-400">{i18n.t('evolution.cargandoEvolucion')}</div>
         </div>
       </div>
     );
@@ -390,7 +398,7 @@ export default function MetricsEvolutionChart() {
   if (!data) {
     return (
       <div className="min-h-screen bg-slate-900 p-6">
-        <div className="text-slate-400">No hay datos disponibles</div>
+        <div className="text-slate-400">{i18n.t('evolution.noHayDatosDisponibles')}</div>
       </div>
     );
   }
@@ -414,22 +422,22 @@ export default function MetricsEvolutionChart() {
   });
 
   const metrics: MetricOption[] = [
-    { value: 'acc_1x2_pct', label: 'Acierto 1X2 (%)', suffix: '%' },
-    { value: 'acc_over25_pct', label: 'Acierto O/U 2.5 (%)', suffix: '%' },
-    { value: 'acc_btts_pct', label: 'Acierto BTTS (%)', suffix: '%' },
-    { value: 'rmse', label: 'RMSE Goles', suffix: '' }
+    { value: 'acc_1x2_pct', label: i18n.t('evolution.acierto1x22'), suffix: '%' },
+    { value: 'acc_over25_pct', label: i18n.t('evolution.aciertoOU252'), suffix: '%' },
+    { value: 'acc_btts_pct', label: i18n.t('evolution.aciertoBtts2'), suffix: '%' },
+    { value: 'rmse', label: i18n.t('evolution.rmseGoles'), suffix: '' }
   ];
 
   const windows: WindowOption[] = [
-    { value: 'gameweek', label: 'Por Jornada (~10 partidos)' },
-    { value: 'rolling_5', label: 'Últimos 5 partidos' },
-    { value: 'rolling_10', label: 'Últimos 10 partidos' },
-    { value: 'weekly', label: 'Por Semana' },
-    { value: 'monthly', label: 'Por Mes' }
+    { value: 'gameweek', label: i18n.t('evolution.porJornada10Partidos') },
+    { value: 'rolling_5', label: i18n.t('evolution.ultimos5Partidos') },
+    { value: 'rolling_10', label: i18n.t('evolution.ultimos10Partidos') },
+    { value: 'weekly', label: i18n.t('evolution.porSemana') },
+    { value: 'monthly', label: i18n.t('evolution.porMes') }
   ];
 
   const currentMetric = metrics.find(m => `acc_${selectedMetric}` === `acc_${m.value}` || selectedMetric === m.value);
-  const metricLabel = currentMetric?.label || 'Métrica';
+  const metricLabel = currentMetric?.label || i18n.t('evolution.metrica');
   const suffix = currentMetric?.suffix || '';
 
   // Calcular tendencia
@@ -457,11 +465,9 @@ export default function MetricsEvolutionChart() {
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-6 shadow-xl">
           <h1 className="text-3xl font-bold text-white mb-2">
-            📈 Evolución de Métricas
-          </h1>
+            {i18n.t('evolution.evolucionDeMetricas')}</h1>
           <p className="text-slate-300">
-            Analiza el comportamiento de los modelos a lo largo del tiempo
-          </p>
+            {i18n.t('evolution.analizaElComportamientoDeLos')}</p>
         </div>
 
         {/* Controles */}
@@ -469,8 +475,7 @@ export default function MetricsEvolutionChart() {
           {/* Selector de Métrica */}
           <div className="bg-slate-800 rounded-lg p-4">
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Métrica a Visualizar
-            </label>
+              {i18n.t('evolution.metricaAVisualizar')}</label>
             <select
               value={selectedMetric}
               onChange={(e) => setSelectedMetric(e.target.value)}
@@ -487,8 +492,7 @@ export default function MetricsEvolutionChart() {
           {/* Selector de Ventana */}
           <div className="bg-slate-800 rounded-lg p-4">
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Tipo de Ventana Temporal
-            </label>
+              {i18n.t('evolution.tipoDeVentanaTemporal')}</label>
             <select
               value={windowType}
               onChange={(e) => setWindowType(e.target.value)}
@@ -508,7 +512,7 @@ export default function MetricsEvolutionChart() {
           <div className="bg-slate-800 rounded-lg p-4 border border-blue-500/30">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-400">Poisson - Tendencia</div>
+                <div className="text-sm text-slate-400">{i18n.t('evolution.poissonTendencia')}</div>
                 <div className="text-2xl font-bold text-blue-400">
                   {(() => {
                     const value = chartData[chartData.length - 1]?.[`poisson_${selectedMetric.replace('acc_', '').replace('_pct', '')}` as keyof ChartDataPoint] as number | null;
@@ -528,7 +532,7 @@ export default function MetricsEvolutionChart() {
           <div className="bg-slate-800 rounded-lg p-4 border border-orange-500/30">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-400">Weinston - Tendencia</div>
+                <div className="text-sm text-slate-400">{i18n.t('evolution.weinstonTendencia')}</div>
                 <div className="text-2xl font-bold text-orange-400">
                   {(() => {
                     const value = chartData[chartData.length - 1]?.[`weinston_${selectedMetric.replace('acc_', '').replace('_pct', '')}` as keyof ChartDataPoint] as number | null;
@@ -592,15 +596,15 @@ export default function MetricsEvolutionChart() {
 
         {/* Tabla de Datos */}
         <div className="bg-slate-800 rounded-lg p-4 sm:p-6 overflow-x-auto">
-          <h3 className="text-lg font-bold text-white mb-4">Datos Detallados</h3>
+          <h3 className="text-lg font-bold text-white mb-4">{i18n.t('evolution.datosDetallados')}</h3>
           <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left text-slate-400 px-1.5 py-2 sm:p-2">Período</th>
-                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">Partidos</th>
+                <th className="text-left text-slate-400 px-1.5 py-2 sm:p-2">{i18n.t('evolution.periodo')}</th>
+                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">{i18n.t('evolution.partidos')}</th>
                 <th className="text-right text-blue-400 px-1.5 py-2 sm:p-2">Poisson</th>
                 <th className="text-right text-orange-400 px-1.5 py-2 sm:p-2">Weinston</th>
-                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">Diferencia</th>
+                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">{i18n.t('evolution.diferencia')}</th>
               </tr>
             </thead>
             <tbody>

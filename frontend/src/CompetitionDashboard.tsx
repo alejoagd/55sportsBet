@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import i18n, { localeTag } from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -48,15 +49,19 @@ interface BracketMatch {
   away_goals: number | null;
 }
 
-const STAGE_LABEL: Record<string, string> = {
-  preliminary: 'Rondas previas',
-  round_of_32: 'Dieciseisavos',
-  round_of_16: 'Octavos de final',
-  quarterfinal: 'Cuartos de final',
-  semifinal: 'Semifinal',
-  third_place: 'Tercer puesto',
-  final: 'Final',
+// Clave de traducción por fase. Se resuelve al renderizar (no al cargar el
+// módulo) para que respete el idioma activo.
+const STAGE_LABEL_KEY: Record<string, string> = {
+  preliminary: 'competition.rondasPrevias',
+  round_of_32: 'competition.dieciseisavos',
+  round_of_16: 'competition.octavosDeFinal',
+  quarterfinal: 'competition.cuartosDeFinal',
+  semifinal: 'competition.semifinal',
+  third_place: 'competition.tercerPuesto',
+  final: 'competition.final',
 };
+const stageLabel = (stage: string): string | undefined =>
+  STAGE_LABEL_KEY[stage] ? i18n.t(STAGE_LABEL_KEY[stage]) : undefined;
 
 function formatDate(iso: string): string {
   // iso es "YYYY-MM-DD" sin hora: parsearlo directo con new Date() lo
@@ -65,7 +70,7 @@ function formatDate(iso: string): string {
   try {
     const [year, month, day] = iso.split('T')[0].split('-').map(Number);
     if (!year || !month || !day) return iso;
-    return new Date(year, month - 1, day).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+    return new Date(year, month - 1, day).toLocaleDateString(localeTag(), { day: '2-digit', month: 'short' });
   } catch {
     return iso;
   }
@@ -82,19 +87,19 @@ function GroupTable({ group }: { group: Group }) {
   return (
     <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
       <div className="bg-slate-700/50 px-4 py-2 font-bold text-white">
-        Grupo {group.group_name}
+        {i18n.t('standings.group', { name: group.group_name.replace(/^Group\s*/i, '') })}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-slate-400 text-xs">
-              <th className="text-left px-3 py-2">Equipo</th>
-              <th className="px-2 py-2">PJ</th>
+              <th className="text-left px-3 py-2">{i18n.t('competition.equipo')}</th>
+              <th className="px-2 py-2">{i18n.t('competition.pj')}</th>
               <th className="px-2 py-2">G</th>
               <th className="px-2 py-2">E</th>
               <th className="px-2 py-2">P</th>
-              <th className="px-2 py-2">DG</th>
-              <th className="px-2 py-2 font-bold">Pts</th>
+              <th className="px-2 py-2">{i18n.t('competition.dg')}</th>
+              <th className="px-2 py-2 font-bold">{i18n.t('competition.pts')}</th>
             </tr>
           </thead>
           <tbody>
@@ -206,7 +211,7 @@ function TieCard({ tie }: { tie: Tie }) {
           const homeIsA = leg.home_team === tie.teamA;
           return (
             <div key={leg.match_id} className="flex items-center justify-between text-[11px] text-slate-400">
-              <span>{tie.legs.length > 1 ? (i === 0 ? 'Ida' : 'Vuelta') : ''}</span>
+              <span>{tie.legs.length > 1 ? (i === 0 ? i18n.t('competition.ida') : i18n.t('competition.vuelta')) : ''}</span>
               <ScoreOrDash
                 home={homeIsA ? leg.home_goals : leg.away_goals}
                 away={homeIsA ? leg.away_goals : leg.home_goals}
@@ -217,7 +222,7 @@ function TieCard({ tie }: { tie: Tie }) {
         {complete && (
           <div className={`text-[11px] font-bold text-center pt-1 mt-1 border-t border-slate-700/30
             ${decidedByPens ? 'text-yellow-400' : 'text-green-400'}`}>
-            Global {tie.aggA}-{tie.aggB}{decidedByPens ? ' (penales)' : ''}
+            {i18n.t('competition.aggregate', { a: tie.aggA, b: tie.aggB })}{decidedByPens ? i18n.t('competition.pens') : ''}
           </div>
         )}
       </div>
@@ -229,7 +234,7 @@ function BracketColumn({ stage, ties }: { stage: string; ties: Tie[] }) {
   return (
     <div className="flex flex-col gap-4 flex-shrink-0">
       <h3 className="text-slate-300 font-bold text-sm text-center">
-        {STAGE_LABEL[stage] || ties[0]?.legs[0]?.round_label || stage}
+        {stageLabel(stage) || ties[0]?.legs[0]?.round_label || stage}
       </h3>
       <div className="flex flex-col justify-around gap-4 flex-1">
         {ties.map((tie) => (
@@ -266,12 +271,12 @@ export default function CompetitionDashboard({
         setGroups(groupsData.groups || []);
         setBracket(bracketData.matches || []);
       })
-      .catch(() => setError('No se pudo cargar la información de la competencia'))
+      .catch(() => setError(i18n.t('competition.noSePudoCargarLa')))
       .finally(() => setLoading(false));
   }, [seasonId]);
 
   if (loading) {
-    return <div className="text-center py-16 text-slate-400">Cargando competencia...</div>;
+    return <div className="text-center py-16 text-slate-400">{i18n.t('competition.cargandoCompetencia')}</div>;
   }
   if (error) {
     return <div className="text-center py-16 text-red-400">{error}</div>;
@@ -292,7 +297,7 @@ export default function CompetitionDashboard({
     <div className="space-y-8">
       {showGroups && groups.length > 0 && (
         <section className="space-y-4">
-          {section === 'both' && <h2 className="text-xl font-bold text-white">Fase de grupos</h2>}
+          {section === 'both' && <h2 className="text-xl font-bold text-white">{i18n.t('competition.faseDeGrupos')}</h2>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((g) => (
               <GroupTable key={g.group_name} group={g} />
@@ -303,7 +308,7 @@ export default function CompetitionDashboard({
 
       {showBracket && bracket.length > 0 && (
         <section className="space-y-4">
-          {section === 'both' && <h2 className="text-xl font-bold text-white">Eliminatoria</h2>}
+          {section === 'both' && <h2 className="text-xl font-bold text-white">{i18n.t('competition.eliminatoria')}</h2>}
           <div className="flex gap-6 overflow-x-auto scrollbar-hide pb-2">
             {stagesPresent.map((s, i) => (
               <div key={s} className="flex items-center gap-6">
@@ -318,13 +323,13 @@ export default function CompetitionDashboard({
       )}
 
       {section === 'both' && groups.length === 0 && bracket.length === 0 && (
-        <div className="text-center py-16 text-slate-500">Todavía no hay partidos cargados para esta competencia</div>
+        <div className="text-center py-16 text-slate-500">{i18n.t('competition.todaviaNoHayPartidosCargados')}</div>
       )}
       {section === 'groups' && groups.length === 0 && (
-        <div className="text-center py-16 text-slate-500">Todavía no hay fase de grupos cargada</div>
+        <div className="text-center py-16 text-slate-500">{i18n.t('competition.todaviaNoHayFaseDe')}</div>
       )}
       {section === 'bracket' && bracket.length === 0 && (
-        <div className="text-center py-16 text-slate-500">Todavía no hay partidos de eliminatoria cargados</div>
+        <div className="text-center py-16 text-slate-500">{i18n.t('competition.todaviaNoHayPartidosDe')}</div>
       )}
     </div>
   );

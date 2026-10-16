@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "country-flag-emoji-polyfill": "^0.1.10",
+    "i18next": "^23.16.8",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-i18next": "^15.1.4",
     "react-router-dom": "^7.9.4",
     "recharts": "^3.3.0"
   },

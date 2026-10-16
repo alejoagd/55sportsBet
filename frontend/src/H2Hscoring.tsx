@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Target, TrendingUp, BarChart3 } from 'lucide-react';
+import i18n from './i18n';
 
 interface H2HScoringData {
   match_id: number;
@@ -43,7 +44,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
       );
 
       if (!response.ok) {
-        throw new Error('Error al cargar H2H Scoring');
+        throw new Error(i18n.t('h2hScoring.errorAlCargarH2hScoring'));
       }
 
       const result = await response.json();
@@ -54,7 +55,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
       }
     } catch (error) {
       console.error('Error:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : i18n.t('h2hScoring.errorDesconocido'));
     } finally {
       setLoading(false);
     }
@@ -73,13 +74,13 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
 
   const formatStatName = (statKey: string): string => {
     const names: { [key: string]: string } = {
-      'goles': 'Goles Totales',
-      'tiros': 'Tiros Totales',
-      'tiros_al_arco': 'Tiros al Arco',
-      'faltas': 'Faltas Totales',
-      'tarjetas': 'Tarjetas Totales',
-      'corners': 'Corners Totales',
-      'btts': 'Ambos Marcan'
+      'goles': i18n.t('h2hScoring.golesTotales'),
+      'tiros': i18n.t('h2hScoring.tirosTotales'),
+      'tiros_al_arco': i18n.t('h2hScoring.tirosAlArco'),
+      'faltas': i18n.t('h2hScoring.faltasTotales'),
+      'tarjetas': i18n.t('h2hScoring.tarjetasTotales'),
+      'corners': i18n.t('h2hScoring.cornersTotales'),
+      'btts': i18n.t('h2hScoring.ambosMarcan')
     };
     return names[statKey] || statKey;
   };
@@ -105,7 +106,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
         <div className="flex items-center gap-3 text-slate-400">
           <Target className="w-5 h-5" />
           <span className="text-sm">
-            {error || 'Sin datos H2H suficientes para análisis'}
+            {error || i18n.t('h2hScoring.sinDatosH2hSuficientesPara')}
           </span>
         </div>
       </div>
@@ -126,15 +127,15 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                 🎯 H2H Scoring System
               </h3>
               <p className="text-slate-400 text-xs sm:text-sm">
-                Cuántas veces se ha acertado cada pronóstico en los últimos {data.total_h2h_matches} enfrentamientos
-                <span className="text-slate-500"> (varía según el historial disponible entre estos equipos)</span>
+                {i18n.t('h2hScoring.howMany', { n: data.total_h2h_matches })}
+                <span className="text-slate-500"> {i18n.t('h2hScoring.variaSegunElHistorialDisponible')}</span>
               </p>
             </div>
           </div>
 
           {/* Confianza General */}
           <div className="text-left sm:text-right w-full sm:w-auto">
-            <div className="text-xs text-slate-400 mb-1">Confianza General</div>
+            <div className="text-xs text-slate-400 mb-1">{i18n.t('h2hScoring.confianzaGeneral')}</div>
             <div className={`px-3 py-1 rounded-lg font-bold text-sm inline-block ${
               data.overall_confidence >= 8 ? 'bg-green-500/20 text-green-400' :
               data.overall_confidence >= 6 ? 'bg-yellow-500/20 text-yellow-400' :
@@ -151,12 +152,10 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
           bloque de texto aparte que el usuario tenía que ir a leer. */}
       <div className="px-4 sm:px-6 pt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Habría acertado
-        </span>
+          <span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> {i18n.t('h2hScoring.habriaAcertado')}</span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-sm bg-slate-600 inline-block" /> Habría fallado
-        </span>
-        <span>· de más reciente (izquierda) a más antiguo</span>
+          <span className="w-2.5 h-2.5 rounded-sm bg-slate-600 inline-block" /> {i18n.t('h2hScoring.habriaFallado')}</span>
+        <span>{i18n.t('h2hScoring.deMasRecienteIzquierdaA')}</span>
       </div>
 
       {/* Tarjetas de scoring — una por estadística, sin scroll horizontal.
@@ -173,7 +172,7 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                 </div>
                 {statData.predicted_total !== undefined && (
                   <div className="text-slate-500 text-[11px] truncate">
-                    Predicción {statData.predicted_total.toFixed(1)}
+                    {i18n.t('h2hScoring.predictionValue', { n: statData.predicted_total.toFixed(1) })}
                   </div>
                 )}
               </div>
@@ -196,12 +195,12 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
                     <span
                       key={i}
                       className={`w-2.5 h-2.5 rounded-sm shrink-0 ${hit ? 'bg-green-500' : 'bg-slate-600'}`}
-                      title={hit ? 'Habría acertado' : 'Habría fallado'}
+                      title={hit ? i18n.t('h2hScoring.habriaAcertado') : i18n.t('h2hScoring.habriaFallado')}
                     />
                   ))}
                 </div>
               ) : (
-                <span className="text-slate-500 text-[11px] italic flex-1">Sin historial suficiente</span>
+                <span className="text-slate-500 text-[11px] italic flex-1">{i18n.t('h2hScoring.sinHistorialSuficiente')}</span>
               )}
               <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded ${getScoreColor(statData.score)}`}>
                 {statData.hit_count}/{statData.valid_matches}
@@ -219,11 +218,9 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
               <TrendingUp className="w-5 h-5 text-green-400" />
               <div>
                 <p className="text-green-400 font-semibold text-sm">
-                  ✅ ALTA CONFIANZA H2H - Recomendado para apuestas
-                </p>
+                  {i18n.t('h2hScoring.altaConfianzaH2hRecomendadoPara')}</p>
                 <p className="text-slate-400 text-xs">
-                  Este enfrentamiento tiene patrones históricos muy consistentes
-                </p>
+                  {i18n.t('h2hScoring.esteEnfrentamientoTienePatronesHis')}</p>
               </div>
             </div>
           </div>
@@ -235,11 +232,9 @@ export default function H2HScoring({ matchId }: H2HScoringProps) {
               <Target className="w-5 h-5 text-red-400" />
               <div>
                 <p className="text-red-400 font-semibold text-sm">
-                  ⚠️ BAJA CONFIANZA H2H - No recomendado
-                </p>
+                  {i18n.t('h2hScoring.bajaConfianzaH2hNoRecomendado')}</p>
                 <p className="text-slate-400 text-xs">
-                  Los patrones históricos son inconsistentes para este enfrentamiento
-                </p>
+                  {i18n.t('h2hScoring.losPatronesHistoricosSonInconsiste')}</p>
               </div>
             </div>
           </div>

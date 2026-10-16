@@ -1,6 +1,8 @@
 // App.tsx - Con Sistema de Permisos Administrativos
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import LanguageSwitcher from './LanguageSwitcher';
 import MetricsEvolutionChart from "./MetricsEvolutionChart";
 import ImprovedDashboard from './ImprovedDashboard';
 import MatchDetail from './MatchDetail';
@@ -32,14 +34,15 @@ export interface AppFilters {
 // nav genérico apuntaba siempre a /statistics, que muestra las del Mundial
 // sin importar qué liga estuviera seleccionada — confuso, así que se sacó.
 const NAV_ITEMS = [
-  { path: '/',            icon: '📊', label: 'Inicio'    },
-  { path: '/best-bets',  icon: '🎯', label: 'Apuestas'     },
-  { path: '/evolution',  icon: '📈', label: 'Evolución'     },
+  { path: '/',            icon: '📊', labelKey: 'nav.home'      },
+  { path: '/best-bets',  icon: '🎯', labelKey: 'nav.bets'      },
+  { path: '/evolution',  icon: '📈', labelKey: 'nav.evolution' },
 ];
 
 // Barra superior: logo siempre visible; los links de navegación solo se
 // muestran en desktop (en mobile se mueven a la barra inferior fija).
 function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () => void }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const { isAdmin, showAdminLogin, loginAsAdmin, toggleAdminLogin } = useAdminMode();
 
@@ -67,7 +70,7 @@ function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () 
                 <button
                   onClick={toggleAdminLogin}
                   className="text-slate-600 hover:text-slate-400 text-xs ml-0.5 leading-none"
-                  title="Acceso administrativo"
+                  title={t('nav.adminAccess')}
                 >🔐</button>
               )}
             </div>
@@ -78,10 +81,10 @@ function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () 
                 <div className="w-px h-5 bg-slate-700 flex-shrink-0 hidden sm:block" />
                 <div className="flex-1 overflow-x-auto scrollbar-hide">
                   <div className="flex items-center gap-1 min-w-max sm:justify-end">
-                    {NAV_ITEMS.map(({ path, icon, label }) => (
+                    {NAV_ITEMS.map(({ path, icon, labelKey }) => (
                       <Link key={path} to={path} className={linkClass(path)}>
                         <span>{icon}</span>
-                        <span>{label}</span>
+                        <span>{t(labelKey)}</span>
                       </Link>
                     ))}
                   </div>
@@ -92,13 +95,14 @@ function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () 
             {/* Badge de admin dentro del header (no fixed) para que no flote sobre el contenido */}
             <div className="ml-auto flex items-center gap-2 flex-shrink-0">
               <AdminBadge />
+              <LanguageSwitcher />
               {/* En mobile la suscripción vive acá en vez de en un botón flotante que tapa contenido */}
               {isMobile && (
                 <button
                   onClick={onSubscribe}
                   className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-sm"
-                  title="Suscríbete para mantenerte al tanto de 55sports Stats"
-                  aria-label="Suscríbete"
+                  title={t('nav.subscribeTooltip')}
+                  aria-label={t('nav.subscribe')}
                 >🔔</button>
               )}
             </div>
@@ -114,6 +118,7 @@ function TopBar({ isMobile, onSubscribe }: { isMobile: boolean; onSubscribe: () 
 // Barra inferior fija (solo mobile): mismas secciones que el nav de desktop
 // + un botón "Ligas" que abre el panel de selección de liga.
 function BottomTabBar({ onOpenLeagues }: { onOpenLeagues: () => void }) {
+  const { t } = useTranslation();
   const location = useLocation();
   // Viendo una liga (/?league=X) se marca "Ligas" en vez de "Inicio", que
   // queda solo para "Partidos de hoy" (/ sin liga).
@@ -131,15 +136,15 @@ function BottomTabBar({ onOpenLeagues }: { onOpenLeagues: () => void }) {
       className="fixed bottom-0 inset-x-0 z-50 flex border-t border-slate-700 bg-slate-900"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      {NAV_ITEMS.map(({ path, icon, label }) => (
+      {NAV_ITEMS.map(({ path, icon, labelKey }) => (
         <Link key={path} to={path} className={itemClass(isActive(path))}>
           <span className="text-lg leading-none">{icon}</span>
-          <span>{label}</span>
+          <span>{t(labelKey)}</span>
         </Link>
       ))}
       <button onClick={onOpenLeagues} className={itemClass(isLeagueView)}>
         <span className="text-lg leading-none">🏆</span>
-        <span>Ligas</span>
+        <span>{t('nav.leagues')}</span>
       </button>
     </nav>
   );
@@ -171,6 +176,7 @@ function ScrollToTopOnLeagueChange({ scrollRef }: { scrollRef: React.RefObject<H
 
 // Componente principal de la aplicación
 function App() {
+  const { t, i18n } = useTranslation();
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [showLeaguePanel, setShowLeaguePanel] = useState(false);
   const isMobile = useIsMobile();
@@ -183,15 +189,17 @@ function App() {
       <Route path="/evolution" element={<MetricsEvolutionChart />} />
 
       <Route path="/match/:matchId" element={<MatchDetail />} />
+      {/* /privacidad es la URL registrada en Play Console; /privacy es el alias en inglés */}
       <Route path="/privacidad" element={<PrivacyPolicy />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
 
       {/* Ruta 404 */}
       <Route path="*" element={
         <div className="flex flex-col items-center justify-center h-96 text-slate-400">
           <div className="text-6xl mb-4">404</div>
-          <div className="text-xl">Página no encontrada</div>
+          <div className="text-xl">{t('nav.notFound')}</div>
           <Link to="/" className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Volver al Dashboard
+            {t('nav.backToDashboard')}
           </Link>
         </div>
       } />
@@ -212,8 +220,12 @@ function App() {
               className={isMobile ? 'flex-1 overflow-y-auto' : 'flex-1 min-w-0 pb-24'}
               style={isMobile ? { paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom))' } : undefined}
             >
-              {routesElement}
-              <LegalFooter />
+              {/* key: al cambiar de idioma se remonta el contenido, así los textos que se
+                  calculan al renderizar se recalculan todos (el estado de datos se recarga). */}
+              <Fragment key={i18n.language}>
+                {routesElement}
+                <LegalFooter />
+              </Fragment>
             </main>
           </div>
 
@@ -229,10 +241,10 @@ function App() {
                          font-bold text-sm px-4 py-3 rounded-full shadow-lg
                          shadow-yellow-400/30 hover:shadow-yellow-400/50
                          transition-all hover:scale-105 active:scale-95"
-              title="Suscríbete para mantenerte al tanto de 55sports Stats"
+              title={t('nav.subscribeTooltip')}
             >
               <span className="text-base">🔔</span>
-              <span>Suscríbete</span>
+              <span>{t('nav.subscribe')}</span>
             </button>
           )}
 

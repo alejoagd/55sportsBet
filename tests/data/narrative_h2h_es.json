@@ -1,0 +1,237 @@
+{
+ "alto": {
+  "summary": "En los últimos 8 enfrentamientos directos entre Barcelona y Real Madrid, se han promediado 3.4 goles por partido. Ambos equipos han anotado en el 70% de los encuentros, mostrando una clara tendencia ofensiva. El 65% de los partidos han tenido más de 2.5 goles.",
+  "home_venue_analysis": "Cuando Barcelona ha jugado de local contra Real Madrid (últimos 3 partidos):\nBarcelona: G1-E1-P1 | BTTS: 2/3 | Over 2.5: 1/3\n\n- Promedio de goles: Barcelona 2.1 - Real Madrid 1.3\n- Promedio de tiros: 13.5 del Barcelona vs 9.2 del Real Madrid\n- Promedio de tiros al arco: 5.1 del Barcelona vs 3.3 del Real Madrid\n- Promedio de corners: 6.0 del Barcelona vs 4.1 del Real Madrid\n- Promedio de faltas: 12.2 del Barcelona vs 13.0 del Real Madrid\n- Promedio de tarjetas: 2.0 del Barcelona vs 2.8 del Real Madrid\n",
+  "away_venue_analysis": "Cuando Barcelona ha jugado de visitante contra Real Madrid (últimos 2 partidos):\nBarcelona: G1-E0-P1 | BTTS: 1/2 | Over 2.5: 1/2\n\n- Promedio de goles: Real Madrid 1.8 - Barcelona 1.0\n- Promedio de tiros: 12.0 del Real Madrid vs 8.0 del Barcelona\n- Promedio de tiros al arco: 4.5 del Real Madrid vs 3.0 del Barcelona\n- Promedio de corners: 5.8 del Real Madrid vs 3.9 del Barcelona\n- Promedio de faltas: 12.5 del Real Madrid vs 11.0 del Barcelona\n- Promedio de tarjetas: 2.4 del Real Madrid vs 1.9 del Barcelona\n",
+  "home_venue_stats": {
+   "matches": 3,
+   "wins": 1,
+   "draws": 1,
+   "losses": 1,
+   "btts_count": 2,
+   "over25_count": 1,
+   "avg_goals_home": 2.1,
+   "avg_goals_away": 1.3,
+   "items": [
+    {
+     "label": "Tiros",
+     "icon": "🎯",
+     "home_value": 13.5,
+     "away_value": 9.2
+    },
+    {
+     "label": "Tiros a puerta",
+     "icon": "🥅",
+     "home_value": 5.1,
+     "away_value": 3.3
+    },
+    {
+     "label": "Corners",
+     "icon": "🚩",
+     "home_value": 6.0,
+     "away_value": 4.1
+    },
+    {
+     "label": "Faltas",
+     "icon": "💥",
+     "home_value": 12.2,
+     "away_value": 13.0
+    },
+    {
+     "label": "Tarjetas",
+     "icon": "🟨",
+     "home_value": 2.0,
+     "away_value": 2.8
+    }
+   ]
+  },
+  "away_venue_stats": {
+   "matches": 2,
+   "wins": 1,
+   "draws": 0,
+   "losses": 1,
+   "btts_count": 1,
+   "over25_count": 1,
+   "avg_goals_home": 1.0,
+   "avg_goals_away": 1.8,
+   "items": [
+    {
+     "label": "Tiros",
+     "icon": "🎯",
+     "home_value": 8.0,
+     "away_value": 12.0
+    },
+    {
+     "label": "Tiros a puerta",
+     "icon": "🥅",
+     "home_value": 3.0,
+     "away_value": 4.5
+    },
+    {
+     "label": "Corners",
+     "icon": "🚩",
+     "home_value": 3.9,
+     "away_value": 5.8
+    },
+    {
+     "label": "Faltas",
+     "icon": "💥",
+     "home_value": 11.0,
+     "away_value": 12.5
+    },
+    {
+     "label": "Tarjetas",
+     "icon": "🟨",
+     "home_value": 1.9,
+     "away_value": 2.4
+    }
+   ]
+  },
+  "prediction_analysis": "Predicción para este partido:\n- Goles esperados: 2.4 - 1.6 (Total: 4.0)\n- Histórico: 3.4 goles promedio\n\nSe espera un partido con más goles que el promedio histórico (+0.6 goles).",
+  "conclusion": "Tendencia: Los enfrentamientos directos muestran partidos con muchos goles, con un promedio de 10 corners y 5 tarjetas por partido.",
+  "full_narrative": "En los últimos 8 enfrentamientos directos entre Barcelona y Real Madrid, se han promediado 3.4 goles por partido. Ambos equipos han anotado en el 70% de los encuentros, mostrando una clara tendencia ofensiva. El 65% de los partidos han tenido más de 2.5 goles.\n\nCuando Barcelona ha jugado de local contra Real Madrid (últimos 3 partidos):\nBarcelona: G1-E1-P1 | BTTS: 2/3 | Over 2.5: 1/3\n\n- Promedio de goles: Barcelona 2.1 - Real Madrid 1.3\n- Promedio de tiros: 13.5 del Barcelona vs 9.2 del Real Madrid\n- Promedio de tiros al arco: 5.1 del Barcelona vs 3.3 del Real Madrid\n- Promedio de corners: 6.0 del Barcelona vs 4.1 del Real Madrid\n- Promedio de faltas: 12.2 del Barcelona vs 13.0 del Real Madrid\n- Promedio de tarjetas: 2.0 del Barcelona vs 2.8 del Real Madrid\n\nCuando Barcelona ha jugado de visitante contra Real Madrid (últimos 2 partidos):\nBarcelona: G1-E0-P1 | BTTS: 1/2 | Over 2.5: 1/2\n\n- Promedio de goles: Real Madrid 1.8 - Barcelona 1.0\n- Promedio de tiros: 12.0 del Real Madrid vs 8.0 del Barcelona\n- Promedio de tiros al arco: 4.5 del Real Madrid vs 3.0 del Barcelona\n- Promedio de corners: 5.8 del Real Madrid vs 3.9 del Barcelona\n- Promedio de faltas: 12.5 del Real Madrid vs 11.0 del Barcelona\n- Promedio de tarjetas: 2.4 del Real Madrid vs 1.9 del Barcelona\n\nPredicción para este partido:\n- Goles esperados: 2.4 - 1.6 (Total: 4.0)\n- Histórico: 3.4 goles promedio\n\nSe espera un partido con más goles que el promedio histórico (+0.6 goles).\n\nTendencia: Los enfrentamientos directos muestran partidos con muchos goles, con un promedio de 10 corners y 5 tarjetas por partido."
+ },
+ "bajo": {
+  "summary": "En los últimos 8 enfrentamientos directos entre Barcelona y Real Madrid, se han promediado 1.4 goles por partido. Solo en el 20% de los partidos ambos equipos han marcado, indicando encuentros con pocos goles. ",
+  "home_venue_analysis": "Cuando Barcelona ha jugado de local contra Real Madrid (últimos 3 partidos):\nBarcelona: G1-E1-P1 | BTTS: 2/3 | Over 2.5: 1/3\n\n- Promedio de goles: Barcelona 2.1 - Real Madrid 1.3\n- Promedio de tiros: 13.5 del Barcelona vs 9.2 del Real Madrid\n- Promedio de tiros al arco: 5.1 del Barcelona vs 3.3 del Real Madrid\n- Promedio de corners: 6.0 del Barcelona vs 4.1 del Real Madrid\n- Promedio de faltas: 12.2 del Barcelona vs 13.0 del Real Madrid\n- Promedio de tarjetas: 2.0 del Barcelona vs 2.8 del Real Madrid\n",
+  "away_venue_analysis": "",
+  "home_venue_stats": {
+   "matches": 3,
+   "wins": 1,
+   "draws": 1,
+   "losses": 1,
+   "btts_count": 2,
+   "over25_count": 1,
+   "avg_goals_home": 2.1,
+   "avg_goals_away": 1.3,
+   "items": [
+    {
+     "label": "Tiros",
+     "icon": "🎯",
+     "home_value": 13.5,
+     "away_value": 9.2
+    },
+    {
+     "label": "Tiros a puerta",
+     "icon": "🥅",
+     "home_value": 5.1,
+     "away_value": 3.3
+    },
+    {
+     "label": "Corners",
+     "icon": "🚩",
+     "home_value": 6.0,
+     "away_value": 4.1
+    },
+    {
+     "label": "Faltas",
+     "icon": "💥",
+     "home_value": 12.2,
+     "away_value": 13.0
+    },
+    {
+     "label": "Tarjetas",
+     "icon": "🟨",
+     "home_value": 2.0,
+     "away_value": 2.8
+    }
+   ]
+  },
+  "away_venue_stats": null,
+  "prediction_analysis": "Predicción para este partido:\n- Goles esperados: 0.7 - 0.6 (Total: 1.3)\n- Histórico: 1.4 goles promedio\n\nLa predicción se alinea con el histórico reciente.",
+  "conclusion": "Tendencia: Los enfrentamientos directos muestran partidos cerrados y defensivos.",
+  "full_narrative": "En los últimos 8 enfrentamientos directos entre Barcelona y Real Madrid, se han promediado 1.4 goles por partido. Solo en el 20% de los partidos ambos equipos han marcado, indicando encuentros con pocos goles. \n\nCuando Barcelona ha jugado de local contra Real Madrid (últimos 3 partidos):\nBarcelona: G1-E1-P1 | BTTS: 2/3 | Over 2.5: 1/3\n\n- Promedio de goles: Barcelona 2.1 - Real Madrid 1.3\n- Promedio de tiros: 13.5 del Barcelona vs 9.2 del Real Madrid\n- Promedio de tiros al arco: 5.1 del Barcelona vs 3.3 del Real Madrid\n- Promedio de corners: 6.0 del Barcelona vs 4.1 del Real Madrid\n- Promedio de faltas: 12.2 del Barcelona vs 13.0 del Real Madrid\n- Promedio de tarjetas: 2.0 del Barcelona vs 2.8 del Real Madrid\n\n\nPredicción para este partido:\n- Goles esperados: 0.7 - 0.6 (Total: 1.3)\n- Histórico: 1.4 goles promedio\n\nLa predicción se alinea con el histórico reciente.\n\nTendencia: Los enfrentamientos directos muestran partidos cerrados y defensivos."
+ },
+ "medio": {
+  "summary": "En los últimos 8 enfrentamientos directos entre Barcelona y Real Madrid, se han promediado 2.4 goles por partido. ",
+  "home_venue_analysis": "",
+  "away_venue_analysis": "Cuando Barcelona ha jugado de visitante contra Real Madrid (últimos 2 partidos):\nBarcelona: G1-E0-P1 | BTTS: 1/2 | Over 2.5: 1/2\n\n- Promedio de goles: Real Madrid 1.8 - Barcelona 1.0\n- Promedio de tiros: 12.0 del Real Madrid vs 8.0 del Barcelona\n- Promedio de tiros al arco: 4.5 del Real Madrid vs 3.0 del Barcelona\n- Promedio de corners: 5.8 del Real Madrid vs 3.9 del Barcelona\n- Promedio de faltas: 12.5 del Real Madrid vs 11.0 del Barcelona\n- Promedio de tarjetas: 2.4 del Real Madrid vs 1.9 del Barcelona\n",
+  "home_venue_stats": null,
+  "away_venue_stats": {
+   "matches": 2,
+   "wins": 1,
+   "draws": 0,
+   "losses": 1,
+   "btts_count": 1,
+   "over25_count": 1,
+   "avg_goals_home": 1.0,
+   "avg_goals_away": 1.8,
+   "items": [
+    {
+     "label": "Tiros",
+     "icon": "🎯",
+     "home_value": 8.0,
+     "away_value": 12.0
+    },
+    {
+     "label": "Tiros a puerta",
+     "icon": "🥅",
+     "home_value": 3.0,
+     "away_value": 4.5
+    },
+    {
+     "label": "Corners",
+     "icon": "🚩",
+     "home_value": 3.9,
+     "away_value": 5.8
+    },
+    {
+     "label": "Faltas",
+     "icon": "💥",
+     "home_value": 11.0,
+     "away_value": 12.5
+    },
+    {
+     "label": "Tarjetas",
+     "icon": "🟨",
+     "home_value": 1.9,
+     "away_value": 2.4
+    }
+   ]
+  },
+  "prediction_analysis": "Predicción para este partido:\n- Goles esperados: 1.3 - 1.2 (Total: 2.5)\n- Histórico: 2.4 goles promedio\n\nLa predicción se alinea con el histórico reciente.",
+  "conclusion": "Tendencia: Los enfrentamientos directos muestran partidos equilibrados, con un promedio de 10 corners y 5 tarjetas por partido.",
+  "full_narrative": "En los últimos 8 enfrentamientos directos entre Barcelona y Real Madrid, se han promediado 2.4 goles por partido. \n\n\nCuando Barcelona ha jugado de visitante contra Real Madrid (últimos 2 partidos):\nBarcelona: G1-E0-P1 | BTTS: 1/2 | Over 2.5: 1/2\n\n- Promedio de goles: Real Madrid 1.8 - Barcelona 1.0\n- Promedio de tiros: 12.0 del Real Madrid vs 8.0 del Barcelona\n- Promedio de tiros al arco: 4.5 del Real Madrid vs 3.0 del Barcelona\n- Promedio de corners: 5.8 del Real Madrid vs 3.9 del Barcelona\n- Promedio de faltas: 12.5 del Real Madrid vs 11.0 del Barcelona\n- Promedio de tarjetas: 2.4 del Real Madrid vs 1.9 del Barcelona\n\nPredicción para este partido:\n- Goles esperados: 1.3 - 1.2 (Total: 2.5)\n- Histórico: 2.4 goles promedio\n\nLa predicción se alinea con el histórico reciente.\n\nTendencia: Los enfrentamientos directos muestran partidos equilibrados, con un promedio de 10 corners y 5 tarjetas por partido."
+ },
+ "sin_datos": {
+  "summary": "No hay datos históricos disponibles para enfrentamientos entre Barcelona y Real Madrid.",
+  "home_venue_analysis": "",
+  "away_venue_analysis": "",
+  "home_venue_stats": null,
+  "away_venue_stats": null,
+  "prediction_analysis": "",
+  "conclusion": ""
+ },
+ "items": [
+  {
+   "label": "Tiros",
+   "icon": "🎯",
+   "home_value": 13.5,
+   "away_value": 9.2
+  },
+  {
+   "label": "Tiros a puerta",
+   "icon": "🥅",
+   "home_value": 5.1,
+   "away_value": 3.3
+  },
+  {
+   "label": "Corners",
+   "icon": "🚩",
+   "home_value": 6.0,
+   "away_value": 4.1
+  },
+  {
+   "label": "Faltas",
+   "icon": "💥",
+   "home_value": 12.2,
+   "away_value": 13.0
+  },
+  {
+   "label": "Tarjetas",
+   "icon": "🟨",
+   "home_value": 2.0,
+   "away_value": 2.8
+  }
+ ]
+}

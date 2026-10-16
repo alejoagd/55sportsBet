@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Trans } from 'react-i18next';
+import i18n from './i18n';
 
 interface TeamStats {
   team_id: number;
@@ -224,7 +226,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
     <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
       <h3 className={`text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight ${color}`}>{title}</h3>
       {teams.length === 0 ? (
-        <div className="text-slate-500 text-center py-4 text-xs sm:text-base">No hay datos</div>
+        <div className="text-slate-500 text-center py-4 text-xs sm:text-base">{i18n.t('teamStats.noHayDatos')}</div>
       ) : (
         <div className="space-y-1.5 sm:space-y-2">
           {teams.map((team, idx) => {
@@ -253,9 +255,9 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
                   </span>
                   <span
                     className={`text-[9px] sm:text-[11px] font-medium px-1 rounded shrink-0 whitespace-nowrap ${lowSample ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500'}`}
-                    title="Partidos jugados que respaldan este promedio"
+                    title={i18n.t('teamStats.partidosJugadosQueRespaldanEste')}
                   >
-                    {sideMatches} PJ
+                    {i18n.t('teamStats.sample', { n: sideMatches })}
                   </span>
                 </div>
               </div>
@@ -270,7 +272,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
     const inner = (
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p className="text-slate-400">Cargando estadísticas{leagueName ? ` de ${leagueName}` : ''}...</p>
+        <p className="text-slate-400">{leagueName ? i18n.t('teamStats.loadingStatsLeague', { league: leagueName }) : i18n.t('teamStats.loadingStats')}</p>
       </div>
     );
     return embedded
@@ -282,13 +284,12 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
     const inner = (
       <>
         <div className="text-6xl mb-4">{leagueEmoji}</div>
-        <div className="text-slate-400 text-xl">No hay datos disponibles para {leagueName}</div>
+        <div className="text-slate-400 text-xl">{i18n.t('teamStats.noDataFor', { league: leagueName })}</div>
         <button
           onClick={() => seasonId && fetchStatistics(seasonId)}
           className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
         >
-          🔄 Reintentar
-        </button>
+          {i18n.t('teamStats.reintentar')}</button>
       </>
     );
     return embedded
@@ -336,12 +337,16 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
   const topAwayCards = getTopTeams('away_avg_cards', 5);
   const bottomAwayCards = getTopTeams('away_avg_cards', 5, true);
 
-  const topRefereesFouls = data.referees
-    ? [...data.referees].sort((a, b) => b.avg_fouls_per_match - a.avg_fouls_per_match).slice(0, 5)
+  // "Sin arbitro" es el valor de relleno de la carga de datos cuando la liga no trae
+  // árbitro (ej. La Liga): no es un árbitro real, no debe entrar al ranking ni al conteo.
+  const realReferees = (data.referees ?? []).filter(r => r.referee.trim().toLowerCase() !== 'sin arbitro');
+
+  const topRefereesFouls = realReferees.length
+    ? [...realReferees].sort((a, b) => b.avg_fouls_per_match - a.avg_fouls_per_match).slice(0, 5)
     : [];
 
-  const topRefereesCards = data.referees
-    ? [...data.referees].sort((a, b) => b.avg_cards_per_match - a.avg_cards_per_match).slice(0, 5)
+  const topRefereesCards = realReferees.length
+    ? [...realReferees].sort((a, b) => b.avg_cards_per_match - a.avg_cards_per_match).slice(0, 5)
     : [];
 
   const Wrapper = embedded
@@ -359,39 +364,37 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
           <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-2">
             <span className="text-base sm:text-4xl shrink-0">{leagueEmoji}</span>
             <h1 className="text-sm sm:text-3xl font-bold text-white truncate">
-              📊 Análisis Estadístico
-            </h1>
+              {i18n.t('teamStats.analisisEstadistico')}</h1>
           </div>
           <p className="text-slate-300 text-xs sm:text-base">
-            {leagueName} · {data.round_label ? data.round_label : `Temporada ${seasonId}`}
+            {leagueName} · {data.round_label ? data.round_label : i18n.t('teamStats.season', { id: seasonId })}
           </p>
           <p className="text-slate-500 text-[11px] sm:text-sm mt-0.5 sm:mt-1">
-            {data.teams.length} equipos • {data.referees?.length || 0} árbitros
+            {i18n.t('teamStats.teamsRefs', { teams: data.teams.length, refs: realReferees.length })}
           </p>
           <p className="text-slate-500 text-[10px] sm:text-xs mt-1.5 sm:mt-2 italic">
-            Los valores de cada módulo son el promedio por partido jugado (PJ) — a menos partidos, menos estable el promedio.
-          </p>
+            {i18n.t('teamStats.losValoresDeCadaModulo')}</p>
         </div>
 
         {/* 1. OFENSIVA */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">⚽ Ofensiva (Goles Anotados)</h2>
+          <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.ofensivaGolesAnotados')}</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Mejor Ofensiva Local', topHomeOffense, 'home_avg_goals_scored', 'text-green-400')}
-            {renderRankingTable('🏠 Peor Ofensiva Local', bottomHomeOffense, 'home_avg_goals_scored', 'text-red-400')}
-            {renderRankingTable('✈️ Mejor Ofensiva Visitante', topAwayOffense, 'away_avg_goals_scored', 'text-green-400')}
-            {renderRankingTable('✈️ Peor Ofensiva Visitante', bottomAwayOffense, 'away_avg_goals_scored', 'text-red-400')}
+            {renderRankingTable(i18n.t('teamStats.mejorOfensivaLocal'), topHomeOffense, 'home_avg_goals_scored', 'text-green-400')}
+            {renderRankingTable(i18n.t('teamStats.peorOfensivaLocal'), bottomHomeOffense, 'home_avg_goals_scored', 'text-red-400')}
+            {renderRankingTable(i18n.t('teamStats.mejorOfensivaVisitante'), topAwayOffense, 'away_avg_goals_scored', 'text-green-400')}
+            {renderRankingTable(i18n.t('teamStats.peorOfensivaVisitante'), bottomAwayOffense, 'away_avg_goals_scored', 'text-red-400')}
           </div>
         </div>
 
         {/* 2. DEFENSA */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">🛡️ Defensa (Goles Recibidos)</h2>
+          <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.defensaGolesRecibidos')}</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-            {renderRankingTable('🏠 Mejor Defensa Local', topHomeDefense, 'home_avg_goals_conceded', 'text-green-400')}
-            {renderRankingTable('🏠 Peor Defensa Local', bottomHomeDefense, 'home_avg_goals_conceded', 'text-red-400')}
-            {renderRankingTable('✈️ Mejor Defensa Visitante', topAwayDefense, 'away_avg_goals_conceded', 'text-green-400')}
-            {renderRankingTable('✈️ Peor Defensa Visitante', bottomAwayDefense, 'away_avg_goals_conceded', 'text-red-400')}
+            {renderRankingTable(i18n.t('teamStats.mejorDefensaLocal'), topHomeDefense, 'home_avg_goals_conceded', 'text-green-400')}
+            {renderRankingTable(i18n.t('teamStats.peorDefensaLocal'), bottomHomeDefense, 'home_avg_goals_conceded', 'text-red-400')}
+            {renderRankingTable(i18n.t('teamStats.mejorDefensaVisitante'), topAwayDefense, 'away_avg_goals_conceded', 'text-green-400')}
+            {renderRankingTable(i18n.t('teamStats.peorDefensaVisitante'), bottomAwayDefense, 'away_avg_goals_conceded', 'text-red-400')}
           </div>
         </div>
 
@@ -400,12 +403,12 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             ligas europeas - se oculta si la liga actual no trae ese dato. */}
         {data.has_halftime_data && (
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-white">⏱️ Goles por Tiempo</h2>
+            <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.golesPorTiempo')}</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-              {renderRankingTable('🏠 Más Goles 1er Tiempo Local', topHomeGoals1h, 'home_avg_goals_1h', 'text-cyan-400', 'home_matches_ht')}
-              {renderRankingTable('✈️ Más Goles 1er Tiempo Visitante', topAwayGoals1h, 'away_avg_goals_1h', 'text-cyan-400', 'away_matches_ht')}
-              {renderRankingTable('🏠 Más Goles 2do Tiempo Local', topHomeGoals2h, 'home_avg_goals_2h', 'text-pink-400', 'home_matches_ht')}
-              {renderRankingTable('✈️ Más Goles 2do Tiempo Visitante', topAwayGoals2h, 'away_avg_goals_2h', 'text-pink-400', 'away_matches_ht')}
+              {renderRankingTable(i18n.t('teamStats.masGoles1erTiempoLocal'), topHomeGoals1h, 'home_avg_goals_1h', 'text-cyan-400', 'home_matches_ht')}
+              {renderRankingTable(i18n.t('teamStats.masGoles1erTiempoVisitante'), topAwayGoals1h, 'away_avg_goals_1h', 'text-cyan-400', 'away_matches_ht')}
+              {renderRankingTable(i18n.t('teamStats.masGoles2doTiempoLocal'), topHomeGoals2h, 'home_avg_goals_2h', 'text-pink-400', 'home_matches_ht')}
+              {renderRankingTable(i18n.t('teamStats.masGoles2doTiempoVisitante'), topAwayGoals2h, 'away_avg_goals_2h', 'text-pink-400', 'away_matches_ht')}
             </div>
           </div>
         )}
@@ -420,44 +423,46 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
             {/* 2b. CALIDAD DE ATAQUE (AQI) */}
             {attackQuality?.has_match_stats && attackQuality.teams.length > 0 && (
               <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-white">⚡ Calidad de Ataque</h2>
+                <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.calidadDeAtaque')}</h2>
                 <div className="bg-slate-800/60 border border-slate-700 rounded-lg p-3 sm:p-4 text-xs sm:text-sm text-slate-300 space-y-3">
                   <p>
-                    <span className="text-white font-semibold">¿Qué mide?</span> Qué tan peligroso es el ataque de un equipo
-                    en sus últimos {attackQuality.window} partidos. <span className="text-white font-semibold">100 es un ataque
-                    normal para esta liga</span>: más de 100 es mejor que el promedio y menos de 100 es peor.
+                    <Trans i18nKey="teamStats.aqiWhat" values={{ n: attackQuality.window }} components={{ b: <span className="text-white font-semibold" /> }} />
                   </p>
                   <ul className="space-y-1.5">
-                    <li><span className="text-white font-semibold">Índice:</span> el resultado final. Resume las columnas siguientes en un solo número. Verde: 110 o más. Rojo: 90 o menos.</li>
-                    <li><span className="text-white font-semibold">Remates a puerta:</span> cuánto remata al arco comparado con el promedio, descontando la dificultad del rival (rematarle a una defensa débil vale menos). 120 = remata un 20% más que lo normal.</li>
-                    <li><span className="text-white font-semibold">Finalización:</span> qué tan bien convierte esos remates en gol. Se acerca al promedio a propósito, porque la puntería de un equipo cambia mucho de un mes a otro y no conviene fiarse de ella por sí sola.</li>
-                    <li><span className="text-white font-semibold">Precisión:</span> de cada 100 remates, cuántos van al arco.</li>
-                    <li><span className="text-white font-semibold">A puerta/p y Goles/p:</span> tiros a puerta y goles que promedia por partido.</li>
+                    <li><Trans i18nKey="teamStats.aqiIndex" components={{ b: <span className="text-white font-semibold" /> }} /></li>
+                    <li><Trans i18nKey="teamStats.aqiShots" components={{ b: <span className="text-white font-semibold" /> }} /></li>
+                    <li><Trans i18nKey="teamStats.aqiFinish" components={{ b: <span className="text-white font-semibold" /> }} /></li>
+                    <li><Trans i18nKey="teamStats.aqiAccuracy" components={{ b: <span className="text-white font-semibold" /> }} /></li>
+                    <li><Trans i18nKey="teamStats.aqiPerGame" components={{ b: <span className="text-white font-semibold" /> }} /></li>
                   </ul>
                   {attackQuality.teams[0]?.aqi != null && (
                     <p className="bg-slate-900/60 rounded px-3 py-2">
-                      <span className="text-white font-semibold">Ejemplo:</span> {attackQuality.teams[0].team_name} tiene un
-                      índice de {attackQuality.teams[0].aqi.toFixed(0)}. Como 100 es lo normal, se espera que anote
-                      un {Math.abs(attackQuality.teams[0].aqi - 100).toFixed(0)}% {attackQuality.teams[0].aqi >= 100 ? 'más' : 'menos'} goles que un equipo promedio
-                      de la liga. Un equipo con índice 80 anotaría un 20% menos.
+                      <Trans
+                        i18nKey={attackQuality.teams[0].aqi >= 100 ? 'teamStats.aqiExampleMore' : 'teamStats.aqiExampleLess'}
+                        values={{
+                          team: attackQuality.teams[0].team_name,
+                          aqi: attackQuality.teams[0].aqi.toFixed(0),
+                          pct: Math.abs(attackQuality.teams[0].aqi - 100).toFixed(0),
+                        }}
+                        components={{ b: <span className="text-white font-semibold" /> }}
+                      />
                     </p>
                   )}
                   <p className="text-slate-500">
-                    Es un indicador de tendencia para comparar equipos, no un pronóstico exacto: un equipo con índice alto puede igualmente no marcar en un partido.
-                  </p>
+                    {i18n.t('teamStats.esUnIndicadorDeTendencia')}</p>
                 </div>
                 <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 overflow-x-auto">
                   <table className="w-full text-xs sm:text-sm">
                     <thead>
                       <tr className="text-slate-400 text-left border-b border-slate-700">
                         <th className="py-2 pr-2">#</th>
-                        <th className="py-2 pr-2">Equipo</th>
-                        <th className="py-2 pr-2 text-right" title="Índice de calidad de ataque (100 = promedio de la liga)">Índice</th>
-                        <th className="py-2 pr-2 text-right" title="Remates a puerta vs el promedio, ajustado por el rival (100 = promedio)">Remates a puerta</th>
-                        <th className="py-2 pr-2 text-right" title="Qué tan bien convierte sus remates en gol (100 = promedio)">Finalización</th>
-                        <th className="py-2 pr-2 text-right" title="De cada 100 remates, cuántos van al arco">Precisión</th>
-                        <th className="py-2 pr-2 text-right" title="Tiros a puerta por partido">A puerta/p</th>
-                        <th className="py-2 pr-2 text-right" title="Goles por partido">Goles/p</th>
+                        <th className="py-2 pr-2">{i18n.t('teamStats.equipo')}</th>
+                        <th className="py-2 pr-2 text-right" title={i18n.t('teamStats.indiceDeCalidadDeAtaque')}>{i18n.t('teamStats.indice')}</th>
+                        <th className="py-2 pr-2 text-right" title={i18n.t('teamStats.rematesAPuertaVsEl')}>{i18n.t('teamStats.rematesAPuerta')}</th>
+                        <th className="py-2 pr-2 text-right" title={i18n.t('teamStats.queTanBienConvierteSus')}>{i18n.t('teamStats.finalizacion')}</th>
+                        <th className="py-2 pr-2 text-right" title={i18n.t('teamStats.deCada100RematesCuantos')}>{i18n.t('teamStats.precision')}</th>
+                        <th className="py-2 pr-2 text-right" title={i18n.t('teamStats.tirosAPuertaPorPartido')}>{i18n.t('teamStats.aPuertaP')}</th>
+                        <th className="py-2 pr-2 text-right" title={i18n.t('teamStats.golesPorPartido')}>{i18n.t('teamStats.golesP')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -467,7 +472,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
                           <td className="py-1.5 pr-2 text-white font-medium whitespace-nowrap">{t.team_name}</td>
                           {t.aqi === null ? (
                             <td colSpan={6} className="py-1.5 text-right text-slate-500">
-                              Pocos partidos con datos ({t.matches_used})
+                              {i18n.t('teamStats.fewMatches', { n: t.matches_used })}
                             </td>
                           ) : (
                             <>
@@ -491,70 +496,70 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
 
             {/* 3. CORNERS */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white">🚩 Corners</h2>
+              <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.corners')}</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-                {renderRankingTable('🏠 Más Corners Local', topHomeCorners, 'home_avg_corners', 'text-yellow-400')}
-                {renderRankingTable('🏠 Menos Corners Local', bottomHomeCorners, 'home_avg_corners', 'text-slate-400')}
-                {renderRankingTable('✈️ Más Corners Visitante', topAwayCorners, 'away_avg_corners', 'text-yellow-400')}
-                {renderRankingTable('✈️ Menos Corners Visitante', bottomAwayCorners, 'away_avg_corners', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masCornersLocal'), topHomeCorners, 'home_avg_corners', 'text-yellow-400')}
+                {renderRankingTable(i18n.t('teamStats.menosCornersLocal'), bottomHomeCorners, 'home_avg_corners', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masCornersVisitante'), topAwayCorners, 'away_avg_corners', 'text-yellow-400')}
+                {renderRankingTable(i18n.t('teamStats.menosCornersVisitante'), bottomAwayCorners, 'away_avg_corners', 'text-slate-400')}
               </div>
             </div>
 
             {/* 4. TIROS */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white">🎯 Tiros</h2>
+              <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.tiros')}</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-                {renderRankingTable('🏠 Más Tiros Local', topHomeShots, 'home_avg_shots', 'text-blue-400')}
-                {renderRankingTable('🏠 Menos Tiros Local', bottomHomeShots, 'home_avg_shots', 'text-slate-400')}
-                {renderRankingTable('✈️ Más Tiros Visitante', topAwayShots, 'away_avg_shots', 'text-blue-400')}
-                {renderRankingTable('✈️ Menos Tiros Visitante', bottomAwayShots, 'away_avg_shots', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masTirosLocal'), topHomeShots, 'home_avg_shots', 'text-blue-400')}
+                {renderRankingTable(i18n.t('teamStats.menosTirosLocal'), bottomHomeShots, 'home_avg_shots', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masTirosVisitante'), topAwayShots, 'away_avg_shots', 'text-blue-400')}
+                {renderRankingTable(i18n.t('teamStats.menosTirosVisitante'), bottomAwayShots, 'away_avg_shots', 'text-slate-400')}
               </div>
             </div>
 
             {/* 5. TIROS A PUERTA */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white">🎯 Tiros a Puerta</h2>
+              <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.tirosAPuerta')}</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-                {renderRankingTable('🏠 Más Tiros a Puerta Local', topHomeShotsTarget, 'home_avg_shots_target', 'text-purple-400')}
-                {renderRankingTable('🏠 Menos Tiros a Puerta Local', bottomHomeShotsTarget, 'home_avg_shots_target', 'text-slate-400')}
-                {renderRankingTable('✈️ Más Tiros a Puerta Visitante', topAwayShotsTarget, 'away_avg_shots_target', 'text-purple-400')}
-                {renderRankingTable('✈️ Menos Tiros a Puerta Visitante', bottomAwayShotsTarget, 'away_avg_shots_target', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masTirosAPuertaLocal'), topHomeShotsTarget, 'home_avg_shots_target', 'text-purple-400')}
+                {renderRankingTable(i18n.t('teamStats.menosTirosAPuertaLocal'), bottomHomeShotsTarget, 'home_avg_shots_target', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masTirosAPuertaVisitante'), topAwayShotsTarget, 'away_avg_shots_target', 'text-purple-400')}
+                {renderRankingTable(i18n.t('teamStats.menosTirosAPuertaVisitante'), bottomAwayShotsTarget, 'away_avg_shots_target', 'text-slate-400')}
               </div>
             </div>
 
             {/* 6. FALTAS */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white">⚠️ Faltas</h2>
+              <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.faltas')}</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-                {renderRankingTable('🏠 Más Faltas Local', topHomeFouls, 'home_avg_fouls', 'text-orange-400')}
-                {renderRankingTable('🏠 Menos Faltas Local', bottomHomeFouls, 'home_avg_fouls', 'text-slate-400')}
-                {renderRankingTable('✈️ Más Faltas Visitante', topAwayFouls, 'away_avg_fouls', 'text-orange-400')}
-                {renderRankingTable('✈️ Menos Faltas Visitante', bottomAwayFouls, 'away_avg_fouls', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masFaltasLocal'), topHomeFouls, 'home_avg_fouls', 'text-orange-400')}
+                {renderRankingTable(i18n.t('teamStats.menosFaltasLocal'), bottomHomeFouls, 'home_avg_fouls', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masFaltasVisitante'), topAwayFouls, 'away_avg_fouls', 'text-orange-400')}
+                {renderRankingTable(i18n.t('teamStats.menosFaltasVisitante'), bottomAwayFouls, 'away_avg_fouls', 'text-slate-400')}
               </div>
             </div>
 
             {/* 7. TARJETAS */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white">🟨 Tarjetas</h2>
+              <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.tarjetas')}</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-                {renderRankingTable('🏠 Más Tarjetas Local', topHomeCards, 'home_avg_cards', 'text-yellow-400')}
-                {renderRankingTable('🏠 Menos Tarjetas Local', bottomHomeCards, 'home_avg_cards', 'text-slate-400')}
-                {renderRankingTable('✈️ Más Tarjetas Visitante', topAwayCards, 'away_avg_cards', 'text-yellow-400')}
-                {renderRankingTable('✈️ Menos Tarjetas Visitante', bottomAwayCards, 'away_avg_cards', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masTarjetasLocal'), topHomeCards, 'home_avg_cards', 'text-yellow-400')}
+                {renderRankingTable(i18n.t('teamStats.menosTarjetasLocal'), bottomHomeCards, 'home_avg_cards', 'text-slate-400')}
+                {renderRankingTable(i18n.t('teamStats.masTarjetasVisitante'), topAwayCards, 'away_avg_cards', 'text-yellow-400')}
+                {renderRankingTable(i18n.t('teamStats.menosTarjetasVisitante'), bottomAwayCards, 'away_avg_cards', 'text-slate-400')}
               </div>
             </div>
           </>
         )}
 
         {/* 8. ÁRBITROS */}
-        {data.referees && data.referees.length > 0 && (
+        {realReferees.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-white">👨‍⚖️ Árbitros</h2>
+            <h2 className="text-2xl font-bold text-white">{i18n.t('teamStats.arbitros')}</h2>
             <div className="grid grid-cols-2 gap-2 sm:gap-4">
 
               {/* Árbitros con más faltas */}
               <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
-                <h3 className="text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight text-orange-400">⚠️ Más Faltas por Partido</h3>
+                <h3 className="text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight text-orange-400">{i18n.t('teamStats.masFaltasPorPartido')}</h3>
                 <div className="space-y-1.5 sm:space-y-2">
                   {topRefereesFouls.map((ref, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0">
@@ -572,7 +577,7 @@ export default function TeamStatistics({ embedded = false }: { embedded?: boolea
 
               {/* Árbitros con más tarjetas */}
               <div className="bg-slate-800 rounded-lg p-2.5 sm:p-4 min-w-0">
-                <h3 className="text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight text-yellow-400">🟨 Más Tarjetas por Partido</h3>
+                <h3 className="text-xs sm:text-lg font-bold mb-2 sm:mb-3 leading-tight text-yellow-400">{i18n.t('teamStats.masTarjetasPorPartido')}</h3>
                 <div className="space-y-1.5 sm:space-y-2">
                   {topRefereesCards.map((ref, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 bg-slate-700/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 min-w-0">

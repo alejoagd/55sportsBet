@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import i18n from './i18n';
 
 interface VenueStatItem {
   label: string;
@@ -77,18 +78,18 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(
-        `${API_URL}/api/matches/${matchId}/h2h-analysis`
+        `${API_URL}/api/matches/${matchId}/h2h-analysis?lang=${i18n.language}`
       );
 
       if (!response.ok) {
-        throw new Error('Error al cargar análisis H2H');
+        throw new Error(i18n.t('h2hNarrative.errorAlCargarAnalisisH2h'));
       }
 
       const result = await response.json();
       setData(result);
     } catch (error) {
       console.error('Error:', error);
-      setError(error instanceof Error ? error.message : 'Error desconocido');
+      setError(error instanceof Error ? error.message : i18n.t('h2hNarrative.errorDesconocido'));
     } finally {
       setLoading(false);
     }
@@ -113,8 +114,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
     return (
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <p className="text-slate-400 text-sm">
-          No hay datos históricos disponibles para este enfrentamiento.
-        </p>
+          {i18n.t('h2hNarrative.noHayDatosHistoricosDisponibles')}</p>
       </div>
     );
   }
@@ -127,38 +127,37 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
       <div className="p-4 sm:p-6 border-b border-slate-700">
         <div className="mb-4">
           <h3 className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
-            📊 Análisis de Enfrentamientos Directos
-          </h3>
+            {i18n.t('h2hNarrative.analisisDeEnfrentamientosDirectos')}</h3>
           <p className="text-slate-400 text-xs sm:text-sm">
-            Basado en los últimos {stats.total_matches} partidos entre estos equipos
+            {i18n.t('h2hNarrative.basedOn', { n: stats.total_matches })}
           </p>
         </div>
 
         {/* Estadísticas clave en cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
           <StatCard
-            label="Goles/Partido"
+            label={i18n.t('h2hNarrative.golesPartido')}
             value={stats.avg_total_goals.toFixed(1)}
             icon="⚽"
             trend={stats.avg_total_goals >= 2.5 ? 'up' : 'down'}
           />
           {stats.avg_total_goals_1h !== null && (
             <StatCard
-              label="Goles 1T/Partido"
+              label={i18n.t('h2hNarrative.goles1tPartido')}
               value={stats.avg_total_goals_1h.toFixed(1)}
               icon="🕐"
             />
           )}
           {stats.avg_total_goals_2h !== null && (
             <StatCard
-              label="Goles 2T/Partido"
+              label={i18n.t('h2hNarrative.goles2tPartido')}
               value={stats.avg_total_goals_2h.toFixed(1)}
               icon="🕕"
             />
           )}
           {stats.avg_total_corners !== null && (
             <StatCard
-              label="Corners/Partido"
+              label={i18n.t('h2hNarrative.cornersPartido')}
               value={stats.avg_total_corners.toFixed(1)}
               icon="🚩"
             />
@@ -179,7 +178,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
 
         {/* Narrativa principal (RESUMEN) */}
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
-          <h4 className="text-slate-300 font-semibold text-sm mb-2">RESUMEN DEL PARTIDO</h4>
+          <h4 className="text-slate-300 font-semibold text-sm mb-2">{i18n.t('h2hNarrative.resumenDelPartido')}</h4>
           <p className="text-slate-300 text-sm leading-relaxed">
             {narrative.summary}
           </p>
@@ -190,14 +189,13 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
       {(data.h2h_home.length > 0 || data.h2h_away.length > 0) && (
         <div className="p-4 sm:p-6 border-b border-slate-700">
           <h4 className="text-white font-semibold text-sm sm:text-base mb-3 flex items-center gap-2">
-            📋 Historial de Partidos
-          </h4>
+            {i18n.t('h2hNarrative.historialDePartidos')}</h4>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             {data.h2h_home.length > 0 && (
               <div>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1.5">
-                  🏠 Como local <span className="text-slate-500 normal-case font-normal">({data.h2h_home.length})</span>
+                  {i18n.t('h2hNarrative.comoLocal')}{' '}<span className="text-slate-500 normal-case font-normal">({data.h2h_home.length})</span>
                 </p>
                 <div>
                   {data.h2h_home.map((match: any, index: number) => (
@@ -216,7 +214,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
             {data.h2h_away.length > 0 && (
               <div>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1.5">
-                  ✈️ Como visitante <span className="text-slate-500 normal-case font-normal">({data.h2h_away.length})</span>
+                  {i18n.t('h2hNarrative.comoVisitante')}{' '}<span className="text-slate-500 normal-case font-normal">({data.h2h_away.length})</span>
                 </p>
                 <div>
                   {data.h2h_away.map((match: any, index: number) => (
@@ -247,7 +245,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
           {narrative.home_venue_stats && (
             <VenueCard
               icon="🏠"
-              title="Jugando de Local"
+              title={i18n.t('h2hNarrative.jugandoDeLocal')}
               theme="blue"
               homeTeam={data.home_team}
               awayTeam={data.away_team}
@@ -258,7 +256,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
           {narrative.away_venue_stats && (
             <VenueCard
               icon="✈️"
-              title="Jugando de Visitante"
+              title={i18n.t('h2hNarrative.jugandoDeVisitante')}
               theme="orange"
               homeTeam={data.home_team}
               awayTeam={data.away_team}
@@ -272,8 +270,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
       <div className="p-6 space-y-4">
         <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-5">
           <h4 className="text-purple-400 font-semibold mb-3 flex items-center gap-2 text-base">
-            🎯 Predicción vs. Histórico
-          </h4>
+            {i18n.t('h2hNarrative.prediccionVsHistorico')}</h4>
           <div className="space-y-2">
             {narrative.prediction_analysis.split('\n').map((line, idx) => {
               if (!line.trim()) return null;
@@ -289,8 +286,7 @@ export default function MatchH2HNarrative({ matchId }: MatchH2HNarrativeProps) {
 
         <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-5">
           <h4 className="text-green-400 font-semibold mb-3 flex items-center gap-2 text-base">
-            💡 Conclusión
-          </h4>
+            {i18n.t('h2hNarrative.conclusion')}</h4>
           <p className="text-slate-300 text-sm leading-relaxed">
             {highlightNumbers(narrative.conclusion)}
           </p>
@@ -378,12 +374,12 @@ function VenueCard({
   return (
     <div className={`${accent.bg} border ${accent.border} rounded-lg p-4 sm:p-5`}>
       <h4 className={`${accent.text} font-semibold mb-3 flex items-center gap-2 text-sm sm:text-base`}>
-        {icon} {title} <span className="text-slate-400 font-normal text-xs">({stats.matches} partidos)</span>
+        {icon} {title} <span className="text-slate-400 font-normal text-xs">({i18n.t('h2hNarrative.matchesCount', { count: stats.matches })})</span>
       </h4>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
         <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${accent.pill}`}>
-          {homeTeam}: G{stats.wins}-E{stats.draws}-P{stats.losses}
+          {i18n.t('h2hNarrative.record', { team: homeTeam, w: stats.wins, d: stats.draws, l: stats.losses })}
         </span>
         <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-slate-700/60 text-slate-300">
           BTTS {stats.btts_count}/{stats.matches}
@@ -394,7 +390,7 @@ function VenueCard({
       </div>
 
       <div className="space-y-0.5">
-        <StatRow icon="⚽" label="Goles" homeValue={stats.avg_goals_home} awayValue={stats.avg_goals_away} />
+        <StatRow icon="⚽" label={i18n.t('h2hNarrative.goles')} homeValue={stats.avg_goals_home} awayValue={stats.avg_goals_away} />
         {stats.items.map((item) => (
           <StatRow key={item.label} icon={item.icon} label={item.label} homeValue={item.home_value} awayValue={item.away_value} />
         ))}

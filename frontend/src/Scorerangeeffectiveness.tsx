@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import i18n from './i18n';
+
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
 /**
  * ScoreRangeEffectiveness - Análisis de efectividad por rangos de Score
@@ -45,11 +48,12 @@ const ScoreRangeEffectiveness: React.FC<Props> = ({ seasonId, leagueId }) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.append('lang', i18n.language);
       if (seasonId) params.append('season_id', seasonId.toString());
       if (leagueId) params.append('league_id', leagueId.toString());
       
       const response = await fetch(
-        `http://localhost:8000/api/best-bets/score-ranges?${params}`
+        `${API_URL}/api/best-bets/score-ranges?${params}`
       );
       const result = await response.json();
       setData(result);
@@ -101,11 +105,9 @@ const ScoreRangeEffectiveness: React.FC<Props> = ({ seasonId, leagueId }) => {
     return (
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          📊 Efectividad por Rango de Score
-        </h3>
+          {i18n.t('scoreRange.efectividadPorRangoDeScore')}</h3>
         <p className="text-slate-400">
-          No hay suficientes datos para analizar. Se necesitan más apuestas finalizadas.
-        </p>
+          {i18n.t('scoreRange.noHaySuficientesDatosPara')}</p>
       </div>
     );
   }
@@ -115,12 +117,11 @@ const ScoreRangeEffectiveness: React.FC<Props> = ({ seasonId, leagueId }) => {
       {/* Header */}
       <div className="mb-6">
         <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-          📊 Efectividad por Rango de Score
-        </h3>
+          {i18n.t('scoreRange.efectividadPorRangoDeScore')}</h3>
         <p className="text-slate-400 text-sm">
-          Análisis de {data.total_analyzed} apuestas finalizadas
+          {i18n.t('scoreRange.analysisOf', { n: data.total_analyzed })}
           <span className="ml-2">
-            • Accuracy general: <span className="text-blue-400 font-semibold">{data.overall_accuracy.toFixed(1)}%</span>
+            {i18n.t('scoreRange.overallAccuracy')} <span className="text-blue-400 font-semibold">{data.overall_accuracy.toFixed(1)}%</span>
           </span>
         </p>
       </div>
@@ -156,8 +157,7 @@ const ScoreRangeEffectiveness: React.FC<Props> = ({ seasonId, leagueId }) => {
                   </span>
                   {isBestRange && (
                     <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
-                      🔥 MEJOR
-                    </span>
+                      {i18n.t('scoreRange.mejor')}</span>
                   )}
                 </div>
                 
@@ -198,13 +198,13 @@ const ScoreRangeEffectiveness: React.FC<Props> = ({ seasonId, leagueId }) => {
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-400 text-xs">Cuota Prom.</div>
+                  <div className="text-slate-400 text-xs">{i18n.t('scoreRange.cuotaProm')}</div>
                   <div className="text-white font-semibold">
                     {range.avg_odds.toFixed(2)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-400 text-xs">Apuestas</div>
+                  <div className="text-slate-400 text-xs">{i18n.t('scoreRange.apuestas')}</div>
                   <div className="text-white font-semibold">
                     {range.total_bets}
                   </div>
@@ -227,13 +227,12 @@ const ScoreRangeEffectiveness: React.FC<Props> = ({ seasonId, leagueId }) => {
             <TrendingUp className="w-5 h-5 text-blue-400 mt-0.5" />
             <div>
               <h4 className="text-white font-semibold mb-1">
-                💡 Recomendación
-              </h4>
+                {i18n.t('scoreRange.recomendacion')}</h4>
               <p className="text-slate-300 text-sm">
                 {data.recommendation_text}
               </p>
               <p className="text-slate-400 text-xs mt-2">
-                Basado en el análisis de {data.total_analyzed} apuestas históricas
+                {i18n.t('scoreRange.basedOnAnalysis', { n: data.total_analyzed })}
               </p>
             </div>
           </div>

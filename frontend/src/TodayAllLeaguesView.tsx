@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import i18n, { localeTag } from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -25,11 +27,11 @@ interface TodayMatch {
 }
 
 function formatTime(kickoffAt: string | null): string {
-  if (!kickoffAt) return 'Hora por confirmar';
+  if (!kickoffAt) return i18n.t('common.timeTbd');
   try {
-    return new Date(kickoffAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    return new Date(kickoffAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
   } catch {
-    return 'Hora por confirmar';
+    return i18n.t('common.timeTbd');
   }
 }
 
@@ -67,16 +69,17 @@ function TeamLogo({ url, alt }: { url: string | null; alt: string }) {
 }
 
 export default function TodayAllLeaguesView() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<TodayMatch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/matches/today`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: TodayMatch[]) => setMatches(data))
-      .catch(() => setError('No se pudieron cargar los partidos de hoy'))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -87,26 +90,26 @@ export default function TodayAllLeaguesView() {
     return acc;
   }, {});
 
-  const today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long' });
+  const today = new Date().toLocaleDateString(localeTag(), { weekday: 'long', day: '2-digit', month: 'long' });
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
-          <h1 className="text-2xl font-bold text-white mb-1">📅 Partidos de hoy</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">📅 {t('today.title')}</h1>
           <p className="text-slate-300 capitalize">{today}</p>
         </div>
 
         {loading && (
-          <div className="text-center py-16 text-slate-400">Cargando partidos de hoy...</div>
+          <div className="text-center py-16 text-slate-400">{t('today.loading')}</div>
         )}
 
         {!loading && error && (
-          <div className="text-center py-16 text-red-400">{error}</div>
+          <div className="text-center py-16 text-red-400">{t('today.error')}</div>
         )}
 
         {!loading && !error && todayMatches.length === 0 && (
-          <div className="text-center py-16 text-slate-500">No hay partidos programados para hoy en ninguna liga</div>
+          <div className="text-center py-16 text-slate-500">{t('today.empty')}</div>
         )}
 
         {!loading && !error && Object.entries(byLeague).map(([leagueName, leagueMatches]) => (
