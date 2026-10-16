@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 from src.config import settings
+from src.narrative_i18n import tr, norm_lang
 from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
 from datetime import datetime, date
@@ -2419,7 +2420,8 @@ def get_best_bets_analysis(season_id: int = Query(..., description="ID de la tem
 def get_score_range_effectiveness(
     season_id: Optional[int] = Query(None, description="Filtrar por temporada"),
     league_id: Optional[int] = Query(None, description="Filtrar por liga"),
-    min_bets: int = Query(5, description="Mínimo de apuestas para considerar el rango")
+    min_bets: int = Query(5, description="Mínimo de apuestas para considerar el rango"),
+    lang: str = Query("es", description="Idioma del texto de recomendación: es, en, pt o fr"),
 ):
     """
     Analiza la efectividad de las apuestas según rangos de Score.
@@ -2511,7 +2513,7 @@ def get_score_range_effectiveness(
                 best_range=None,  # ✅ Ahora puede ser None
                 total_analyzed=0,
                 overall_accuracy=0.0,
-                recommendation_text="No hay suficientes datos para analizar"
+                recommendation_text=tr(lang, "sr_no_data")
             )
         
         # Procesar resultados
@@ -2568,14 +2570,12 @@ def get_score_range_effectiveness(
         
         # Texto de recomendación
         if best_range:
-            recommendation_text = (
-                f"🎯 Rango óptimo: {best_range.range_label} "
-                f"(Accuracy: {best_range.accuracy:.1f}%, "
-                f"ROI: {best_range.roi:.1f}%). "
-                f"Se recomienda apostar cuando el score esté en este rango."
+            recommendation_text = tr(
+                lang, "sr_best", label=best_range.range_label,
+                acc=best_range.accuracy, roi=best_range.roi,
             )
         else:
-            recommendation_text = "No hay rangos con suficiente confiabilidad (>60% accuracy)"
+            recommendation_text = tr(lang, "sr_none")
         
         return ScoreRangesResponse(
             ranges=ranges,
@@ -3160,7 +3160,7 @@ def get_team_form(match_id: int, limit: int = 10):
 
 
 @app.get("/api/matches/{match_id}/h2h-analysis")
-async def get_h2h_analysis(match_id: int):
+async def get_h2h_analysis(match_id: int, lang: str = Query("es", description="Idioma de la narrativa: es, en, pt o fr")):
     """
     Obtiene análisis de enfrentamientos directos (H2H) con narrativa generada.
     Analiza hasta 12 partidos previos: 6 como local + 6 como visitante.
@@ -3330,7 +3330,7 @@ async def get_h2h_analysis(match_id: int):
         stats = calculate_h2h_stats(h2h_home, h2h_away, match_info)
         
         # 5. Generar narrativa
-        narrative = generate_match_narrative(match_info, stats, h2h_home, h2h_away)
+        narrative = generate_match_narrative(match_info, stats, h2h_home, h2h_away, lang)
         
         return {
             "match_id": match_id,
@@ -3460,7 +3460,7 @@ def calculate_h2h_stats(h2h_home: List[Dict], h2h_away: List[Dict], _match_info:
     return stats
 
 
-def _venue_stat_items(s: Dict, home_prefix: str, away_prefix: str) -> List[Dict]:
+def _venue_stat_items(s: Dict, home_prefix: str, away_prefix: str, lang: str = "es") -> List[Dict]:
     """
     Arma la lista de estadísticas (tiros/corners/faltas/tarjetas) para un
     bloque de local o visitante, omitiendo cualquiera donde ambos lados
@@ -3468,32 +3468,33 @@ def _venue_stat_items(s: Dict, home_prefix: str, away_prefix: str) -> List[Dict]
     para esta liga/temporada, no que el promedio real sea cero.
     """
     pairs = [
-        ("shots", "Tiros", "🎯"),
-        ("shots_on_target", "Tiros a puerta", "🥅"),
-        ("corners", "Corners", "🚩"),
-        ("fouls", "Faltas", "💥"),
-        ("cards", "Tarjetas", "🟨"),
+        ("shots", "label_shots", "🎯"),
+        ("shots_on_target", "label_shots_on_target", "🥅"),
+        ("corners", "label_corners", "🚩"),
+        ("fouls", "label_fouls", "💥"),
+        ("cards", "label_cards", "🟨"),
     ]
     items = []
-    for key, label, icon in pairs:
+    for key, label_key, icon in pairs:
         hv = s.get(f"avg_{home_prefix}_{key}")
         av = s.get(f"avg_{away_prefix}_{key}")
         if hv is None or av is None or (round(hv, 1) == 0 and round(av, 1) == 0):
             continue
-        items.append({"label": label, "icon": icon, "home_value": round(hv, 1), "away_value": round(av, 1)})
+        items.append({"label": tr(lang, label_key), "icon": icon, "home_value": round(hv, 1), "away_value": round(av, 1)})
     return items
 
 
-def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict], h2h_away: List[Dict]) -> Dict[str, str]:
+def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict], h2h_away: List[Dict], lang: str = "es") -> Dict[str, str]:
     """
-    Genera narrativa textual del análisis H2H con resumen de resultados y estadísticas
+    Genera narrativa textual del análisis H2H con resumen de resultados y estadísticas.
+    Los textos viven en src/narrative_i18n.py (es/en/pt/fr); `lang` los elige.
     """
     home_team = match_info["home_team"]
     away_team = match_info["away_team"]
-    
+
     if not stats.get("has_data"):
         return {
-            "summary": f"No hay datos históricos disponibles para enfrentamientos entre {home_team} y {away_team}.",
+            "summary": tr(lang, "no_data", home=home_team, away=away_team),
             "home_venue_analysis": "",
             "away_venue_analysis": "",
             "home_venue_stats": None,
@@ -3501,18 +3502,18 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
             "prediction_analysis": "",
             "conclusion": ""
         }
-    
+
     # 1. RESUMEN GENERAL
-    summary = f"""En los últimos {stats['total_matches']} enfrentamientos directos entre {home_team} y {away_team}, se han promediado {stats['avg_total_goals']:.1f} goles por partido. """
-    
+    summary = tr(lang, "summary", n=stats['total_matches'], home=home_team, away=away_team, avg=stats['avg_total_goals'])
+
     if stats['btts_percentage'] >= 60:
-        summary += f"Ambos equipos han anotado en el {stats['btts_percentage']:.0f}% de los encuentros, mostrando una clara tendencia ofensiva. "
+        summary += tr(lang, "btts_high", pct=stats['btts_percentage'])
     elif stats['btts_percentage'] <= 30:
-        summary += f"Solo en el {stats['btts_percentage']:.0f}% de los partidos ambos equipos han marcado, indicando encuentros con pocos goles. "
-    
+        summary += tr(lang, "btts_low", pct=stats['btts_percentage'])
+
     if stats['over25_percentage'] >= 60:
-        summary += f"El {stats['over25_percentage']:.0f}% de los partidos han tenido más de 2.5 goles."
-    
+        summary += tr(lang, "over25", pct=stats['over25_percentage'])
+
     # 2. ANÁLISIS CUANDO JUEGA DE LOCAL CON RESUMEN DE RESULTADOS
     home_venue_analysis = ""
     home_venue_stats = None
@@ -3531,28 +3532,23 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
         # detallada (tiros/corners/faltas/tarjetas) sólo se agrega si la liga
         # realmente tiene esa fuente de datos cargada (match_stats) - si no,
         # se omite en vez de mostrar un promedio falso de 0.0.
-        home_venue_analysis = f"""Cuando {home_team} ha jugado de local contra {away_team} (últimos {total_home_matches} partidos):
-{home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_home_matches} | Over 2.5: {over25_count}/{total_home_matches}
-
-- Promedio de goles: {home_team} {home_stats['avg_home_goals']:.1f} - {away_team} {home_stats['avg_away_goals']:.1f}
-"""
-        if home_stats.get('avg_home_shots') is not None and home_stats.get('avg_away_shots') is not None:
-            home_venue_analysis += f"- Promedio de tiros: {home_stats['avg_home_shots']:.1f} del {home_team} vs {home_stats['avg_away_shots']:.1f} del {away_team}\n"
-        if home_stats.get('avg_home_shots_on_target') is not None and home_stats.get('avg_away_shots_on_target') is not None:
-            home_venue_analysis += f"- Promedio de tiros al arco: {home_stats['avg_home_shots_on_target']:.1f} del {home_team} vs {home_stats['avg_away_shots_on_target']:.1f} del {away_team}\n"
-        if home_stats.get('avg_home_corners') is not None and home_stats.get('avg_away_corners') is not None:
-            home_venue_analysis += f"- Promedio de corners: {home_stats['avg_home_corners']:.1f} del {home_team} vs {home_stats['avg_away_corners']:.1f} del {away_team}\n"
-        if home_stats.get('avg_home_fouls') is not None and home_stats.get('avg_away_fouls') is not None:
-            home_venue_analysis += f"- Promedio de faltas: {home_stats['avg_home_fouls']:.1f} del {home_team} vs {home_stats['avg_away_fouls']:.1f} del {away_team}\n"
-        if home_stats.get('avg_home_cards') is not None and home_stats.get('avg_away_cards') is not None:
-            home_venue_analysis += f"- Promedio de tarjetas: {home_stats['avg_home_cards']:.1f} del {home_team} vs {home_stats['avg_away_cards']:.1f} del {away_team}\n"
+        home_venue_analysis = tr(
+            lang, "home_header", home=home_team, away=away_team, n=total_home_matches,
+            w=wins, d=draws, l=losses, b=btts_count, o=over25_count,
+            hg=home_stats['avg_home_goals'], ag=home_stats['avg_away_goals'],
+        )
+        for stat_key, line_key in (("shots", "line_shots"), ("shots_on_target", "line_sot"),
+                                   ("corners", "line_corners"), ("fouls", "line_fouls"), ("cards", "line_cards")):
+            hv, av = home_stats.get(f"avg_home_{stat_key}"), home_stats.get(f"avg_away_{stat_key}")
+            if hv is not None and av is not None:
+                home_venue_analysis += tr(lang, line_key, a=hv, ta=home_team, b=av, tb=away_team)
         home_venue_stats = {
             "matches": total_home_matches,
             "wins": wins, "draws": draws, "losses": losses,
             "btts_count": btts_count, "over25_count": over25_count,
             "avg_goals_home": round(home_stats['avg_home_goals'], 1),
             "avg_goals_away": round(home_stats['avg_away_goals'], 1),
-            "items": _venue_stat_items(home_stats, "home", "away"),
+            "items": _venue_stat_items(home_stats, "home", "away", lang),
         }
 
     # 3. ANÁLISIS CUANDO JUEGA DE VISITANTE CON RESUMEN DE RESULTADOS
@@ -3573,21 +3569,16 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
 
         # Construir narrativa con resumen de resultados (mismo criterio que
         # arriba: se omite la línea si la liga no tiene ese dato cargado)
-        away_venue_analysis = f"""Cuando {home_team} ha jugado de visitante contra {away_team} (últimos {total_away_matches} partidos):
-{home_team}: G{wins}-E{draws}-P{losses} | BTTS: {btts_count}/{total_away_matches} | Over 2.5: {over25_count}/{total_away_matches}
-
-- Promedio de goles: {away_team} {away_stats['avg_opponent_goals']:.1f} - {home_team} {away_stats['avg_team_goals']:.1f}
-"""
-        if away_stats.get('avg_opponent_shots') is not None and away_stats.get('avg_team_shots') is not None:
-            away_venue_analysis += f"- Promedio de tiros: {away_stats['avg_opponent_shots']:.1f} del {away_team} vs {away_stats['avg_team_shots']:.1f} del {home_team}\n"
-        if away_stats.get('avg_opponent_shots_on_target') is not None and away_stats.get('avg_team_shots_on_target') is not None:
-            away_venue_analysis += f"- Promedio de tiros al arco: {away_stats['avg_opponent_shots_on_target']:.1f} del {away_team} vs {away_stats['avg_team_shots_on_target']:.1f} del {home_team}\n"
-        if away_stats.get('avg_opponent_corners') is not None and away_stats.get('avg_team_corners') is not None:
-            away_venue_analysis += f"- Promedio de corners: {away_stats['avg_opponent_corners']:.1f} del {away_team} vs {away_stats['avg_team_corners']:.1f} del {home_team}\n"
-        if away_stats.get('avg_opponent_fouls') is not None and away_stats.get('avg_team_fouls') is not None:
-            away_venue_analysis += f"- Promedio de faltas: {away_stats['avg_opponent_fouls']:.1f} del {away_team} vs {away_stats['avg_team_fouls']:.1f} del {home_team}\n"
-        if away_stats.get('avg_opponent_cards') is not None and away_stats.get('avg_team_cards') is not None:
-            away_venue_analysis += f"- Promedio de tarjetas: {away_stats['avg_opponent_cards']:.1f} del {away_team} vs {away_stats['avg_team_cards']:.1f} del {home_team}\n"
+        away_venue_analysis = tr(
+            lang, "away_header", home=home_team, away=away_team, n=total_away_matches,
+            w=wins, d=draws, l=losses, b=btts_count, o=over25_count,
+            og=away_stats['avg_opponent_goals'], tg=away_stats['avg_team_goals'],
+        )
+        for stat_key, line_key in (("shots", "line_shots"), ("shots_on_target", "line_sot"),
+                                   ("corners", "line_corners"), ("fouls", "line_fouls"), ("cards", "line_cards")):
+            ov, tv = away_stats.get(f"avg_opponent_{stat_key}"), away_stats.get(f"avg_team_{stat_key}")
+            if ov is not None and tv is not None:
+                away_venue_analysis += tr(lang, line_key, a=ov, ta=away_team, b=tv, tb=home_team)
         # avg_goals_home/away se mapean siempre a home_team/away_team (no a
         # "team"/"opponent") para que ambas tarjetas (local y visitante) se
         # lean en el mismo orden visual en el frontend.
@@ -3597,38 +3588,37 @@ def generate_match_narrative(match_info: Dict, stats: Dict, h2h_home: List[Dict]
             "btts_count": btts_count, "over25_count": over25_count,
             "avg_goals_home": round(away_stats['avg_team_goals'], 1),
             "avg_goals_away": round(away_stats['avg_opponent_goals'], 1),
-            "items": _venue_stat_items(away_stats, "team", "opponent"),
+            "items": _venue_stat_items(away_stats, "team", "opponent", lang),
         }
-    
+
     # 4. COMPARACIÓN CON PREDICCIÓN ACTUAL
     pred_goals_total = (match_info["pred_home_goals"] or 0) + (match_info["pred_away_goals"] or 0)
-    prediction_analysis = f"""Predicción para este partido:
-- Goles esperados: {match_info['pred_home_goals']:.1f} - {match_info['pred_away_goals']:.1f} (Total: {pred_goals_total:.1f})
-- Histórico: {stats['avg_total_goals']:.1f} goles promedio
+    prediction_analysis = tr(
+        lang, "pred_header", h=match_info['pred_home_goals'], a=match_info['pred_away_goals'],
+        t=pred_goals_total, avg=stats['avg_total_goals'],
+    )
 
-"""
-    
     if abs(pred_goals_total - stats['avg_total_goals']) < 0.5:
-        prediction_analysis += "La predicción se alinea con el histórico reciente."
+        prediction_analysis += tr(lang, "pred_aligned")
     elif pred_goals_total > stats['avg_total_goals'] + 0.5:
-        prediction_analysis += f"Se espera un partido con más goles que el promedio histórico (+{pred_goals_total - stats['avg_total_goals']:.1f} goles)."
+        prediction_analysis += tr(lang, "pred_more", d=pred_goals_total - stats['avg_total_goals'])
     else:
-        prediction_analysis += f"Se espera un partido con menos goles que el promedio histórico ({pred_goals_total - stats['avg_total_goals']:.1f} goles)."
-    
+        prediction_analysis += tr(lang, "pred_less", d=pred_goals_total - stats['avg_total_goals'])
+
     # 5. CONCLUSIÓN
-    conclusion = f"""Tendencia: Los enfrentamientos directos muestran """
+    conclusion = tr(lang, "concl_intro")
     if stats['avg_total_goals'] >= 3:
-        conclusion += "partidos con muchos goles"
+        conclusion += tr(lang, "concl_high")
     elif stats['avg_total_goals'] >= 2:
-        conclusion += "partidos equilibrados"
+        conclusion += tr(lang, "concl_mid")
     else:
-        conclusion += "partidos cerrados y defensivos"
-    
+        conclusion += tr(lang, "concl_low")
+
     if stats['avg_total_corners'] is not None and stats['avg_total_cards'] is not None:
-        conclusion += f", con un promedio de {stats['avg_total_corners']:.0f} corners y {stats['avg_total_cards']:.0f} tarjetas por partido."
+        conclusion += tr(lang, "concl_extra", c=stats['avg_total_corners'], k=stats['avg_total_cards'])
     else:
         conclusion += "."
-    
+
     return {
         "summary": summary,
         "home_venue_analysis": home_venue_analysis,
