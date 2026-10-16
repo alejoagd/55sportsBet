@@ -56,15 +56,40 @@ function isToday(m: { date: string; kickoff_at: string | null }): boolean {
 function TeamLogo({ url, alt }: { url: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
   if (!url || failed) {
-    return <span className="text-base leading-none shrink-0">⚽</span>;
+    return (
+      <span className="w-6 h-6 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0 text-xs">⚽</span>
+    );
   }
   return (
     <img
       src={url}
       alt={alt}
-      className="w-5 h-5 object-contain shrink-0"
+      className="w-6 h-6 object-contain shrink-0"
       onError={() => setFailed(true)}
     />
+  );
+}
+
+// Una fila por equipo (escudo + nombre + goles), como en Sofascore/Flashscore:
+// el nombre ocupa todo el ancho disponible y se recorta con "…" en vez de
+// partirse letra por letra, sin importar qué tan angosta quede la tarjeta
+// (tablet con el menú de ligas abierto, por ejemplo).
+function TeamLine({ name, logo, goals, winner }: { name: string; logo: string | null; goals: number | null; winner: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <TeamLogo url={logo} alt={name} />
+      <span
+        className={`flex-1 min-w-0 truncate text-sm ${winner ? 'font-bold text-white' : 'font-medium text-slate-200'}`}
+        title={name}
+      >
+        {name}
+      </span>
+      {goals !== null && (
+        <span className={`w-5 text-right text-base tabular-nums ${winner ? 'font-bold text-white' : 'font-semibold text-slate-300'}`}>
+          {goals}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -83,7 +108,8 @@ export default function TodayAllLeaguesView() {
       .finally(() => setLoading(false));
   }, []);
 
-  const todayMatches = matches.filter(m => isToday(m));
+  // Orden cronológico dentro de cada liga
+  const todayMatches = matches.filter(m => isToday(m)).sort((a, b) => (a.kickoff_at ?? '').localeCompare(b.kickoff_at ?? ''));
 
   const byLeague = todayMatches.reduce<Record<string, TodayMatch[]>>((acc, m) => {
     (acc[m.league_name] ||= []).push(m);
@@ -93,11 +119,12 @@ export default function TodayAllLeaguesView() {
   const today = new Date().toLocaleDateString(localeTag(), { weekday: 'long', day: '2-digit', month: 'long' });
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 shadow-xl border border-slate-600">
-          <h1 className="text-2xl font-bold text-white mb-1">📅 {t('today.title')}</h1>
-          <p className="text-slate-300 capitalize">{today}</p>
+    <div className="min-h-screen bg-slate-900 p-4 sm:p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 via-slate-800 to-slate-700/80 rounded-xl p-5 sm:p-6 shadow-xl border border-slate-700">
+          <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-yellow-400/10 blur-2xl" />
+          <h1 className="relative text-xl sm:text-2xl font-bold text-white mb-1">📅 {t('today.title')}</h1>
+          <p className="relative text-slate-300 text-sm capitalize">{today}</p>
         </div>
 
         {loading && (
@@ -113,38 +140,50 @@ export default function TodayAllLeaguesView() {
         )}
 
         {!loading && !error && Object.entries(byLeague).map(([leagueName, leagueMatches]) => (
-          <section key={leagueName} className="space-y-3">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-              <span>{leagueMatches[0].league_emoji}</span>
-              {leagueName}
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {leagueMatches.map((m) => (
-                <div
-                  key={m.match_id}
-                  onClick={() => navigate(`/match/${m.match_id}`, { state: { returnPath: '/' } })}
-                  className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:bg-slate-700/50 transition-colors cursor-pointer"
-                >
-                  <div className="text-slate-400 text-xs mb-2">{formatTime(m.kickoff_at)}</div>
-                  <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                    <div className="flex items-center justify-end gap-2 text-right text-white font-semibold text-sm min-w-0">
-                      <span className="line-clamp-2 break-words leading-tight" title={m.home_team}>{m.home_team}</span>
-                      <TeamLogo url={m.home_team_logo} alt={m.home_team} />
-                    </div>
-                    <div className="text-center min-w-[48px]">
-                      {m.home_goals !== null && m.away_goals !== null ? (
-                        <span className="text-lg font-bold text-white">{m.home_goals} - {m.away_goals}</span>
-                      ) : (
-                        <span className="text-slate-500 text-sm">vs</span>
+          // Una tarjeta por liga con una fila por partido (patrón Flashscore/
+          // Sofascore): usa todo el ancho disponible, con el menú de ligas
+          // abierto o colapsado, y deja a los nombres todo el espacio posible.
+          <section key={leagueName} className="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-800/60 shadow-lg shadow-black/10">
+            <div className="flex items-center gap-2.5 border-b border-slate-700/70 bg-slate-800 px-4 py-2.5">
+              <span className="text-xl leading-none">{leagueMatches[0].league_emoji}</span>
+              <h2 className="text-sm sm:text-base font-bold text-white">{leagueName}</h2>
+              <span className="ml-auto rounded-full bg-slate-900/60 px-2.5 py-0.5 text-xs font-medium text-slate-400">
+                {t('common.matchesCount', { count: leagueMatches.length })}
+              </span>
+            </div>
+            <div className="divide-y divide-slate-700/50">
+              {leagueMatches.map((m) => {
+                const finished = m.home_goals !== null && m.away_goals !== null;
+                return (
+                  <div
+                    key={m.match_id}
+                    onClick={() => navigate(`/match/${m.match_id}`, { state: { returnPath: '/' } })}
+                    className="group flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-700/40 active:bg-slate-700/60"
+                  >
+                    <div className="flex w-20 shrink-0 flex-col items-center justify-center gap-1 text-center">
+                      <span className="whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-300 tabular-nums">
+                        {formatTime(m.kickoff_at)}
+                      </span>
+                      {finished && (
+                        <span className="rounded-full bg-green-500/20 px-1.5 py-0.5 text-[10px] font-bold text-green-400">
+                          {t('matchList.fullTime')}
+                        </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-left text-white font-semibold text-sm min-w-0">
-                      <TeamLogo url={m.away_team_logo} alt={m.away_team} />
-                      <span className="line-clamp-2 break-words leading-tight" title={m.away_team}>{m.away_team}</span>
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 border-l border-slate-700/60 pl-3">
+                      <TeamLine
+                        name={m.home_team} logo={m.home_team_logo} goals={m.home_goals}
+                        winner={finished && m.home_goals! > m.away_goals!}
+                      />
+                      <TeamLine
+                        name={m.away_team} logo={m.away_team_logo} goals={m.away_goals}
+                        winner={finished && m.away_goals! > m.home_goals!}
+                      />
                     </div>
+                    <span className="shrink-0 text-slate-600 transition-colors group-hover:text-yellow-400">›</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         ))}

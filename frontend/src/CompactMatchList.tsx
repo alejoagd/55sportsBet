@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n, { localeTag } from './i18n';
 import { useIsMobile } from './Hooks/useIsMobile';
@@ -258,7 +258,7 @@ function MobileCards({
             <span className="w-1 h-4 bg-yellow-400/70 rounded-full" />
             {formatDateHeader(groupMatches[0])}
           </h3>
-          <div className="space-y-2.5">
+          <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))' }}>
             {groupMatches.map((m) => {
               const row = buildRow(m, mode);
               return (
@@ -336,7 +336,20 @@ export default function CompactMatchList({
   mode: 'upcoming' | 'results';
   onMatchClick: (matchId: number) => void;
 }) {
-  const isMobile = useIsMobile();
+  const isMobileViewport = useIsMobile();
+
+  // La tabla necesita ~720px. Se decide por el ancho REAL del contenedor (no de
+  // la pantalla): en tablet con el menú de ligas abierto la pantalla es ancha
+  // pero el contenido no, y la tabla quedaba cortada a la derecha.
+  const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
+  const [containerNarrow, setContainerNarrow] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!wrapEl) return;
+    const ro = new ResizeObserver(([entry]) => setContainerNarrow(entry.contentRect.width < 720));
+    ro.observe(wrapEl);
+    return () => ro.disconnect();
+  }, [wrapEl]);
+  const isMobile = containerNarrow ?? isMobileViewport;
 
   const groups = useMemo(() => {
     const map = new Map<string, CompactMatch[]>();
@@ -362,7 +375,11 @@ export default function CompactMatchList({
 
   if (groups.length === 0) return null;
 
-  return isMobile
-    ? <MobileCards groups={groups} mode={mode} onMatchClick={onMatchClick} />
-    : <DesktopTable groups={groups} mode={mode} onMatchClick={onMatchClick} />;
+  return (
+    <div ref={setWrapEl}>
+      {isMobile
+        ? <MobileCards groups={groups} mode={mode} onMatchClick={onMatchClick} />
+        : <DesktopTable groups={groups} mode={mode} onMatchClick={onMatchClick} />}
+    </div>
+  );
 }
