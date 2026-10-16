@@ -11,6 +11,7 @@ from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
 from datetime import datetime, date
 import math
+import os
 import time
 import xml.etree.ElementTree as ET
 import requests as http_requests
@@ -47,13 +48,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Predictions API", lifespan=lifespan)
 
-# CORS dev-friendly
+# Orígenes que pueden llamar a la API desde un navegador. Si el dominio del
+# frontend no está acá, el sitio abre pero no carga ningún dato (el navegador
+# bloquea las respuestas). Para sumar uno sin tocar código: variable de
+# entorno CORS_ORIGINS en Render, separada por comas.
+_DEFAULT_CORS_ORIGINS = [
+    "https://55sports-stats.com",
+    "https://www.55sports-stats.com",
+    "https://55sports-bet-q25k.vercel.app",  # dominio anterior de Vercel
+    "http://localhost:5173",                 # desarrollo local
+]
+_extra_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[        
-        "https://55sports-bet-q25k.vercel.app",  # Tu dominio de Vercel
-        "http://localhost:5173",           # Para desarrollo local
-        ],
+    allow_origins=_DEFAULT_CORS_ORIGINS + _extra_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
