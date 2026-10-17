@@ -87,6 +87,8 @@ const es = {
   pendShort: ' (+{{n}} pend.)',
   lessThanValidated: 'Menos de {{n}} recomendaciones validadas',
   validationDone: '✅ Validación completada (MULTILIGA):\n- Validadas: {{validated}}\n- Aciertos: {{hits}}\n- Fallos: {{misses}}\n- Accuracy: {{accuracy}}%',
+  minSampleNote: 'Solo se muestran las puntuaciones con al menos {{n}} partidos analizados.',
+  noScoresMinSample: 'Ninguna puntuación de este tipo llega a {{n}} partidos analizados todavía.',
 };
 const en: typeof es = {
   golesOverUnder25: 'Goals (Over/Under 2.5)',
@@ -176,6 +178,8 @@ const en: typeof es = {
   pendShort: ' (+{{n}} pend.)',
   lessThanValidated: 'Fewer than {{n}} validated recommendations',
   validationDone: '✅ Validation completed (MULTI-LEAGUE):\n- Validated: {{validated}}\n- Hits: {{hits}}\n- Misses: {{misses}}\n- Accuracy: {{accuracy}}%',
+  minSampleNote: 'Only scores with at least {{n}} analyzed matches are shown.',
+  noScoresMinSample: 'No score of this type has reached {{n}} analyzed matches yet.',
 };
 const pt: typeof es = {
   golesOverUnder25: 'Gols (Over/Under 2.5)',
@@ -265,6 +269,8 @@ const pt: typeof es = {
   pendShort: ' (+{{n}} pend.)',
   lessThanValidated: 'Menos de {{n}} recomendações validadas',
   validationDone: '✅ Validação concluída (MULTILIGA):\n- Validadas: {{validated}}\n- Acertos: {{hits}}\n- Erros: {{misses}}\n- Accuracy: {{accuracy}}%',
+  minSampleNote: 'Só são exibidas as pontuações com pelo menos {{n}} jogos analisados.',
+  noScoresMinSample: 'Nenhuma pontuação deste tipo chegou a {{n}} jogos analisados ainda.',
 };
 const fr: typeof es = {
   golesOverUnder25: 'Buts (Over/Under 2.5)',
@@ -354,5 +360,7 @@ const fr: typeof es = {
   pendShort: ' (+{{n}} en att.)',
   lessThanValidated: 'Moins de {{n}} recommandations validées',
   validationDone: '✅ Validation terminée (MULTI-LIGUES) :\n- Validés : {{validated}}\n- Réussites : {{hits}}\n- Échecs : {{misses}}\n- Accuracy : {{accuracy}} %',
+  minSampleNote: 'Seuls les scores avec au moins {{n}} matchs analysés sont affichés.',
+  noScoresMinSample: 'Aucun score de ce type n\'atteint encore {{n}} matchs analysés.',
 };
 export default { es, en, pt, fr };
