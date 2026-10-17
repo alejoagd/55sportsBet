@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 from src.config import settings
 from src.narrative_i18n import tr, norm_lang
+from src.predictions.h2h_scoring_system import MIN_H2H_MATCHES
 from src.predictions.evaluate import evaluate
 from src.predictions.metrics import metrics_by_model
 from datetime import datetime, date
@@ -37,6 +38,13 @@ async def lifespan(app: FastAPI):
                 conn.execute(text(
                     "ALTER TABLE matches ADD COLUMN IF NOT EXISTS penalty_winner TEXT"
                 ))
+                # Denominador del H2H Score (cuántos enfrentamientos con dato respaldan
+                # el puntaje): solo se cuentan pronósticos con 12. Aditivo y sin default:
+                # las filas viejas quedan en NULL hasta recontarlas
+                # (src/scripts/recount_h2h_scoring.py) y no entran a las estadísticas.
+                for _stat in ("goles", "tiros", "tiros_al_arco", "corners", "tarjetas", "faltas"):
+                    conn.execute(text(f"ALTER TABLE h2h_scoring ADD COLUMN IF NOT EXISTS {_stat}_valid INTEGER"))
+                conn.execute(text("ALTER TABLE h2h_recommended_picks ADD COLUMN IF NOT EXISTS valid_matches INTEGER"))
             break
         except OperationalError as e:
             last_exc = e
@@ -4882,6 +4890,7 @@ def get_h2h_score_effectiveness_by_league(
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.tiros_score IS NOT NULL
                 AND h2h.tiros_hit IS NOT NULL
+                AND h2h.tiros_valid >= {MIN_H2H_MATCHES}
                 {where_sql}
                 GROUP BY l.name, h2h.tiros_score
 
@@ -4901,6 +4910,7 @@ def get_h2h_score_effectiveness_by_league(
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.tiros_al_arco_score IS NOT NULL
                 AND h2h.tiros_al_arco_hit IS NOT NULL
+                AND h2h.tiros_al_arco_valid >= {MIN_H2H_MATCHES}
                 {where_sql}
                 GROUP BY l.name, h2h.tiros_al_arco_score
 
@@ -4920,6 +4930,7 @@ def get_h2h_score_effectiveness_by_league(
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.corners_score IS NOT NULL
                 AND h2h.corners_hit IS NOT NULL
+                AND h2h.corners_valid >= {MIN_H2H_MATCHES}
                 {where_sql}
                 GROUP BY l.name, h2h.corners_score
 
@@ -4939,6 +4950,7 @@ def get_h2h_score_effectiveness_by_league(
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.tarjetas_score IS NOT NULL
                 AND h2h.tarjetas_hit IS NOT NULL
+                AND h2h.tarjetas_valid >= {MIN_H2H_MATCHES}
                 {where_sql}
                 GROUP BY l.name, h2h.tarjetas_score
 
@@ -4958,6 +4970,7 @@ def get_h2h_score_effectiveness_by_league(
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.faltas_score IS NOT NULL
                 AND h2h.faltas_hit IS NOT NULL
+                AND h2h.faltas_valid >= {MIN_H2H_MATCHES}
                 {where_sql}
                 GROUP BY l.name, h2h.faltas_score
 
@@ -4977,6 +4990,7 @@ def get_h2h_score_effectiveness_by_league(
                 JOIN leagues l ON l.id = s.league_id
                 WHERE h2h.goles_score IS NOT NULL
                 AND h2h.goles_hit IS NOT NULL
+                AND h2h.goles_valid >= {MIN_H2H_MATCHES}
                 {where_sql}
                 GROUP BY l.name, h2h.goles_score
 

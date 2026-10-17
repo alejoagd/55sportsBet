@@ -71,6 +71,8 @@ El proyecto se creó en Windows (PowerShell); los documentos viejos (`docs/Flujo
 
 **Modelos:** `src/poisson/` (probabilidades por goles esperados), `src/weinston/` (ratings ajustados con `fit`), `src/predictions/` (predicciones de próximos partidos, `league_context.py` con parámetros por liga, `h2h_scoring_system.py` para picks basados en historial H2H, evaluación y métricas).
 
+**H2H Score:** el puntaje (`<stat>_score`) son los aciertos de los últimos 12 enfrentamientos directos *anteriores* al partido y el denominador (`<stat>_valid`) cuántos tenían dato de esa estadística. Solo cuentan pronósticos con denominador 12 (`MIN_H2H_MATCHES`) y celdas (liga + stat + puntaje) con 10+ pronósticos (`MIN_CELL_SAMPLE`); un 2/2 o 2/4 no es una tendencia. Los ids de `seasons` van al revés del tiempo, por eso el H2H se corta por fecha, nunca por `season_id`. Las filas viejas se completan con `python -m src.scripts.recount_h2h_scoring` (simula por defecto, no toca líneas ni `*_hit`, y se niega a correr contra una BD no local).
+
 **API:** `src/api.py` es un único archivo grande (~6000 líneas) con endpoints en `@app` y en un `router` incluido al final. Los modelos Pydantic de respuesta están definidos en el mismo archivo junto a cada endpoint.
 
 **Automatización (GitHub Actions):**
