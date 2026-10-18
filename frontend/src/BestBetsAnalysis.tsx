@@ -16,6 +16,11 @@ import i18n, { localeTag } from './i18n';
 // Por debajo de esto, un accuracy% se marca visualmente como poco confiable —
 // una sola apuesta acertada mostrando "100%" no es una tendencia.
 const LOW_SAMPLE_THRESHOLD = 10;
+// Panel "Validación del Sistema de Puntuación H2H": solo se muestran las
+// celdas (liga, stat, puntuación) con al menos esta cantidad de pronósticos.
+// (Que cada pronóstico venga de 12 partidos H2H lo exige el backend: el
+// endpoint solo devuelve filas con denominador 12.)
+const H2H_PANEL_MIN_SAMPLE = 10;
 
 interface H2HScoreEntry {
   score: number;
@@ -628,24 +633,31 @@ export default function BestBetsAnalysis() {
             }
           }
           const top4 = flat
-            .filter(e => e.total >= LOW_SAMPLE_THRESHOLD)
+            .filter(e => e.total >= H2H_PANEL_MIN_SAMPLE)
             .sort((a, b) => b.accuracy - a.accuracy)
             .slice(0, 4);
 
-          const leagues = Object.keys(h2hData.h2h_effectiveness).sort();
+          const allLeagues = Object.keys(h2hData.h2h_effectiveness).sort();
           const statsAvailable = Array.from(
-            new Set(leagues.flatMap(l => Object.keys(h2hData.h2h_effectiveness[l])))
+            new Set(allLeagues.flatMap(l => Object.keys(h2hData.h2h_effectiveness[l])))
           );
           const activeStat = statsAvailable.includes(selectedStat) ? selectedStat : statsAvailable[0];
 
-          const cellFor = (league: string, score: number): H2HScoreEntry | undefined =>
-            h2hData.h2h_effectiveness[league]?.[activeStat]?.find(e => e.score === score);
+          // Una celda con menos de H2H_PANEL_MIN_SAMPLE pronósticos se trata como vacía.
+          const cellFor = (league: string, score: number): H2HScoreEntry | undefined => {
+            const cell = h2hData.h2h_effectiveness[league]?.[activeStat]?.find(e => e.score === score);
+            return cell && cell.total >= H2H_PANEL_MIN_SAMPLE ? cell : undefined;
+          };
+          // Solo filas (puntuaciones) y columnas (ligas) con al menos una celda visible.
+          const leagues = allLeagues.filter(l => Array.from({ length: 13 }, (_, i) => i).some(sc => cellFor(l, sc)));
+          const scoreRows = Array.from({ length: 13 }, (_, i) => 12 - i)
+            .filter(sc => allLeagues.some(l => cellFor(l, sc)));
 
           return (
             <>
               {/* Top 4 más efectivas de todas las ligas */}
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-slate-300 mb-3">{i18n.t('bestBetsAnalysis.top4Title', { n: LOW_SAMPLE_THRESHOLD })}</h3>
+                <h3 className="text-sm font-semibold text-slate-300 mb-3">{i18n.t('bestBetsAnalysis.top4Title', { n: H2H_PANEL_MIN_SAMPLE })}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {top4.map((e, i) => (
                     <div key={i} className={`rounded-lg p-4 border ${getAccuracyBgColor(e.accuracy)} border-slate-700`}>
@@ -682,6 +694,10 @@ export default function BestBetsAnalysis() {
                     ))}
                   </div>
                 </div>
+                <p className="text-slate-500 text-xs mb-3">{i18n.t('bestBetsAnalysis.minSampleNote', { n: H2H_PANEL_MIN_SAMPLE })}</p>
+                {scoreRows.length === 0 ? (
+                  <div className="text-slate-500 text-sm py-6 text-center">{i18n.t('bestBetsAnalysis.noScoresMinSample', { n: H2H_PANEL_MIN_SAMPLE })}</div>
+                ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
@@ -693,23 +709,22 @@ export default function BestBetsAnalysis() {
                       </tr>
                     </thead>
                     <tbody>
-                      {Array.from({ length: 13 }, (_, i) => 12 - i).map(score => (
+                      {scoreRows.map(score => (
                         <tr key={score} className="border-b border-slate-700/50">
                           <td className="text-white p-2 font-bold">{score}/12</td>
                           {leagues.map(league => {
                             const data = cellFor(league, score);
-                            const lowSample = data && data.total < LOW_SAMPLE_THRESHOLD;
                             return (
                               <td key={league} className="p-1.5 text-center">
                                 {!data ? (
                                   <span className="text-slate-600">—</span>
                                 ) : (
                                   <div
-                                    className={`inline-flex flex-col items-center rounded px-2 py-1 ${getAccuracyBgColor(data.accuracy)} ${lowSample ? 'opacity-60' : ''}`}
-                                    title={lowSample ? i18n.t('bestBetsAnalysis.lowSampleMatches', { n: data.total }) : undefined}
+                                    className={`inline-flex flex-col items-center rounded px-2 py-1 ${getAccuracyBgColor(data.accuracy)}`}
+                                    title={i18n.t('bestBetsAnalysis.matchesAnalyzed', { n: data.total })}
                                   >
                                     <span className={`font-bold ${getAccuracyColor(data.accuracy)}`}>
-                                      {lowSample && '⚠️ '}{data.accuracy.toFixed(0)}%
+                                      {data.accuracy.toFixed(0)}%
                                     </span>
                                     <span className="text-slate-500 text-[10px]">{data.total}</span>
                                   </div>
@@ -722,6 +737,7 @@ export default function BestBetsAnalysis() {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             </>
           );

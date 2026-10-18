@@ -5,6 +5,16 @@ from sqlalchemy import text, Connection
 from src.db import engine
 from datetime import datetime
 
+# Un puntaje H2H solo es comparable si salió de 12 enfrentamientos previos con
+# dato de esa estadística (1/12, 2/12, 7/12…). Con menos (2/2, 2/4, 4/8) la
+# "tendencia" no dice nada, así que esos pronósticos no entran a ninguna
+# estadística ni recomendación.
+MIN_H2H_MATCHES = 12
+# Mínimo de pronósticos con la misma puntuación (por liga y estadística) para
+# considerar válida su efectividad.
+MIN_CELL_SAMPLE = 10
+
+
 def calculate_h2h_scoring(
     match_id: int,
     home_team_id: int,
@@ -42,7 +52,7 @@ def calculate_h2h_scoring(
             return {"error": "No hay predicciones de Weinston para este partido"}
         
         # 2. Obtener enfrentamientos directos históricos
-        h2h_matches = _get_h2h_matches(conn, home_team_id, away_team_id, season_id, match_id, n_recent)
+        h2h_matches = _get_h2h_matches(conn, home_team_id, away_team_id, match_id, n_recent)
         if len(h2h_matches) < 3:  # Mínimo 3 partidos para análisis
             return {"error": f"Pocos datos H2H: solo {len(h2h_matches)} partidos"}
         
@@ -173,14 +183,19 @@ def _get_h2h_matches(
     conn: Connection, 
     home_team_id: int, 
     away_team_id: int, 
-    current_season_id: int,
     match_id: int,
     n_recent: int
 ) -> List[Dict[str, Any]]:
     """
-    Obtiene los últimos N enfrentamientos directos entre estos equipos.
+    Obtiene los últimos N enfrentamientos directos ANTERIORES a este partido.
     Incluye tanto partidos donde home_team jugó de local vs away_team,
     como partidos donde away_team jugó de local vs home_team.
+
+    El corte es por FECHA, no por id de temporada: los ids de temporada van al
+    revés del tiempo (2025/26 = 29, 2024/25 = 30, … 2012/13 = 42), y la
+    condición anterior (season_id <= actual) dejaba a los partidos de la
+    temporada más reciente viendo solo su propia temporada (1-2 H2H) y a los
+    viejos viendo partidos posteriores a ellos.
     """
     query = text("""
         SELECT 
@@ -228,10 +243,10 @@ def _get_h2h_matches(
         JOIN seasons s ON s.id = m.season_id
         LEFT JOIN match_stats ms ON ms.match_id = m.id
         
-        WHERE m.season_id <= :current_season_id  -- Incluir temporada actual y anteriores
-          AND m.home_goals IS NOT NULL  -- Solo partidos finalizados
+        WHERE m.home_goals IS NOT NULL  -- Solo partidos finalizados
           AND m.away_goals IS NOT NULL
           AND m.id != :match_id  -- Excluir el partido actual que estamos analizando
+          AND m.date < (SELECT date FROM matches WHERE id = :match_id)  -- Solo anteriores a este partido
           AND (
               (m.home_team_id = :home_team_id AND m.away_team_id = :away_team_id) OR
               (m.home_team_id = :away_team_id AND m.away_team_id = :home_team_id)
@@ -244,7 +259,6 @@ def _get_h2h_matches(
     results = conn.execute(query, {
         "home_team_id": home_team_id,
         "away_team_id": away_team_id,
-        "current_season_id": current_season_id,
         "match_id": match_id,
         "n_recent": n_recent
     }).mappings().all()
@@ -465,36 +479,42 @@ def save_h2h_scoring_to_db(
             if "goles" in scoring_results and scoring_results["goles"]["score"] is not None:
                 data["goles_score"] = scoring_results["goles"]["score"]
                 data["goles_prediction"] = scoring_results["goles"]["prediction"]
+                data["goles_valid"] = scoring_results["goles"]["valid_matches"]
                 data["goles_hit"] = None  # Se actualizará después del partido
 
             # Tiros
             if "tiros" in scoring_results and scoring_results["tiros"]["score"] is not None:
                 data["tiros_score"] = scoring_results["tiros"]["score"]
                 data["tiros_prediction"] = scoring_results["tiros"]["prediction"]
+                data["tiros_valid"] = scoring_results["tiros"]["valid_matches"]
                 data["tiros_hit"] = None
 
             # Tiros al arco
             if "tiros_al_arco" in scoring_results and scoring_results["tiros_al_arco"]["score"] is not None:
                 data["tiros_al_arco_score"] = scoring_results["tiros_al_arco"]["score"]
                 data["tiros_al_arco_prediction"] = scoring_results["tiros_al_arco"]["prediction"]
+                data["tiros_al_arco_valid"] = scoring_results["tiros_al_arco"]["valid_matches"]
                 data["tiros_al_arco_hit"] = None
 
             # Corners
             if "corners" in scoring_results and scoring_results["corners"]["score"] is not None:
                 data["corners_score"] = scoring_results["corners"]["score"]
                 data["corners_prediction"] = scoring_results["corners"]["prediction"]
+                data["corners_valid"] = scoring_results["corners"]["valid_matches"]
                 data["corners_hit"] = None
 
             # Tarjetas
             if "tarjetas" in scoring_results and scoring_results["tarjetas"]["score"] is not None:
                 data["tarjetas_score"] = scoring_results["tarjetas"]["score"]
                 data["tarjetas_prediction"] = scoring_results["tarjetas"]["prediction"]
+                data["tarjetas_valid"] = scoring_results["tarjetas"]["valid_matches"]
                 data["tarjetas_hit"] = None
 
             # Faltas
             if "faltas" in scoring_results and scoring_results["faltas"]["score"] is not None:
                 data["faltas_score"] = scoring_results["faltas"]["score"]
                 data["faltas_prediction"] = scoring_results["faltas"]["prediction"]
+                data["faltas_valid"] = scoring_results["faltas"]["valid_matches"]
                 data["faltas_hit"] = None
 
             # Construir query de inserción/actualización
@@ -631,26 +651,27 @@ def get_top_upcoming_h2h_picks(
                    COUNT(*) as total,
                    ROUND(AVG(CASE WHEN x.hit THEN 100.0 ELSE 0.0 END), 1) as accuracy
             FROM (
-                SELECT match_id, 'goles' as stat, goles_score as score, goles_hit as hit FROM h2h_scoring WHERE goles_score IS NOT NULL AND goles_hit IS NOT NULL
+                SELECT match_id, 'goles' as stat, goles_score as score, goles_hit as hit FROM h2h_scoring WHERE goles_score IS NOT NULL AND goles_hit IS NOT NULL AND goles_valid >= :min_h2h
                 UNION ALL
-                SELECT match_id, 'tiros', tiros_score, tiros_hit FROM h2h_scoring WHERE tiros_score IS NOT NULL AND tiros_hit IS NOT NULL
+                SELECT match_id, 'tiros', tiros_score, tiros_hit FROM h2h_scoring WHERE tiros_score IS NOT NULL AND tiros_hit IS NOT NULL AND tiros_valid >= :min_h2h
                 UNION ALL
-                SELECT match_id, 'tiros_al_arco', tiros_al_arco_score, tiros_al_arco_hit FROM h2h_scoring WHERE tiros_al_arco_score IS NOT NULL AND tiros_al_arco_hit IS NOT NULL
+                SELECT match_id, 'tiros_al_arco', tiros_al_arco_score, tiros_al_arco_hit FROM h2h_scoring WHERE tiros_al_arco_score IS NOT NULL AND tiros_al_arco_hit IS NOT NULL AND tiros_al_arco_valid >= :min_h2h
                 UNION ALL
-                SELECT match_id, 'faltas', faltas_score, faltas_hit FROM h2h_scoring WHERE faltas_score IS NOT NULL AND faltas_hit IS NOT NULL
+                SELECT match_id, 'faltas', faltas_score, faltas_hit FROM h2h_scoring WHERE faltas_score IS NOT NULL AND faltas_hit IS NOT NULL AND faltas_valid >= :min_h2h
                 UNION ALL
-                SELECT match_id, 'tarjetas', tarjetas_score, tarjetas_hit FROM h2h_scoring WHERE tarjetas_score IS NOT NULL AND tarjetas_hit IS NOT NULL
+                SELECT match_id, 'tarjetas', tarjetas_score, tarjetas_hit FROM h2h_scoring WHERE tarjetas_score IS NOT NULL AND tarjetas_hit IS NOT NULL AND tarjetas_valid >= :min_h2h
                 UNION ALL
-                SELECT match_id, 'corners', corners_score, corners_hit FROM h2h_scoring WHERE corners_score IS NOT NULL AND corners_hit IS NOT NULL
+                SELECT match_id, 'corners', corners_score, corners_hit FROM h2h_scoring WHERE corners_score IS NOT NULL AND corners_hit IS NOT NULL AND corners_valid >= :min_h2h
             ) x
             JOIN matches m ON m.id = x.match_id
             JOIN seasons s ON s.id = m.season_id
             JOIN leagues l ON l.id = s.league_id
             GROUP BY l.name, x.stat, x.score
+            HAVING COUNT(*) >= :min_cell
         """)
         accuracy_lookup: Dict[Tuple[str, str, int], Tuple[float, int]] = {
             (row.league, row.stat, row.score): (float(row.accuracy), row.total)
-            for row in conn.execute(accuracy_query).fetchall()
+            for row in conn.execute(accuracy_query, {"min_h2h": MIN_H2H_MATCHES, "min_cell": MIN_CELL_SAMPLE}).fetchall()
         }
 
         # 2) partidos a analizar: "este fin de semana" (viernes-lunes) por defecto,
@@ -698,6 +719,8 @@ def get_top_upcoming_h2h_picks(
             score = result.get("score")
             if score is None:
                 continue
+            if (result.get("valid_matches") or 0) < MIN_H2H_MATCHES:
+                continue  # 2/2, 2/4, 4/8… no es una tendencia: no se recomienda
             lookup = accuracy_lookup.get((c["league"], stat, score))
             if not lookup:
                 continue
@@ -761,10 +784,10 @@ def _record_recommended_picks(picks: List[Dict[str, Any]]) -> None:
             conn.execute(text("""
                 INSERT INTO h2h_recommended_picks
                     (match_id, stat, score, league, prediction, line,
-                     historical_accuracy_at_time, historical_sample_at_time)
+                     historical_accuracy_at_time, historical_sample_at_time, valid_matches)
                 VALUES
                     (:match_id, :stat, :score, :league, :prediction, :line,
-                     :hist_acc, :hist_sample)
+                     :hist_acc, :hist_sample, :valid)
                 ON CONFLICT (match_id, stat) DO NOTHING
             """), {
                 "match_id": p["match_id"],
@@ -775,6 +798,7 @@ def _record_recommended_picks(picks: List[Dict[str, Any]]) -> None:
                 "line": p.get("line"),
                 "hist_acc": p["historical_accuracy"],
                 "hist_sample": p["historical_sample"],
+                "valid": p["h2h_valid_matches"],
             })
 
 
@@ -848,16 +872,18 @@ def get_recommended_picks_accuracy() -> Dict[str, Any]:
                        / NULLIF(COUNT(*) FILTER (WHERE hit IS NOT NULL), 0),
                    1) as accuracy_pct
             FROM h2h_recommended_picks
+            WHERE valid_matches >= :min_h2h
             GROUP BY score
             ORDER BY score DESC
-        """)).mappings().all()
+        """), {"min_h2h": MIN_H2H_MATCHES}).mappings().all()
 
         overall = conn.execute(text("""
             SELECT COUNT(*) as total,
                    COUNT(*) FILTER (WHERE hit IS NOT NULL) as validated,
                    COUNT(*) FILTER (WHERE hit = true) as hits
             FROM h2h_recommended_picks
-        """)).mappings().first()
+            WHERE valid_matches >= :min_h2h
+        """), {"min_h2h": MIN_H2H_MATCHES}).mappings().first()
 
     overall_accuracy = (
         round(100.0 * overall["hits"] / overall["validated"], 1)
