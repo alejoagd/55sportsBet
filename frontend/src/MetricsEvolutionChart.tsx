@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import BestBetsAnalysis from './BestBetsAnalysis';
 import BettingLinesStats from './BettingLinesStats';
-import i18n from './i18n';
+import i18n, { localeTag } from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -218,6 +218,7 @@ interface EvolutionData {
 interface ChartDataPoint {
   period: number | string;
   period_label: string;
+  period_full: string;
   poisson_1x2: number | null;
   weinston_1x2: number | null;
   poisson_over25: number | null;
@@ -281,6 +282,46 @@ function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab;
 
 // 'wc2026' no está acá a propósito (pestaña oculta): un ?tab=wc2026 en la URL cae en 'metrics'.
 const VALID_EVOLUTION_TABS: EvolutionTab[] = ['metrics', 'best-bets', 'betting-lines'];
+
+// "2025-08-01 00:00:00-05" / "2025-08-31" -> Date local. Solo se usa el día: la hora y la
+// zona horaria que trae la API para meses y semanas corrían o ensuciaban la etiqueta.
+const parseDay = (s?: string | null): Date | null => {
+  const m = s?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+const fmtDay = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString(localeTag(), opts);
+// Para el eje (poco espacio): "15 de ago de 25" -> "15 ago 25"
+const compact = (t: string) => t.replace(/\s+de\s+/g, ' ').replace(/\./g, '');
+
+// Etiquetas legibles del eje X y del tooltip, siempre con el año, según la agrupación.
+function periodLabels(windowType: string, p: MetricData): { axis: string; full: string } {
+  const start = parseDay(p.period_start);
+  const end = parseDay(p.period_end) ?? start;
+  if (!start || !end) return { axis: String(p.period), full: String(p.period) };
+
+  const short = { day: 'numeric', month: 'short', year: '2-digit' } as const;
+  const long = { day: 'numeric', month: 'short', year: 'numeric' } as const;
+  // Rango "15 – 18 ago 2025" (o "28 ago – 3 sep 2025" si cruza de mes)
+  const range = () => start.getTime() === end.getTime()
+    ? fmtDay(end, long)
+    : `${fmtDay(start, { day: 'numeric', month: 'short' })} – ${fmtDay(end, long)}`;
+
+  if (windowType === 'monthly') {
+    return {
+      axis: compact(fmtDay(start, { month: 'short', year: 'numeric' })),   // ago 2025
+      full: fmtDay(start, { month: 'long', year: 'numeric' }),    // agosto de 2025
+    };
+  }
+  if (windowType === 'weekly') {
+    return { axis: compact(fmtDay(start, short)), full: i18n.t('evolution.tipWeek', { range: range() }) };
+  }
+  if (windowType === 'gameweek') {
+    return { axis: compact(fmtDay(start, short)), full: i18n.t('evolution.tipGameweek', { n: Math.round(Number(p.period)), range: range() }) };
+  }
+  // rolling_5 / rolling_10: ventana de los últimos N partidos que termina en esa fecha
+  const n = Number(windowType.replace('rolling_', '')) || 0;
+  return { axis: compact(fmtDay(end, short)), full: i18n.t('evolution.tipRolling', { n, date: fmtDay(end, long) }) };
+}
 
 export default function MetricsEvolutionChart() {
   // 🎯 Tab inicial: si llega ?tab=best-bets en la URL (ej. al volver de un
@@ -393,9 +434,11 @@ export default function MetricsEvolutionChart() {
   // Combinar datos para la gráfica
   const chartData: ChartDataPoint[] = (data.poisson || []).map((p, idx) => {
     const w = data.weinston[idx] || {} as MetricData;
+    const labels = periodLabels(windowType, p);
     return {
       period: p.period,
-      period_label: `${p.period_start?.slice(5) || p.period}`,
+      period_label: labels.axis,
+      period_full: labels.full,
       poisson_1x2: p.acc_1x2_pct,
       weinston_1x2: w.acc_1x2_pct,
       poisson_over25: p.acc_over25_pct,
@@ -461,7 +504,7 @@ export default function MetricsEvolutionChart() {
         {/* Las 4 métricas a la vez */}
         <div className={`grid grid-cols-1 gap-4 xl:grid-cols-2 transition-opacity ${loading ? 'opacity-50' : ''}`}>
           {cards.map(card => (
-            <MetricCard key={card.key} def={card} data={chartData} />
+            <MetricCard key={card.key} def={card} data={chartData} windowType={windowType} />
           ))}
         </div>
       </div>
@@ -481,7 +524,7 @@ const WINDOW_OPTIONS = [
   { value: 'monthly', labelKey: 'evolution.winMonthly' },
 ];
 
-function MetricCard({ def, data }: { def: MetricCardDef; data: ChartDataPoint[] }) {
+function MetricCard({ def, data, windowType }: { def: MetricCardDef; data: ChartDataPoint[]; windowType: string }) {
   const get = (row: ChartDataPoint, model: 'poisson' | 'weinston') =>
     row[`${model}_${def.key}` as keyof ChartDataPoint] as number | null;
   const decimals = def.key === 'rmse' ? 2 : 1;
@@ -553,7 +596,7 @@ function MetricCard({ def, data }: { def: MetricCardDef; data: ChartDataPoint[] 
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: -18 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-            <XAxis dataKey="period_label" stroke="#64748b" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={28} />
+            <XAxis dataKey="period_label" stroke="#64748b" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={windowType === 'monthly' ? 6 : 28} />
             <YAxis
               stroke="#64748b"
               tick={{ fontSize: 10 }}
@@ -563,6 +606,7 @@ function MetricCard({ def, data }: { def: MetricCardDef; data: ChartDataPoint[] 
             <Tooltip
               contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', fontSize: '12px' }}
               labelStyle={{ color: '#e2e8f0' }}
+              labelFormatter={(label, payload) => payload?.[0]?.payload?.period_full ?? label}
               formatter={(v) => (typeof v === 'number' ? fmt(v) : v)}
             />
             {models.map(m => (

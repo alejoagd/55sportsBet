@@ -53,6 +53,9 @@ const es = {
   vsPrev: 'vs período anterior',
   latest: 'Último período',
   pts: 'pts',
+  tipGameweek: 'Jornada {{n}} · {{range}}',
+  tipWeek: 'Semana del {{range}}',
+  tipRolling: 'Últimos {{n}} partidos hasta el {{date}}',
 };
 const en: typeof es = {
   cargandoMetricasDelMundial: 'Loading World Cup metrics...',
@@ -108,6 +111,9 @@ const en: typeof es = {
   vsPrev: 'vs previous period',
   latest: 'Latest period',
   pts: 'pts',
+  tipGameweek: 'Matchday {{n}} · {{range}}',
+  tipWeek: 'Week of {{range}}',
+  tipRolling: 'Last {{n}} matches up to {{date}}',
 };
 const pt: typeof es = {
   cargandoMetricasDelMundial: 'Carregando métricas da Copa do Mundo...',
@@ -163,6 +169,9 @@ const pt: typeof es = {
   vsPrev: 'vs período anterior',
   latest: 'Último período',
   pts: 'pts',
+  tipGameweek: 'Rodada {{n}} · {{range}}',
+  tipWeek: 'Semana de {{range}}',
+  tipRolling: 'Últimos {{n}} jogos até {{date}}',
 };
 const fr: typeof es = {
   cargandoMetricasDelMundial: 'Chargement des métriques de la Coupe du monde...',
@@ -218,5 +227,8 @@ const fr: typeof es = {
   vsPrev: 'vs période précédente',
   latest: 'Dernière période',
   pts: 'pts',
+  tipGameweek: 'Journée {{n}} · {{range}}',
+  tipWeek: 'Semaine du {{range}}',
+  tipRolling: '{{n}} derniers matchs jusqu\'au {{date}}',
 };
 export default { es, en, pt, fr };
