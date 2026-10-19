@@ -209,10 +209,27 @@ interface MetricData {
   avg_rmse: number | null;
 }
 
+interface ModelAcc {
+  acc_1x2_pct: number | null;
+  acc_over25_pct: number | null;
+  acc_btts_pct: number | null;
+  avg_rmse: number | null;
+}
+
+interface LeagueAccuracy {
+  league: string;
+  matches: number;
+  poisson?: ModelAcc;
+  weinston?: ModelAcc;
+}
+
 interface EvolutionData {
   window_type: string;
   poisson: MetricData[];
   weinston: MetricData[];
+  season_ids?: number[];
+  by_league?: LeagueAccuracy[];
+  leagues_without_outcomes?: string[];
 }
 
 interface ChartDataPoint {
@@ -228,12 +245,6 @@ interface ChartDataPoint {
   poisson_rmse: number | null;
   weinston_rmse: number | null;
   total_matches: number;
-}
-
-interface Filters {
-  season_id: number;
-  date_from: string;
-  date_to: string;
 }
 
 type EvolutionTab = 'metrics' | 'best-bets' | 'betting-lines' | 'wc2026';
@@ -336,32 +347,17 @@ export default function MetricsEvolutionChart() {
   const [loading, setLoading] = useState<boolean>(true);
   const [windowType, setWindowType] = useState<string>('gameweek');
   
-  const [filters] = useState<Filters>({
-    season_id: 2,
-    date_from: '2025-08-15',
-    date_to: new Date().toISOString().split('T')[0]
-  });
-
   useEffect(() => {
     if (activeTab === 'metrics') {
       fetchEvolution();
     }
-  }, [filters, windowType, activeTab]);
+  }, [windowType, activeTab]);
 
   const fetchEvolution = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        season_id: filters.season_id.toString(),
-        window_type: windowType
-      });
-      
-      if (filters.date_from) {
-        params.append('date_from', filters.date_from);
-      }
-      if (filters.date_to) {
-        params.append('date_to', filters.date_to);
-      }
+      // Sin season_id: el backend agrega TODAS las ligas activas en su temporada en curso
+      const params = new URLSearchParams({ window_type: windowType });
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(`${API_URL}/api/predictions/evolution?${params}`);
       const result: EvolutionData = await response.json();
@@ -477,6 +473,16 @@ export default function MetricsEvolutionChart() {
             {i18n.t('evolution.analizaElComportamientoDeLos')}</p>
         </div>
 
+        {/* Qué se está mostrando: temporada en curso, todas las ligas con aciertos calculados */}
+        {data.by_league && data.by_league.length > 0 && (
+          <p className="-mt-2 text-xs sm:text-sm text-slate-400">
+            {i18n.t('evolution.currentSeason', {
+              n: data.by_league.reduce((acc, l) => acc + l.matches, 0),
+              leagues: data.by_league.length,
+            })}
+          </p>
+        )}
+
         {/* Leyenda + agrupación (botones, no desplegable) */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4 text-sm font-semibold">
@@ -507,7 +513,62 @@ export default function MetricsEvolutionChart() {
             <MetricCard key={card.key} def={card} data={chartData} windowType={windowType} />
           ))}
         </div>
+
+        {/* Cuánto aciertan los modelos en cada liga */}
+        <LeagueBreakdown rows={data.by_league ?? []} without={data.leagues_without_outcomes ?? []} />
       </div>
+    </div>
+  );
+}
+
+// ── Acierto de cada modelo por liga (temporada en curso) ─────────────────────
+function LeagueBreakdown({ rows, without }: { rows: LeagueAccuracy[]; without: string[] }) {
+  if (rows.length === 0) return null;
+  const cell = (v: number | null | undefined, suffix: string, digits = 1) =>
+    v != null ? `${v.toFixed(digits)}${suffix}` : '—';
+  const cols: { key: keyof ModelAcc; labelKey: string; suffix: string; digits: number }[] = [
+    { key: 'acc_1x2_pct', labelKey: 'evolution.acierto1x2', suffix: '%', digits: 1 },
+    { key: 'acc_over25_pct', labelKey: 'evolution.aciertoOU25', suffix: '%', digits: 1 },
+    { key: 'acc_btts_pct', labelKey: 'evolution.aciertoBtts', suffix: '%', digits: 1 },
+    { key: 'avg_rmse', labelKey: 'evolution.rmseGoles', suffix: '', digits: 2 },
+  ];
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
+      <h3 className="mb-3 text-base font-bold text-white">{i18n.t('evolution.byLeagueTitle')}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs sm:text-sm">
+          <thead>
+            <tr className="border-b border-slate-700 text-slate-400">
+              <th className="px-1.5 py-2 text-left">{i18n.t('evolution.colLeague')}</th>
+              <th className="px-1.5 py-2 text-right">{i18n.t('evolution.colMatches')}</th>
+              {cols.map(c => (
+                <th key={c.key} className="px-1.5 py-2 text-right whitespace-nowrap">{i18n.t(c.labelKey).replace(/\s*\(%\)/, '')}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.league} className="border-b border-slate-700/50">
+                <td className="px-1.5 py-2 font-medium text-white">{r.league}</td>
+                <td className="px-1.5 py-2 text-right tabular-nums text-slate-300">{r.matches}</td>
+                {cols.map(c => (
+                  <td key={c.key} className="px-1.5 py-2 text-right whitespace-nowrap tabular-nums">
+                    <span className="text-blue-400">{cell(r.poisson?.[c.key], c.suffix, c.digits)}</span>
+                    <span className="text-slate-600"> · </span>
+                    <span className="text-orange-400">{cell(r.weinston?.[c.key], c.suffix, c.digits)}</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        <span className="text-blue-400">Poisson</span> · <span className="text-orange-400">Weinston</span>
+      </p>
+      {without.length > 0 && (
+        <p className="mt-1 text-[11px] text-slate-500">{i18n.t('evolution.noOutcomes', { leagues: without.join(', ') })}</p>
+      )}
     </div>
   );
 }
@@ -565,9 +626,9 @@ function MetricCard({ def, data, windowType }: { def: MetricCardDef; data: Chart
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${leader.name === 'Weinston' ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
             {i18n.t('evolution.leadsBy', { model: leader.name, n: `${leader.gap.toFixed(decimals)}${def.suffix === '%' ? ` ${i18n.t('evolution.pts')}` : ''}` })}
           </span>
-        ) : (
+        ) : models[0].avg != null && models[1].avg != null ? (
           <span className="rounded-full bg-slate-700 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300">{i18n.t('evolution.tied')}</span>
-        )}
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

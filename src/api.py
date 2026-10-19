@@ -241,9 +241,35 @@ def get_predictions_metrics(
 router = APIRouter()
 
 
+def _current_seasons(conn) -> List[Dict[str, Any]]:
+    """
+    Temporada en curso de cada liga activa: la que tiene más partidos pendientes
+    (y, a igualdad, la más nueva). Es el mismo criterio que /api/leagues/active, para
+    que "temporada en curso" signifique lo mismo en el menú y en las métricas.
+    """
+    rows = conn.execute(text("""
+        WITH ranked AS (
+            SELECT l.id AS league_id, l.name AS league_name, s.id AS season_id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY l.id
+                       ORDER BY COUNT(DISTINCT m.id) FILTER (WHERE m.home_goals IS NULL AND m.away_goals IS NULL) DESC,
+                                s.year_start DESC
+                   ) AS rn
+            FROM leagues l
+            JOIN seasons s ON s.league_id = l.id
+            LEFT JOIN matches m ON m.season_id = s.id
+            WHERE s.year_start >= 2024 AND l.name != 'FIFA World Cup'
+            GROUP BY l.id, l.name, s.id, s.year_start
+            HAVING COUNT(DISTINCT m.id) > 0
+        )
+        SELECT league_id, league_name, season_id FROM ranked WHERE rn = 1 ORDER BY league_name
+    """)).mappings().all()
+    return [dict(r) for r in rows]
+
+
 @router.get("/api/predictions/evolution")
 def get_metrics_evolution(
-    season_id: int = Query(..., description="ID de la temporada"),
+    season_id: Optional[int] = Query(None, description="ID de la temporada. Si se omite: TODAS las ligas activas en su temporada en curso"),
     date_from: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
     window_type: str = Query("gameweek", description="Tipo de ventana: gameweek, weekly, monthly, rolling_5, rolling_10")
@@ -257,6 +283,11 @@ def get_metrics_evolution(
     - monthly: Agrupa por mes
     - rolling_5: Ventana móvil de últimos 5 partidos
     - rolling_10: Ventana móvil de últimos 10 partidos
+
+    Sin season_id agrega todas las ligas activas en su temporada en curso (la misma
+    que usa el menú lateral). Solo cuentan partidos con acierto calculado
+    (prediction_outcomes): hoy son las 4 ligas europeas; el resto se lista en
+    `leagues_without_outcomes` en vez de ocultarse.
     """
     
     if window_type == "gameweek":
@@ -265,11 +296,14 @@ def get_metrics_evolution(
                 SELECT 
                     m.id as match_id,
                     m.date,
-                    ROW_NUMBER() OVER (PARTITION BY m.season_id ORDER BY m.date) as match_number,
-                    FLOOR((ROW_NUMBER() OVER (PARTITION BY m.season_id ORDER BY m.date) - 1) / 10) + 1 as gameweek
+                    ROW_NUMBER() OVER (ORDER BY m.date, m.id) as match_number,
+                    FLOOR((ROW_NUMBER() OVER (ORDER BY m.date, m.id) - 1) / 10) + 1 as gameweek
                 FROM matches m
-                WHERE m.season_id = :season_id
+                WHERE m.season_id = ANY(:season_ids)
                   AND m.home_goals IS NOT NULL
+                  -- solo partidos con acierto calculado: si no, los bloques de 10 se numeran
+                  -- contando partidos de ligas sin aciertos y salen "jornadas" casi vacías
+                  AND EXISTS (SELECT 1 FROM prediction_outcomes x WHERE x.match_id = m.id)
                   AND (:date_from IS NULL OR m.date >= :date_from)
                   AND (:date_to IS NULL OR m.date <= :date_to)
             ),
@@ -331,7 +365,7 @@ def get_metrics_evolution(
                     AVG(po.rmse_goals) as avg_rmse
                 FROM prediction_outcomes po
                 JOIN matches m ON m.id = po.match_id
-                WHERE m.season_id = :season_id
+                WHERE m.season_id = ANY(:season_ids)
                   AND (:date_from IS NULL OR m.date >= :date_from)
                   AND (:date_to IS NULL OR m.date <= :date_to)
                 GROUP BY po.model, week_start
@@ -362,10 +396,10 @@ def get_metrics_evolution(
                     po.hit_over25,
                     po.hit_btts,
                     po.rmse_goals,
-                    ROW_NUMBER() OVER (PARTITION BY po.model ORDER BY m.date) as rn
+                    ROW_NUMBER() OVER (PARTITION BY po.model ORDER BY m.date, po.match_id) as rn
                 FROM prediction_outcomes po
                 JOIN matches m ON m.id = po.match_id
-                WHERE m.season_id = :season_id
+                WHERE m.season_id = ANY(:season_ids)
                   AND (:date_from IS NULL OR m.date >= :date_from)
                   AND (:date_to IS NULL OR m.date <= :date_to)
             ),
@@ -429,7 +463,7 @@ def get_metrics_evolution(
                     AVG(po.rmse_goals) as avg_rmse
                 FROM prediction_outcomes po
                 JOIN matches m ON m.id = po.match_id
-                WHERE m.season_id = :season_id
+                WHERE m.season_id = ANY(:season_ids)
                   AND (:date_from IS NULL OR m.date >= :date_from)
                   AND (:date_to IS NULL OR m.date <= :date_to)
                 GROUP BY po.model, month_start
@@ -449,11 +483,38 @@ def get_metrics_evolution(
         """)
     
     with engine.begin() as conn:
-        rows = conn.execute(query, {
-            "season_id": season_id,
-            "date_from": date_from,
-            "date_to": date_to
-        }).mappings().all()
+        seasons = _current_seasons(conn) if season_id is None else [
+            {"season_id": season_id, "league_id": None, "league_name": None}]
+        season_ids = [x["season_id"] for x in seasons]
+        params = {"season_ids": season_ids, "date_from": date_from, "date_to": date_to}
+        rows = conn.execute(query, params).mappings().all()
+
+        # Acierto de cada modelo en cada liga (mismo universo de partidos que las series)
+        league_rows = conn.execute(text("""
+            SELECT l.name AS league, po.model,
+                   COUNT(DISTINCT po.match_id) AS matches,
+                   ROUND((AVG(po.hit_1x2::int) * 100)::numeric, 1) AS acc_1x2_pct,
+                   ROUND((AVG(po.hit_over25::int) * 100)::numeric, 1) AS acc_over25_pct,
+                   ROUND((AVG(po.hit_btts::int) * 100)::numeric, 1) AS acc_btts_pct,
+                   ROUND(AVG(po.rmse_goals)::numeric, 3) AS avg_rmse
+            FROM prediction_outcomes po
+            JOIN matches m ON m.id = po.match_id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            WHERE m.season_id = ANY(:season_ids)
+              AND (:date_from IS NULL OR m.date >= :date_from)
+              AND (:date_to IS NULL OR m.date <= :date_to)
+            GROUP BY l.name, po.model
+            ORDER BY l.name, po.model
+        """), params).mappings().all()
+
+        by_league: dict = {}
+        for r in league_rows:
+            entry = by_league.setdefault(r["league"], {"league": r["league"], "matches": r["matches"]})
+            entry[r["model"]] = {k: (float(v) if v is not None else None)
+                                 for k, v in r.items() if k not in ("league", "model", "matches")}
+        with_data = set(by_league)
+        without = [x["league_name"] for x in seasons if x["league_name"] and x["league_name"] not in with_data]
         
         # Transformar a estructura por modelo
         poisson_data = []
@@ -469,7 +530,10 @@ def get_metrics_evolution(
         return {
             "window_type": window_type,
             "poisson": poisson_data,
-            "weinston": weinston_data
+            "weinston": weinston_data,
+            "season_ids": season_ids,
+            "by_league": list(by_league.values()),
+            "leagues_without_outcomes": without,
         }
 
 
