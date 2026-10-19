@@ -265,7 +265,10 @@ const EVOLUTION_TABS: { id: EvolutionTab; icon: string; fullKey?: string; shortK
   { id: 'metrics', icon: '📈', fullKey: 'evolution.tabMetricsFull', shortKey: 'evolution.tabMetrics', activeBorder: 'border-blue-500' },
   { id: 'best-bets', icon: '🎯', fullKey: 'evolution.tabBestBetsFull', shortKey: 'evolution.tabBestBets', activeBorder: 'border-green-500' },
   { id: 'betting-lines', icon: '📊', fullKey: 'evolution.tabLinesFull', shortKey: 'evolution.tabLines', activeBorder: 'border-blue-500' },
-  { id: 'wc2026', icon: '🏆', shortKey: 'evolution.tabWc', activeBorder: 'border-yellow-500' },
+  // Pestaña del Mundial 2026 oculta: el torneo terminó (19 jul 2026). El código de
+  // la vista (activeTab === 'wc2026') se conserva por si se reactiva; para volver a
+  // mostrarla, descomentar esta línea y agregar 'wc2026' a VALID_EVOLUTION_TABS.
+  // { id: 'wc2026', icon: '🏆', shortKey: 'evolution.tabWc', activeBorder: 'border-yellow-500' },
 ];
 
 function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab; setActiveTab: (t: EvolutionTab) => void }) {
@@ -292,7 +295,8 @@ function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab;
   );
 }
 
-const VALID_EVOLUTION_TABS: EvolutionTab[] = ['metrics', 'best-bets', 'betting-lines', 'wc2026'];
+// 'wc2026' no está acá a propósito (pestaña oculta): un ?tab=wc2026 en la URL cae en 'metrics'.
+const VALID_EVOLUTION_TABS: EvolutionTab[] = ['metrics', 'best-bets', 'betting-lines'];
 
 export default function MetricsEvolutionChart() {
   // 🎯 Tab inicial: si llega ?tab=best-bets en la URL (ej. al volver de un
