@@ -21,6 +21,9 @@ const LOW_SAMPLE_THRESHOLD = 10;
 // (Que cada pronóstico venga de 12 partidos H2H lo exige el backend: el
 // endpoint solo devuelve filas con denominador 12.)
 const H2H_PANEL_MIN_SAMPLE = 10;
+// "Historial de Apuestas" oculto: no se muestra ni se pide al servidor. El código se
+// conserva por si se reactiva (poner en true).
+const SHOW_BET_HISTORY = false;
 
 interface H2HScoreEntry {
   score: number;
@@ -279,6 +282,7 @@ export default function BestBetsAnalysis() {
   };
 
   const fetchHistory = async () => {
+    if (!SHOW_BET_HISTORY) return; // sección oculta: no se consulta /api/best-bets/history
     try {
       const validatedParam = showHistory === 'all' ? '' :
                             showHistory === 'validated' ? '&validated=true' :
@@ -824,7 +828,8 @@ export default function BestBetsAnalysis() {
         </ResponsiveContainer>
       </div>
 
-      {/* Historial */}
+      {/* Historial (oculto con SHOW_BET_HISTORY) */}
+      {SHOW_BET_HISTORY && (
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">{i18n.t('bestBetsAnalysis.historialDeApuestas')}</h2>
@@ -912,6 +917,7 @@ export default function BestBetsAnalysis() {
           )}
         </div>
       </div>
+      )}
 
       {/* Explicación */}
       <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
