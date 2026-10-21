@@ -25,6 +25,7 @@ from sqlalchemy import text
 
 from src.db import engine, SessionLocal
 from src.ingest.competitions_config import COMPETITIONS
+from src.predictions.evaluate import evaluate
 from src.predictions.league_context import LeagueContext
 from src.predictions.upcoming_poisson import predict_and_upsert_poisson
 from src.predictions.upcoming_weinston import predict_and_upsert_weinston
@@ -62,6 +63,7 @@ def main(keys: list[str] | None = None) -> None:
     # Con --key solo se reentrena/predice esas competencias: útil cuando
     # entran partidos nuevos a una copa y no hace falta tocar las otras 4.
     comps = [c for c in COMPETITIONS if not keys or c["key"] in keys]
+    season_ids: list[tuple[int, str]] = []
     with engine.begin() as conn:
         for comp in comps:
             row = conn.execute(
@@ -76,6 +78,7 @@ def main(keys: list[str] | None = None) -> None:
                 print(f"⚠️  Sin temporada {CURRENT_YEAR} para {comp['name']}, se omite")
                 continue
             season_id = row.id
+            season_ids.append((season_id, comp["name"]))
 
             _retrain_weinston(season_id, comp["name"])
 
@@ -96,6 +99,15 @@ def main(keys: list[str] | None = None) -> None:
             predict_and_upsert_poisson(conn, season_id, match_ids, league_ctx=league_ctx)
             predict_and_upsert_weinston(conn, season_id, match_ids, league_ctx=league_ctx)
             print(f"   ✅ predicciones generadas")
+
+    # Estas competencias no pasan por el modo "finish" de run_update_automated.py
+    # (el único que llamaba a evaluate), así que prediction_outcomes quedaba vacío
+    # y la pantalla de Evolución no mostraba sus aciertos. Se evalúa en una
+    # transacción aparte y después de predecir: solo cuentan partidos terminados
+    # que ya tenían predicción guardada antes de jugarse; el resto lo omite evaluate().
+    for season_id, name in season_ids:
+        counters = evaluate(season_id=season_id)
+        print(f"📊 {name} (season_id={season_id}): evaluados {counters}")
 
 
 if __name__ == "__main__":
