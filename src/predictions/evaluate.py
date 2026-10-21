@@ -31,6 +31,14 @@ def _argmax_1x2(ph: float, px: float, pa: float) -> str:
     if m == px: return "X"
     return "2"
 
+def goal_errors(exp_home: float, exp_away: float, home_goals: int, away_goals: int) -> tuple[float, float, float]:
+    """(error abs. local, error abs. visitante, rmse del partido). Misma fórmula para
+    los dos modelos, así sus errores de goles son comparables."""
+    ae_h = abs(exp_home - home_goals)
+    ae_a = abs(exp_away - away_goals)
+    return ae_h, ae_a, sqrt((ae_h ** 2 + ae_a ** 2) / 2.0)
+
+
 def evaluate(
     season_id: int,
     date_from: Optional[str] = None,
@@ -47,6 +55,7 @@ def evaluate(
       m.id AS mid, m.season_id, m.date, m.home_goals, m.away_goals,
       pp.prob_home_win, pp.prob_draw, pp.prob_away_win,
       pp.over_2, pp.under_2, pp.both_score, pp.both_noscore,
+      pp.expected_home_goals AS pp_exp_home, pp.expected_away_goals AS pp_exp_away,
       wp.local_goals, wp.away_goals,
       wp.result_1x2,
       wp.over_2 AS win_over2,
@@ -163,12 +172,19 @@ def evaluate(
                 print(f"   Poisson predicciones: 1X2={pick_1x2}, O/U={pick_over}, BTTS={pick_btts}")
                 print(f"   Poisson aciertos: 1X2={hit_1x2}, O/U={hit_over}, BTTS={hit_btts}")
 
+                # El error de goles de Poisson nunca se calculaba (quedaba en None);
+                # los goles esperados ya están guardados en poisson_predictions.
+                if r["pp_exp_home"] is not None and r["pp_exp_away"] is not None:
+                    ae_h, ae_a, rmse = goal_errors(float(r["pp_exp_home"]), float(r["pp_exp_away"]), hg, ag)
+                else:
+                    ae_h = ae_a = rmse = None
+
                 conn.execute(upsert, {
                     "mid": mid, "model": "poisson",
                     "p1x2": pick_1x2, "h1x2": hit_1x2,
                     "pover": pick_over, "hover": hit_over,
                     "pbtts": pick_btts, "hbtts": hit_btts,
-                    "ae_h": None, "ae_a": None, "rmse": None
+                    "ae_h": ae_h, "ae_a": ae_a, "rmse": rmse
                 })
                 counters["poisson"] += 1
             else:
@@ -218,9 +234,7 @@ def evaluate(
                 else:
                     print(f"   Weinston BTTS: No hay predicción válida")
 
-                ae_h = abs(lh - hg)
-                ae_a = abs(la - ag)
-                rmse = sqrt(((lh - hg) ** 2 + (la - ag) ** 2) / 2.0)
+                ae_h, ae_a, rmse = goal_errors(lh, la, hg, ag)
                 
                 print(f"   Weinston errores: RMSE={rmse:.3f}, AE_home={ae_h:.2f}, AE_away={ae_a:.2f}")
 
