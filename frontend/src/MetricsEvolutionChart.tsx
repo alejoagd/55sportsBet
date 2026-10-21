@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import BestBetsAnalysis from './BestBetsAnalysis';
 import BettingLinesStats from './BettingLinesStats';
-import i18n from './i18n';
+import i18n, { localeTag } from './i18n';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -209,15 +209,33 @@ interface MetricData {
   avg_rmse: number | null;
 }
 
+interface ModelAcc {
+  acc_1x2_pct: number | null;
+  acc_over25_pct: number | null;
+  acc_btts_pct: number | null;
+  avg_rmse: number | null;
+}
+
+interface LeagueAccuracy {
+  league: string;
+  matches: number;
+  poisson?: ModelAcc;
+  weinston?: ModelAcc;
+}
+
 interface EvolutionData {
   window_type: string;
   poisson: MetricData[];
   weinston: MetricData[];
+  season_ids?: number[];
+  by_league?: LeagueAccuracy[];
+  leagues_without_outcomes?: string[];
 }
 
 interface ChartDataPoint {
   period: number | string;
   period_label: string;
+  period_full: string;
   poisson_1x2: number | null;
   weinston_1x2: number | null;
   poisson_over25: number | null;
@@ -227,28 +245,6 @@ interface ChartDataPoint {
   poisson_rmse: number | null;
   weinston_rmse: number | null;
   total_matches: number;
-}
-
-interface Filters {
-  season_id: number;
-  date_from: string;
-  date_to: string;
-}
-
-interface MetricOption {
-  value: string;
-  label: string;
-  suffix: string;
-}
-
-interface WindowOption {
-  value: string;
-  label: string;
-}
-
-interface Trend {
-  diff: number;
-  isUp: boolean;
 }
 
 type EvolutionTab = 'metrics' | 'best-bets' | 'betting-lines' | 'wc2026';
@@ -298,6 +294,46 @@ function EvolutionTabBar({ activeTab, setActiveTab }: { activeTab: EvolutionTab;
 // 'wc2026' no está acá a propósito (pestaña oculta): un ?tab=wc2026 en la URL cae en 'metrics'.
 const VALID_EVOLUTION_TABS: EvolutionTab[] = ['metrics', 'best-bets', 'betting-lines'];
 
+// "2025-08-01 00:00:00-05" / "2025-08-31" -> Date local. Solo se usa el día: la hora y la
+// zona horaria que trae la API para meses y semanas corrían o ensuciaban la etiqueta.
+const parseDay = (s?: string | null): Date | null => {
+  const m = s?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+const fmtDay = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString(localeTag(), opts);
+// Para el eje (poco espacio): "15 de ago de 25" -> "15 ago 25"
+const compact = (t: string) => t.replace(/\s+de\s+/g, ' ').replace(/\./g, '');
+
+// Etiquetas legibles del eje X y del tooltip, siempre con el año, según la agrupación.
+function periodLabels(windowType: string, p: MetricData): { axis: string; full: string } {
+  const start = parseDay(p.period_start);
+  const end = parseDay(p.period_end) ?? start;
+  if (!start || !end) return { axis: String(p.period), full: String(p.period) };
+
+  const short = { day: 'numeric', month: 'short', year: '2-digit' } as const;
+  const long = { day: 'numeric', month: 'short', year: 'numeric' } as const;
+  // Rango "15 – 18 ago 2025" (o "28 ago – 3 sep 2025" si cruza de mes)
+  const range = () => start.getTime() === end.getTime()
+    ? fmtDay(end, long)
+    : `${fmtDay(start, { day: 'numeric', month: 'short' })} – ${fmtDay(end, long)}`;
+
+  if (windowType === 'monthly') {
+    return {
+      axis: compact(fmtDay(start, { month: 'short', year: 'numeric' })),   // ago 2025
+      full: fmtDay(start, { month: 'long', year: 'numeric' }),    // agosto de 2025
+    };
+  }
+  if (windowType === 'weekly') {
+    return { axis: compact(fmtDay(start, short)), full: i18n.t('evolution.tipWeek', { range: range() }) };
+  }
+  if (windowType === 'gameweek') {
+    return { axis: compact(fmtDay(start, short)), full: i18n.t('evolution.tipGameweek', { n: Math.round(Number(p.period)), range: range() }) };
+  }
+  // rolling_5 / rolling_10: ventana de los últimos N partidos que termina en esa fecha
+  const n = Number(windowType.replace('rolling_', '')) || 0;
+  return { axis: compact(fmtDay(end, short)), full: i18n.t('evolution.tipRolling', { n, date: fmtDay(end, long) }) };
+}
+
 export default function MetricsEvolutionChart() {
   // 🎯 Tab inicial: si llega ?tab=best-bets en la URL (ej. al volver de un
   // partido con returnPath), arranca ahí en vez de siempre en 'metrics'.
@@ -309,35 +345,19 @@ export default function MetricsEvolutionChart() {
 
   const [data, setData] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedMetric, setSelectedMetric] = useState<string>('acc_1x2_pct');
   const [windowType, setWindowType] = useState<string>('gameweek');
   
-  const [filters] = useState<Filters>({
-    season_id: 2,
-    date_from: '2025-08-15',
-    date_to: new Date().toISOString().split('T')[0]
-  });
-
   useEffect(() => {
     if (activeTab === 'metrics') {
       fetchEvolution();
     }
-  }, [filters, windowType, activeTab]);
+  }, [windowType, activeTab]);
 
   const fetchEvolution = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        season_id: filters.season_id.toString(),
-        window_type: windowType
-      });
-      
-      if (filters.date_from) {
-        params.append('date_from', filters.date_from);
-      }
-      if (filters.date_to) {
-        params.append('date_to', filters.date_to);
-      }
+      // Sin season_id: el backend agrega TODAS las ligas activas en su temporada en curso
+      const params = new URLSearchParams({ window_type: windowType });
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await fetch(`${API_URL}/api/predictions/evolution?${params}`);
       const result: EvolutionData = await response.json();
@@ -389,7 +409,7 @@ export default function MetricsEvolutionChart() {
 
   // 🎯 A partir de aquí es el contenido de Métricas (cuando activeTab === 'metrics')
   
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="min-h-screen bg-slate-900 p-6">
         <div className="flex items-center justify-center h-96">
@@ -410,9 +430,11 @@ export default function MetricsEvolutionChart() {
   // Combinar datos para la gráfica
   const chartData: ChartDataPoint[] = (data.poisson || []).map((p, idx) => {
     const w = data.weinston[idx] || {} as MetricData;
+    const labels = periodLabels(windowType, p);
     return {
       period: p.period,
-      period_label: `${p.period_start?.slice(5) || p.period}`,
+      period_label: labels.axis,
+      period_full: labels.full,
       poisson_1x2: p.acc_1x2_pct,
       weinston_1x2: w.acc_1x2_pct,
       poisson_over25: p.acc_over25_pct,
@@ -425,217 +447,255 @@ export default function MetricsEvolutionChart() {
     };
   });
 
-  const metrics: MetricOption[] = [
-    { value: 'acc_1x2_pct', label: i18n.t('evolution.acierto1x22'), suffix: '%' },
-    { value: 'acc_over25_pct', label: i18n.t('evolution.aciertoOU252'), suffix: '%' },
-    { value: 'acc_btts_pct', label: i18n.t('evolution.aciertoBtts2'), suffix: '%' },
-    { value: 'rmse', label: i18n.t('evolution.rmseGoles'), suffix: '' }
+  // Un par de series (Poisson / Weinston) por cada métrica: las 4 se muestran a la
+  // vez, cada una en su tarjeta, en vez de elegir una en un desplegable.
+  const cards: MetricCardDef[] = [
+    { key: '1x2', labelKey: 'evolution.acierto1x22', suffix: '%', higherIsBetter: true },
+    { key: 'over25', labelKey: 'evolution.aciertoOU252', suffix: '%', higherIsBetter: true },
+    { key: 'btts', labelKey: 'evolution.aciertoBtts2', suffix: '%', higherIsBetter: true },
+    { key: 'rmse', labelKey: 'evolution.rmseGoles', suffix: '', higherIsBetter: false },
   ];
-
-  const windows: WindowOption[] = [
-    { value: 'gameweek', label: i18n.t('evolution.porJornada10Partidos') },
-    { value: 'rolling_5', label: i18n.t('evolution.ultimos5Partidos') },
-    { value: 'rolling_10', label: i18n.t('evolution.ultimos10Partidos') },
-    { value: 'weekly', label: i18n.t('evolution.porSemana') },
-    { value: 'monthly', label: i18n.t('evolution.porMes') }
-  ];
-
-  const currentMetric = metrics.find(m => `acc_${selectedMetric}` === `acc_${m.value}` || selectedMetric === m.value);
-  const metricLabel = currentMetric?.label || i18n.t('evolution.metrica');
-  const suffix = currentMetric?.suffix || '';
-
-  // Calcular tendencia
-  const getTrend = (dataKey: string): Trend | null => {
-    if (chartData.length < 2) return null;
-    const last = chartData[chartData.length - 1]?.[dataKey as keyof ChartDataPoint] as number | null;
-    const prev = chartData[chartData.length - 2]?.[dataKey as keyof ChartDataPoint] as number | null;
-    if (!last || !prev) return null;
-    const diff = last - prev;
-    return { diff, isUp: diff > 0 };
-  };
-
-  const poissonTrend = getTrend(`poisson_${selectedMetric.replace('acc_', '').replace('_pct', '')}`);
-  const weinstonTrend = getTrend(`weinston_${selectedMetric.replace('acc_', '').replace('_pct', '')}`);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-3 sm:p-6">
+    <div className="min-h-screen bg-slate-900 p-2 sm:p-6">
       {/* 🎯 Header con tabs */}
       <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
         <EvolutionTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
       {/* Contenido de Métricas */}
-      <div className="w-full max-w-7xl mx-auto space-y-6">
+      <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-6 shadow-xl">
-          <h1 className="text-3xl font-bold text-white mb-2">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg p-5 sm:p-6 shadow-xl">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">
             {i18n.t('evolution.evolucionDeMetricas')}</h1>
-          <p className="text-slate-300">
+          <p className="text-slate-300 text-sm sm:text-base">
             {i18n.t('evolution.analizaElComportamientoDeLos')}</p>
         </div>
 
-        {/* Controles */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Selector de Métrica */}
-          <div className="bg-slate-800 rounded-lg p-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              {i18n.t('evolution.metricaAVisualizar')}</label>
-            <select
-              value={selectedMetric}
-              onChange={(e) => setSelectedMetric(e.target.value)}
-              className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {metrics.map(m => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
+        {/* Qué se está mostrando: temporada en curso, todas las ligas con aciertos calculados */}
+        {data.by_league && data.by_league.length > 0 && (
+          <p className="-mt-2 text-xs sm:text-sm text-slate-400">
+            {i18n.t('evolution.currentSeason', {
+              n: data.by_league.reduce((acc, l) => acc + l.matches, 0),
+              leagues: data.by_league.length,
+            })}
+          </p>
+        )}
+
+        {/* Leyenda + agrupación (botones, no desplegable) */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-4 text-sm font-semibold">
+            <span className="flex items-center gap-1.5 text-blue-400"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" />Poisson</span>
+            <span className="flex items-center gap-1.5 text-orange-400"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" />Weinston</span>
+          </div>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="hidden text-xs text-slate-500 sm:inline">{i18n.t('evolution.groupBy')}</span>
+            <div className="flex gap-1 overflow-x-auto rounded-lg bg-slate-800 p-1 scrollbar-hide">
+              {WINDOW_OPTIONS.map(w => (
+                <button
+                  key={w.value}
+                  onClick={() => setWindowType(w.value)}
+                  className={`flex-shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    windowType === w.value ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  {i18n.t(w.labelKey)}
+                </button>
               ))}
-            </select>
-          </div>
-
-          {/* Selector de Ventana */}
-          <div className="bg-slate-800 rounded-lg p-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              {i18n.t('evolution.tipoDeVentanaTemporal')}</label>
-            <select
-              value={windowType}
-              onChange={(e) => setWindowType(e.target.value)}
-              className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {windows.map(w => (
-                <option key={w.value} value={w.value}>
-                  {w.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Indicadores de Tendencia */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-slate-800 rounded-lg p-4 border border-blue-500/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-slate-400">{i18n.t('evolution.poissonTendencia')}</div>
-                <div className="text-2xl font-bold text-blue-400">
-                  {(() => {
-                    const value = chartData[chartData.length - 1]?.[`poisson_${selectedMetric.replace('acc_', '').replace('_pct', '')}` as keyof ChartDataPoint] as number | null;
-                    return value != null ? value.toFixed(1) : 'N/A';
-                  })()}{suffix}
-                </div>
-              </div>
-              {poissonTrend && (
-                <div className={`flex items-center gap-1 text-lg font-bold ${poissonTrend.isUp ? 'text-green-400' : 'text-red-400'}`}>
-                  {poissonTrend.isUp ? '↗' : '↘'}
-                  {Math.abs(poissonTrend.diff).toFixed(1)}{suffix}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-slate-800 rounded-lg p-4 border border-orange-500/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-slate-400">{i18n.t('evolution.weinstonTendencia')}</div>
-                <div className="text-2xl font-bold text-orange-400">
-                  {(() => {
-                    const value = chartData[chartData.length - 1]?.[`weinston_${selectedMetric.replace('acc_', '').replace('_pct', '')}` as keyof ChartDataPoint] as number | null;
-                    return value != null ? value.toFixed(1) : 'N/A';
-                  })()}{suffix}
-                </div>
-              </div>
-              {weinstonTrend && (
-                <div className={`flex items-center gap-1 text-lg font-bold ${weinstonTrend.isUp ? 'text-green-400' : 'text-red-400'}`}>
-                  {weinstonTrend.isUp ? '↗' : '↘'}
-                  {Math.abs(weinstonTrend.diff).toFixed(1)}{suffix}
-                </div>
-              )}
             </div>
           </div>
         </div>
 
-        {/* Gráfica */}
-        <div className="bg-slate-800 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-white mb-4">{metricLabel}</h2>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="period_label" 
-                stroke="#9CA3AF"
-                style={{ fontSize: '12px' }}
-              />
-              <YAxis 
-                stroke="#9CA3AF"
-                style={{ fontSize: '12px' }}
-                domain={selectedMetric.includes('rmse') ? ['auto', 'auto'] : [0, 100]}
-              />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                labelStyle={{ color: '#e2e8f0' }}
-                itemStyle={{ color: '#e2e8f0' }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey={`poisson_${selectedMetric.replace('acc_', '').replace('_pct', '')}`}
-                name="Poisson"
-                stroke="#3b82f6" 
-                strokeWidth={3}
-                dot={{ fill: '#3b82f6', r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey={`weinston_${selectedMetric.replace('acc_', '').replace('_pct', '')}`}
-                name="Weinston"
-                stroke="#f97316" 
-                strokeWidth={3}
-                dot={{ fill: '#f97316', r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        {/* Las 4 métricas a la vez */}
+        <div className={`grid grid-cols-1 gap-4 xl:grid-cols-2 transition-opacity ${loading ? 'opacity-50' : ''}`}>
+          {cards.map(card => (
+            <MetricCard key={card.key} def={card} data={chartData} windowType={windowType} />
+          ))}
         </div>
 
-        {/* Tabla de Datos */}
-        <div className="bg-slate-800 rounded-lg p-4 sm:p-6 overflow-x-auto">
-          <h3 className="text-lg font-bold text-white mb-4">{i18n.t('evolution.datosDetallados')}</h3>
-          <table className="w-full text-xs sm:text-sm">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left text-slate-400 px-1.5 py-2 sm:p-2">{i18n.t('evolution.periodo')}</th>
-                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">{i18n.t('evolution.partidos')}</th>
-                <th className="text-right text-blue-400 px-1.5 py-2 sm:p-2">Poisson</th>
-                <th className="text-right text-orange-400 px-1.5 py-2 sm:p-2">Weinston</th>
-                <th className="text-right text-slate-400 px-1.5 py-2 sm:p-2">{i18n.t('evolution.diferencia')}</th>
+        {/* Cuánto aciertan los modelos en cada liga */}
+        <LeagueBreakdown rows={data.by_league ?? []} without={data.leagues_without_outcomes ?? []} />
+      </div>
+    </div>
+  );
+}
+
+// ── Acierto de cada modelo por liga (temporada en curso) ─────────────────────
+function LeagueBreakdown({ rows, without }: { rows: LeagueAccuracy[]; without: string[] }) {
+  if (rows.length === 0) return null;
+  const cell = (v: number | null | undefined, suffix: string, digits = 1) =>
+    v != null ? `${v.toFixed(digits)}${suffix}` : '—';
+  const cols: { key: keyof ModelAcc; labelKey: string; suffix: string; digits: number }[] = [
+    { key: 'acc_1x2_pct', labelKey: 'evolution.acierto1x2', suffix: '%', digits: 1 },
+    { key: 'acc_over25_pct', labelKey: 'evolution.aciertoOU25', suffix: '%', digits: 1 },
+    { key: 'acc_btts_pct', labelKey: 'evolution.aciertoBtts', suffix: '%', digits: 1 },
+    { key: 'avg_rmse', labelKey: 'evolution.rmseGoles', suffix: '', digits: 2 },
+  ];
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
+      <h3 className="mb-3 text-base font-bold text-white">{i18n.t('evolution.byLeagueTitle')}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs sm:text-sm">
+          <thead>
+            <tr className="border-b border-slate-700 text-slate-400">
+              <th className="px-1.5 py-2 text-left">{i18n.t('evolution.colLeague')}</th>
+              <th className="px-1.5 py-2 text-right">{i18n.t('evolution.colMatches')}</th>
+              {cols.map(c => (
+                <th key={c.key} className="px-1.5 py-2 text-right whitespace-nowrap">{i18n.t(c.labelKey).replace(/\s*\(%\)/, '')}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.league} className="border-b border-slate-700/50">
+                <td className="px-1.5 py-2 font-medium text-white">{r.league}</td>
+                <td className="px-1.5 py-2 text-right tabular-nums text-slate-300">{r.matches}</td>
+                {cols.map(c => (
+                  <td key={c.key} className="px-1.5 py-2 text-right whitespace-nowrap tabular-nums">
+                    <span className="text-blue-400">{cell(r.poisson?.[c.key], c.suffix, c.digits)}</span>
+                    <span className="text-slate-600"> · </span>
+                    <span className="text-orange-400">{cell(r.weinston?.[c.key], c.suffix, c.digits)}</span>
+                  </td>
+                ))}
               </tr>
-            </thead>
-            <tbody>
-              {chartData.map((row, idx) => {
-                const pValue = row[`poisson_${selectedMetric.replace('acc_', '').replace('_pct', '')}` as keyof ChartDataPoint] as number | null;
-                const wValue = row[`weinston_${selectedMetric.replace('acc_', '').replace('_pct', '')}` as keyof ChartDataPoint] as number | null;
-                const diff = (wValue || 0) - (pValue || 0);
-                
-                return (
-                  <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td className="text-white px-1.5 py-2 sm:p-2">{row.period_label}</td>
-                    <td className="text-slate-300 text-right px-1.5 py-2 sm:p-2">{row.total_matches}</td>
-                    <td className="text-blue-300 text-right px-1.5 py-2 sm:p-2 font-mono">
-                      {pValue != null ? pValue.toFixed(1) : 'N/A'}{suffix}
-                    </td>
-                    <td className="text-orange-300 text-right px-1.5 py-2 sm:p-2 font-mono">
-                      {wValue != null ? wValue.toFixed(1) : 'N/A'}{suffix}
-                    </td>
-                    <td className={`text-right px-1.5 py-2 sm:p-2 font-mono font-bold ${diff > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {diff > 0 ? '+' : ''}{diff.toFixed(1)}{suffix}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        <span className="text-blue-400">Poisson</span> · <span className="text-orange-400">Weinston</span>
+      </p>
+      {without.length > 0 && (
+        <p className="mt-1 text-[11px] text-slate-500">{i18n.t('evolution.noOutcomes', { leagues: without.join(', ') })}</p>
+      )}
+    </div>
+  );
+}
+
+// ── Tarjeta de una métrica: último valor de cada modelo, su cambio frente al
+//    período anterior, mini gráfica y quién lidera ───────────────────────────
+type MetricCardDef = { key: '1x2' | 'over25' | 'btts' | 'rmse'; labelKey: string; suffix: string; higherIsBetter: boolean };
+
+const WINDOW_OPTIONS = [
+  { value: 'gameweek', labelKey: 'evolution.winGameweek' },
+  { value: 'rolling_5', labelKey: 'evolution.winRolling5' },
+  { value: 'rolling_10', labelKey: 'evolution.winRolling10' },
+  { value: 'weekly', labelKey: 'evolution.winWeekly' },
+  { value: 'monthly', labelKey: 'evolution.winMonthly' },
+];
+
+function MetricCard({ def, data, windowType }: { def: MetricCardDef; data: ChartDataPoint[]; windowType: string }) {
+  const get = (row: ChartDataPoint, model: 'poisson' | 'weinston') =>
+    row[`${model}_${def.key}` as keyof ChartDataPoint] as number | null;
+  const decimals = def.key === 'rmse' ? 2 : 1;
+  const fmt = (v: number) => `${v.toFixed(decimals)}${def.suffix}`;
+
+  // Último y anterior valor REAL de cada serie (un 0 es un valor válido, no un hueco)
+  const lastTwo = (model: 'poisson' | 'weinston') => {
+    const vals = data.map(r => get(r, model)).filter((v): v is number => v != null);
+    return { last: vals.length ? vals[vals.length - 1] : null, prev: vals.length > 1 ? vals[vals.length - 2] : null };
+  };
+  // Promedio ponderado por partidos de cada período
+  const average = (model: 'poisson' | 'weinston') => {
+    let num = 0, den = 0;
+    for (const r of data) { const v = get(r, model); if (v != null) { num += v * r.total_matches; den += r.total_matches; } }
+    return den ? num / den : null;
+  };
+
+  const models = [
+    { id: 'poisson' as const, name: 'Poisson', color: '#3b82f6', text: 'text-blue-400', ...lastTwo('poisson'), avg: average('poisson') },
+    { id: 'weinston' as const, name: 'Weinston', color: '#f97316', text: 'text-orange-400', ...lastTwo('weinston'), avg: average('weinston') },
+  ];
+
+  // Quién lidera en el promedio del período (en RMSE, el menor es el mejor)
+  let leader: { name: string; gap: number } | null = null;
+  if (models[0].avg != null && models[1].avg != null) {
+    const diff = models[1].avg - models[0].avg;
+    if (Math.abs(diff) >= 0.05) {
+      const weinstonLeads = def.higherIsBetter ? diff > 0 : diff < 0;
+      leader = { name: weinstonLeads ? 'Weinston' : 'Poisson', gap: Math.abs(diff) };
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-bold text-white">{i18n.t(def.labelKey)}</h3>
+        {leader ? (
+          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${leader.name === 'Weinston' ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
+            {i18n.t('evolution.leadsBy', { model: leader.name, n: `${leader.gap.toFixed(decimals)}${def.suffix === '%' ? ` ${i18n.t('evolution.pts')}` : ''}` })}
+          </span>
+        ) : models[0].avg != null && models[1].avg != null ? (
+          <span className="rounded-full bg-slate-700 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300">{i18n.t('evolution.tied')}</span>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {models.map(m => {
+          const rawDiff = m.last != null && m.prev != null ? m.last - m.prev : null;
+          // un cambio que se redondea a 0.0 / 0.00 no se muestra (sería "↘0.00")
+          const diff = rawDiff != null && Number(Math.abs(rawDiff).toFixed(decimals)) !== 0 ? rawDiff : null;
+          const improved = diff != null && (def.higherIsBetter ? diff > 0 : diff < 0);
+          return (
+            <div key={m.id} className="rounded-lg bg-slate-900/50 px-3 py-2">
+              <div className="text-[11px] text-slate-400">{m.name}<span className="hidden sm:inline"> · {i18n.t('evolution.latest')}</span></div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className={`text-2xl font-bold ${m.text}`}>{m.last != null ? fmt(m.last) : 'N/A'}</span>
+                {diff != null && (
+                  <span className={`text-sm font-bold ${improved ? 'text-green-400' : 'text-red-400'}`} title={i18n.t('evolution.vsPrev')}>
+                    {diff > 0 ? '↗' : '↘'}{Math.abs(diff).toFixed(decimals)}{def.suffix}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 h-44 sm:h-48">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: -18 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+            <XAxis dataKey="period_label" stroke="#64748b" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={windowType === 'monthly' ? 6 : 28} />
+            <YAxis
+              stroke="#64748b"
+              tick={{ fontSize: 10 }}
+              domain={def.key === 'rmse' ? ['auto', 'auto'] : [0, 100]}
+              ticks={def.key === 'rmse' ? undefined : [0, 50, 100]}
+            />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', fontSize: '12px' }}
+              labelStyle={{ color: '#e2e8f0' }}
+              labelFormatter={(label, payload) => payload?.[0]?.payload?.period_full ?? label}
+              formatter={(v) => (typeof v === 'number' ? fmt(v) : v)}
+            />
+            {models.map(m => (
+              <Line
+                key={m.id}
+                type="monotone"
+                dataKey={`${m.id}_${def.key}`}
+                name={m.name}
+                stroke={m.color}
+                strokeWidth={2}
+                // con muchos puntos (ventanas por partido) las marcas saturan: solo la línea
+                dot={data.length > 40 ? false : { r: 2, fill: m.color }}
+                activeDot={{ r: 4 }}
+                connectNulls
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 text-[11px] text-slate-500">
+        <span>
+          {i18n.t('evolution.avgLabel')}:{' '}
+          <span className="text-blue-400">{models[0].avg != null ? fmt(models[0].avg) : '—'}</span>
+          {' · '}
+          <span className="text-orange-400">{models[1].avg != null ? fmt(models[1].avg) : '—'}</span>
+        </span>
+        {!def.higherIsBetter && <span>{i18n.t('evolution.lowerBetter')}</span>}
       </div>
     </div>
   );
