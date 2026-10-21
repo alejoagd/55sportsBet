@@ -56,7 +56,10 @@ def evaluate(
       pp.prob_home_win, pp.prob_draw, pp.prob_away_win,
       pp.over_2, pp.under_2, pp.both_score, pp.both_noscore,
       pp.expected_home_goals AS pp_exp_home, pp.expected_away_goals AS pp_exp_away,
-      wp.local_goals, wp.away_goals,
+      -- Alias propio: `wp.away_goals` chocaba con `m.away_goals` y, al leer r["away_goals"],
+      -- se usaban los goles PREDICHOS por Weinston como si fueran el resultado real
+      -- (aciertos y errores de goles mal calculados para ambos modelos).
+      wp.local_goals AS w_local_goals, wp.away_goals AS w_away_goals,
       wp.result_1x2,
       wp.over_2 AS win_over2,
       wp.both_score AS win_btts
@@ -134,7 +137,7 @@ def evaluate(
             hg, ag = int(r["home_goals"]), int(r["away_goals"])
             
             # ✅ NUEVO: Verificar si hay predicciones
-            if r["prob_home_win"] is None and r["local_goals"] is None:
+            if r["prob_home_win"] is None and r["w_local_goals"] is None:
                 print(f"\n⚠️  PARTIDO {i+1}/{len(rows)} - Match ID: {mid}")
                 print(f"   Resultado: {hg}-{ag}")
                 print(f"   ❌ NO HAY PREDICCIONES para este partido")
@@ -191,9 +194,9 @@ def evaluate(
                 print(f"   ⚠️  No hay predicciones Poisson para este partido")
 
             # --- WEINSTON ---
-            if r["local_goals"] is not None:
-                lh = float(r["local_goals"] or 0.0)
-                la = float(r["away_goals"] or 0.0)
+            if r["w_local_goals"] is not None:
+                lh = float(r["w_local_goals"] or 0.0)
+                la = float(r["w_away_goals"] or 0.0)
                 
                 print(f"   Weinston goles predichos: {lh:.2f}-{la:.2f}")
                 print(f"   Weinston datos raw: over_2='{r['win_over2']}', btts='{r['win_btts']}', result_1x2='{r['result_1x2']}'")
