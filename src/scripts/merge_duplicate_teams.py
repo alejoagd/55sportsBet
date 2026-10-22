@@ -70,6 +70,11 @@ PARES = [
     ("Fortaleza EC", "Fortaleza"),
     ("Fortaleza FC", "Fortaleza CEIF"),
     ("Olimpia", "Club Olimpia"),
+    # Verificados contra los rivales de cada uno por año y competición:
+    ("Libertad Asuncion", "Libertad"),           # Paraguay (no confundir con "Libertad (Ecuador)")
+    ("Club Guarani", "Guaraní"),                 # Paraguay
+    ("Wanderers", "Montevideo Wanderers"),       # Uruguay (Santiago Wanderers es otro club)
+    ("Club Nacional", "Nacional"),               # Uruguay (el paraguayo es "Nacional Asuncion")
 ]
 
 
