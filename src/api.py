@@ -953,6 +953,34 @@ def get_upcoming_matches(
         return [dict(row) for row in rows]
 
 
+@router.get("/api/matches/live")
+def get_live_matches():
+    """
+    Partidos en juego y los terminados en los últimos 30 minutos, con minuto, marcador,
+    penales y jugadas (goles/tarjetas). Los llena src/live/poller.py desde ESPN.
+
+    Marcador y penales salen NULL cuando ESPN no los dio: no se rellenan con 0. Si el sondeo
+    nunca corrió (la tabla no existe) devuelve una lista vacía.
+    """
+    with engine.connect() as conn:
+        if conn.execute(text("SELECT to_regclass('match_live')")).scalar() is None:
+            return []
+        rows = conn.execute(text("""
+            SELECT ml.match_id, l.name AS league_name, th.name AS home_team, ta.name AS away_team,
+                   ml.state, ml.detail, ml.clock, ml.period, ml.home_score, ml.away_score,
+                   ml.home_shootout, ml.away_shootout, ml.plays, ml.first_live_at, ml.finished_at, ml.updated_at
+            FROM match_live ml
+            JOIN matches m ON m.id = ml.match_id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            WHERE ml.state = 'in' OR (ml.state = 'post' AND ml.finished_at > now() - interval '30 minutes')
+            ORDER BY (ml.state = 'in') DESC, ml.first_live_at
+        """)).mappings().all()
+    return [dict(r) for r in rows]
+
+
 @router.get("/api/matches/today")
 def get_todays_matches():
     """
