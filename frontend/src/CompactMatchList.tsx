@@ -3,6 +3,10 @@ import { useTranslation } from 'react-i18next';
 import i18n, { localeTag } from './i18n';
 import { useIsMobile } from './Hooks/useIsMobile';
 import ProbabilityBar from './ProbabilityBar';
+import { useLiveMatches } from './Hooks/useLiveMatches';
+import type { LiveMatch } from './Hooks/useLiveMatches';
+import { CombinedPlays, LiveBadge } from './LiveParts';
+import { liveScoreText } from './Hooks/liveHelpers';
 
 // Fila compacta de partidos, agrupada por fecha (no por jornada — no hay
 // número de jornada real disponible para ninguna liga todavía). Muestra
@@ -138,10 +142,12 @@ function DesktopTable({
   groups,
   mode,
   onMatchClick,
+  live,
 }: {
   groups: CompactMatch[][];
   mode: 'upcoming' | 'results';
   onMatchClick: (matchId: number) => void;
+  live: Map<number, LiveMatch>;
 }) {
   const { t } = useTranslation();
   return (
@@ -167,21 +173,29 @@ function DesktopTable({
               </tr>
               {groupMatches.map((m) => {
                 const row = buildRow(m, mode);
+                const lv = live.get(m.match_id);
+                const enJuego = lv?.state === 'in';
+                const marcadorVivo = liveScoreText(lv);
                 return (
                   <tr
                     key={m.match_id}
                     onClick={() => onMatchClick(m.match_id)}
-                    className="group border-b border-slate-700/40 hover:bg-slate-700/30 cursor-pointer transition-colors"
+                    className={`group border-b border-slate-700/40 hover:bg-slate-700/30 cursor-pointer transition-colors ${enJuego ? 'bg-red-500/[0.04]' : ''}`}
                   >
-                    <td className="px-4 py-3">
+                    <td className={`px-4 py-3 ${enJuego ? 'border-l-2 border-red-500/70' : ''}`}>
                       <div className="flex items-center gap-2.5 whitespace-nowrap">
-                        <span className="text-slate-500 text-xs w-24 shrink-0 truncate" title={formatTime(m)}>{formatTime(m)}</span>
+                        {enJuego ? (
+                          <span className="w-24 shrink-0"><LiveBadge live={lv!} compact /></span>
+                        ) : (
+                          <span className="text-slate-500 text-xs w-24 shrink-0 truncate" title={formatTime(m)}>{formatTime(m)}</span>
+                        )}
                         <TeamLogo url={m.home_team_logo} alt={m.home_team} />
                         <span className="text-white font-semibold truncate max-w-[130px] group-hover:text-yellow-400 transition-colors">{m.home_team}</span>
-                        <span className="text-slate-500 font-mono text-xs px-1 shrink-0">{row.actualScore ?? 'vs'}</span>
+                        <span className={`font-mono text-xs px-1 shrink-0 ${marcadorVivo ? 'text-white font-bold text-sm' : 'text-slate-500'}`}>{marcadorVivo ?? row.actualScore ?? 'vs'}</span>
                         <TeamLogo url={m.away_team_logo} alt={m.away_team} />
                         <span className="text-white font-semibold truncate max-w-[130px] group-hover:text-yellow-400 transition-colors">{m.away_team}</span>
                       </div>
+                      {lv && <div className="pl-[6.5rem]"><CombinedPlays live={lv} /></div>}
                     </td>
                     {row.hasPrediction ? (
                       <>
@@ -218,10 +232,12 @@ function MobileCards({
   groups,
   mode,
   onMatchClick,
+  live,
 }: {
   groups: CompactMatch[][];
   mode: 'upcoming' | 'results';
   onMatchClick: (matchId: number) => void;
+  live: Map<number, LiveMatch>;
 }) {
   const { t } = useTranslation();
   return (
@@ -235,17 +251,24 @@ function MobileCards({
           <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))' }}>
             {groupMatches.map((m) => {
               const row = buildRow(m, mode);
+              const lv = live.get(m.match_id);
+              const enJuego = lv?.state === 'in';
+              const marcadorVivo = liveScoreText(lv);
               return (
                 <div
                   key={m.match_id}
                   onClick={() => onMatchClick(m.match_id)}
-                  className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border border-slate-700/70 p-4 shadow-md shadow-black/10 active:scale-[0.99] hover:border-slate-600 transition-all cursor-pointer"
+                  className={`bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border p-4 shadow-md shadow-black/10 active:scale-[0.99] hover:border-slate-600 transition-all cursor-pointer ${enJuego ? 'border-red-500/50' : 'border-slate-700/70'}`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] font-medium bg-slate-900/50 px-2 py-0.5 rounded-full">
-                      🕐 {formatTime(m)}
-                    </span>
-                    {row.actualScore && (
+                    {enJuego ? (
+                      <LiveBadge live={lv!} />
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] font-medium bg-slate-900/50 px-2 py-0.5 rounded-full">
+                        🕐 {formatTime(m)}
+                      </span>
+                    )}
+                    {(row.actualScore || lv?.state === 'post') && (
                       <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded-full font-bold">{t('matchList.fullTime')}</span>
                     )}
                   </div>
@@ -256,8 +279,8 @@ function MobileCards({
                       <span className="text-white font-semibold text-xs sm:text-sm text-center line-clamp-2 break-words leading-tight w-full">{m.home_team}</span>
                     </div>
                     <div className="flex flex-col items-center shrink-0 px-1">
-                      {row.actualScore ? (
-                        <span className="text-white font-mono font-bold text-lg">{row.actualScore}</span>
+                      {marcadorVivo || row.actualScore ? (
+                        <span className="text-white font-mono font-bold text-lg">{marcadorVivo ?? row.actualScore}</span>
                       ) : (
                         <span className="text-slate-400 font-bold text-[10px] bg-slate-900/60 rounded-full w-7 h-7 flex items-center justify-center">VS</span>
                       )}
@@ -267,6 +290,8 @@ function MobileCards({
                       <span className="text-white font-semibold text-xs sm:text-sm text-center line-clamp-2 break-words leading-tight w-full">{m.away_team}</span>
                     </div>
                   </div>
+
+                  {lv && <div className="-mt-2 mb-3 flex justify-center text-center"><CombinedPlays live={lv} /></div>}
 
                   {row.hasPrediction ? (
                     <>
@@ -311,6 +336,7 @@ export default function CompactMatchList({
   onMatchClick: (matchId: number) => void;
 }) {
   const isMobileViewport = useIsMobile();
+  const live = useLiveMatches();
 
   // La tabla necesita ~720px. Se decide por el ancho REAL del contenedor (no de
   // la pantalla): en tablet con el menú de ligas abierto la pantalla es ancha
@@ -352,8 +378,8 @@ export default function CompactMatchList({
   return (
     <div ref={setWrapEl}>
       {isMobile
-        ? <MobileCards groups={groups} mode={mode} onMatchClick={onMatchClick} />
-        : <DesktopTable groups={groups} mode={mode} onMatchClick={onMatchClick} />}
+        ? <MobileCards groups={groups} mode={mode} onMatchClick={onMatchClick} live={live} />
+        : <DesktopTable groups={groups} mode={mode} onMatchClick={onMatchClick} live={live} />}
     </div>
   );
 }

@@ -25,6 +25,7 @@ from datetime import datetime
 from src.ingest.competitions_config import COMPETITIONS
 
 SITE = "https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/scoreboard"
+SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/summary?event={event}"
 
 # competición (nombre en la BD) -> slug de ESPN
 SLUGS: dict[str, str] = {
@@ -92,17 +93,26 @@ def parse_event(raw: dict, league: str) -> LiveEvent | None:
         winner = "home" if home.get("winner") else ("away" if away.get("winner") else None)
         pre = tipo["state"] == "pre"   # antes de empezar ESPN manda "0": no es un marcador
         plays = []
+        ids = {str(home["team"].get("id")): "home", str(away["team"].get("id")): "away"}
         for p in comp.get("details", []) or []:
+            atletas = p.get("athletesInvolved") or []
             plays.append({
                 "type": (p.get("type") or {}).get("text"),
                 "clock": (p.get("clock") or {}).get("displayValue"),
                 "clock_s": (p.get("clock") or {}).get("value"),
                 "team_id": (p.get("team") or {}).get("id"),
+                # De qué equipo es la jugada (para mostrarla bajo el escudo correcto) y quién la hizo.
+                # En un autogol ESPN registra el equipo del jugador, no el que sumó el gol.
+                "side": ids.get(str((p.get("team") or {}).get("id"))),
+                "player": (atletas[0].get("displayName") or atletas[0].get("shortName")) if atletas else None,
                 "scoring": bool(p.get("scoringPlay")),
                 "red": bool(p.get("redCard")),
                 "yellow": bool(p.get("yellowCard")),
                 "own_goal": bool(p.get("ownGoal")),
                 "penalty": bool(p.get("penaltyKick")),
+                # Penal de la TANDA de desempate (no es un gol del partido): ESPN lo manda como
+                # "Penalty - Scored" con scoringPlay=true y minutos 91'-98', pero shootout=true.
+                "shootout": bool(p.get("shootout")),
             })
         return LiveEvent(
             espn_event_id=int(raw["id"]), league=league, kickoff=kickoff,
@@ -134,3 +144,46 @@ def fetch_events(league: str, fechas: list[str | None] | None = None, timeout: i
             if ev is not None:
                 vistos[ev.espn_event_id] = ev
     return list(vistos.values())
+
+
+# nombre en el boxscore de ESPN -> nombre propio. Son las 5 estadísticas de las líneas de apuesta
+# (tiros, a puerta, faltas, córners, tarjetas) más la posesión.
+_STATS = {
+    "totalShots": "shots", "shotsOnTarget": "shots_on_target", "foulsCommitted": "fouls",
+    "wonCorners": "corners", "yellowCards": "yellow_cards", "redCards": "red_cards",
+    "possessionPct": "possession",
+}
+
+
+def parse_stats(summary: dict) -> dict | None:
+    """{'home': {...}, 'away': {...}} del boxscore de un partido, o None si ESPN no trae estadísticas.
+
+    Una estadística que ESPN no informa se omite: nunca se rellena con 0 (un 0 de verdad
+    es "ninguna falta todavía", y "no sé" no es lo mismo).
+    """
+    out: dict[str, dict] = {}
+    for team in (summary.get("boxscore") or {}).get("teams", []):
+        lado = team.get("homeAway")
+        if lado not in ("home", "away"):
+            continue
+        valores: dict = {}
+        for st in team.get("statistics", []) or []:
+            clave = _STATS.get(st.get("name"))
+            if clave is None:
+                continue
+            try:
+                v = float(st.get("value", st.get("displayValue")))
+            except (TypeError, ValueError):
+                continue
+            valores[clave] = int(v) if clave != "possession" and v == int(v) else v
+        if valores:
+            out[lado] = valores
+    return out if out else None
+
+
+def fetch_stats(league: str, espn_event_id: int, timeout: int = 20) -> dict | None:
+    """Estadísticas en vivo de un partido (una llamada de ~380 KB, cacheada 5 s por ESPN)."""
+    url = SUMMARY.format(slug=SLUGS[league], event=espn_event_id)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return parse_stats(json.load(r))

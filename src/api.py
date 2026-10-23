@@ -983,8 +983,8 @@ def get_live_matches():
             return []
         rows = conn.execute(text("""
             SELECT ml.match_id, l.name AS league_name, th.name AS home_team, ta.name AS away_team,
-                   ml.state, ml.detail, ml.clock, ml.period, ml.home_score, ml.away_score,
-                   ml.home_shootout, ml.away_shootout, ml.plays, ml.first_live_at, ml.finished_at, ml.updated_at
+                   ml.state, ml.status_name, ml.detail, ml.clock, ml.period, ml.home_score, ml.away_score,
+                   ml.home_shootout, ml.away_shootout, ml.plays, ml.stats, ml.first_live_at, ml.finished_at, ml.updated_at
             FROM match_live ml
             JOIN matches m ON m.id = ml.match_id
             JOIN seasons s ON s.id = m.season_id
@@ -995,6 +995,29 @@ def get_live_matches():
             ORDER BY (ml.state = 'in') DESC, ml.first_live_at
         """)).mappings().all()
     return [dict(r) for r in rows]
+
+
+@router.get("/api/matches/{match_id}/live-data")
+def get_match_live_data(match_id: int):
+    """
+    Estado en vivo guardado de UN partido (minuto, marcador, penales, jugadas y estadísticas),
+    sin importar si sigue en juego o ya terminó: alimenta el Resumen y las Estadísticas del
+    detalle, también para partidos que ya acabaron. null si el sondeo nunca lo vio.
+    """
+    with engine.connect() as conn:
+        if conn.execute(text("SELECT to_regclass('match_live')")).scalar() is None:
+            return None
+        row = conn.execute(text("""
+            SELECT ml.match_id, l.name AS league_name, ml.state, ml.status_name, ml.detail, ml.clock, ml.period,
+                   ml.home_score, ml.away_score, ml.home_shootout, ml.away_shootout, ml.plays, ml.stats,
+                   ml.first_live_at, ml.finished_at, ml.updated_at
+            FROM match_live ml
+            JOIN matches m ON m.id = ml.match_id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            WHERE ml.match_id = :m
+        """), {"m": match_id}).mappings().first()
+    return dict(row) if row else None
 
 
 @router.get("/api/matches/today")
