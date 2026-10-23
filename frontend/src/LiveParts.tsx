@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { LiveMatch, LivePlay } from './Hooks/useLiveMatches';
-import { useLiveLabel } from './Hooks/liveHelpers';
+import { golesPorLado, periodoJugada, useLiveLabel } from './Hooks/liveHelpers';
+import type { Periodo } from './Hooks/liveHelpers';
 
 // Piezas visuales del "en vivo", compartidas por Hoy, la lista de la liga y el detalle.
 
@@ -9,6 +10,10 @@ import { useLiveLabel } from './Hooks/liveHelpers';
 export function LiveBadge({ live, compact = false, stacked = false }: { live: LiveMatch; compact?: boolean; stacked?: boolean }) {
   const { t } = useTranslation();
   const label = useLiveLabel(live);
+  if (live.state === 'post') {
+    // Terminado: sin punto parpadeante ni "EN VIVO"
+    return <span className="inline-flex items-center whitespace-nowrap rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-green-400">{label}</span>;
+  }
   const dot = (
     <span className="relative flex h-1.5 w-1.5 shrink-0">
       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
@@ -33,6 +38,7 @@ export function LiveBadge({ live, compact = false, stacked = false }: { live: Li
 }
 
 function icon(p: LivePlay): string {
+  if (p.shootout) return p.scoring ? '✅' : '❌';
   return p.red ? '🟥' : p.yellow ? '🟨' : '⚽';
 }
 
@@ -61,7 +67,7 @@ export function PlayLine({ plays }: { plays: LivePlay[] }) {
 export function CombinedPlays({ live }: { live: LiveMatch | undefined }) {
   const { t } = useTranslation();
   if (!live) return null;
-  const plays = live.plays.filter(p => p.scoring).sort((a, b) => (a.clock_s ?? 0) - (b.clock_s ?? 0));
+  const plays = live.plays.filter(p => p.scoring && !p.shootout).sort((a, b) => (a.clock_s ?? 0) - (b.clock_s ?? 0));
   if (plays.length === 0) return null;
   const color = (p: LivePlay) => (p.side === 'home' ? 'text-blue-300' : p.side === 'away' ? 'text-orange-300' : 'text-slate-400');
   return (
@@ -76,18 +82,6 @@ export function CombinedPlays({ live }: { live: LiveMatch | undefined }) {
 }
 
 
-/** Columna vertical de jugadas de un equipo, para el detalle del partido. */
-export function PlayColumn({ plays, align }: { plays: LivePlay[]; align: 'left' | 'right' }) {
-  const { t } = useTranslation();
-  if (plays.length === 0) return <div />;
-  return (
-    <div className={`space-y-0.5 text-xs text-slate-300 ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      {plays.map((p, i) => (
-        <div key={i}>{icon(p)} {describe(p, t('live.ownGoal'))}</div>
-      ))}
-    </div>
-  );
-}
 
 
 function StatRow({ label, home, away, suffix = '' }: { label: string; home: number | undefined; away: number | undefined; suffix?: string }) {
@@ -142,18 +136,93 @@ export function LiveStatsPanel({ live, homeName, awayName }: { live: LiveMatch; 
 }
 
 
-/** Jugadas (goles y tarjetas) en una sola lista cronológica, con el color de cada equipo.
- *  Para pantallas angostas, donde dos columnas dejan los nombres partidos en tres líneas. */
-export function PlayTimeline({ live }: { live: LiveMatch }) {
+function TimelineRow({ p, etiqueta }: { p: LivePlay; etiqueta?: string }) {
   const { t } = useTranslation();
-  const plays = live.plays.filter(p => p.scoring || p.red || p.yellow).sort((a, b) => (a.clock_s ?? 0) - (b.clock_s ?? 0));
-  if (plays.length === 0) return null;
-  const color = (p: LivePlay) => (p.side === 'home' ? 'text-blue-300' : p.side === 'away' ? 'text-orange-300' : 'text-slate-300');
+  const texto = (
+    <span className="leading-tight">
+      {p.player ?? t(p.red ? 'live.redCard' : p.yellow ? 'live.yellowCard' : 'live.goal')}
+      {p.own_goal && <span className="text-slate-500"> ({t('live.ownGoal')})</span>}
+    </span>
+  );
+  const ico = <span className="shrink-0 leading-tight">{icon(p)}</span>;
   return (
-    <div className="space-y-1 text-xs">
-      {plays.map((p, i) => (
-        <div key={i} className={color(p)}>{icon(p)} {describe(p, t('live.ownGoal'))}</div>
-      ))}
+    <div className="grid grid-cols-[1fr_3rem_1fr] items-start gap-1.5 text-sm sm:gap-2">
+      <div className={`flex items-start justify-end gap-1 text-right ${p.side === 'home' ? 'text-blue-200' : ''}`}>
+        {p.side === 'home' && <>{texto}{ico}</>}
+      </div>
+      <div className="pt-px text-center text-xs font-bold tabular-nums text-slate-300">{etiqueta ?? p.clock}</div>
+      <div className={`flex items-start justify-start gap-1 text-left ${p.side === 'away' ? 'text-orange-200' : ''}`}>
+        {p.side === 'away' && <>{ico}{texto}</>}
+      </div>
+    </div>
+  );
+}
+
+/** Resumen del partido: línea de tiempo de goles y tarjetas, separada en primer y segundo tiempo
+ *  (y prórroga si la hubo). Local a la izquierda, visitante a la derecha, minuto al centro.
+ *  `data` null = el sondeo en vivo nunca vio este partido. */
+export function MatchTimeline({ data, homeName, awayName }: { data: LiveMatch | null; homeName: string; awayName: string }) {
+  const { t } = useTranslation();
+  if (!data) return <div className="rounded-lg bg-slate-800 p-6 text-center text-sm text-slate-500">{t('live.noTimeline')}</div>;
+
+  const plays = data.plays
+    .filter(p => (p.scoring || p.red || p.yellow) && !p.shootout)
+    .sort((a, b) => (a.clock_s ?? 0) - (b.clock_s ?? 0));
+  const tanda = data.plays.filter(p => p.shootout).sort((a, b) => (a.clock_s ?? 0) - (b.clock_s ?? 0));
+  if (plays.length === 0 && tanda.length === 0) return <div className="rounded-lg bg-slate-800 p-6 text-center text-sm text-slate-500">{t('live.noEventsYet')}</div>;
+
+  const secciones: { id: Periodo; titulo: string }[] = [
+    { id: '1T', titulo: t('live.firstHalf') },
+    { id: '2T', titulo: t('live.secondHalf') },
+    { id: 'ET', titulo: t('live.extraTime') },
+  ];
+  // El marcador al descanso se deduce de las jugadas; solo se muestra si esas jugadas suman
+  // exactamente el marcador actual (si ESPN dejó alguna sin registrar, mejor no mostrar un dato falso).
+  const total = golesPorLado(plays);
+  const coherente = total.home === data.home_score && total.away === data.away_score;
+  const alDescanso = golesPorLado(plays.filter(p => periodoJugada(p.clock) === '1T'));
+
+  return (
+    <div className="rounded-lg bg-slate-800 p-4 sm:p-6 shadow-xl">
+      <div className="mb-4 flex justify-between text-[11px] font-semibold uppercase tracking-wide">
+        <span className="max-w-[45%] truncate text-blue-300">{homeName}</span>
+        <span className="max-w-[45%] truncate text-orange-300">{awayName}</span>
+      </div>
+      <div className="space-y-5">
+        {secciones.map(sec => {
+          const delTiempo = plays.filter(p => periodoJugada(p.clock) === sec.id);
+          if (delTiempo.length === 0) return null;
+          return (
+            <div key={sec.id}>
+              <div className="mb-2 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-700" />
+                <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  {sec.titulo}{sec.id === '1T' && coherente && ` · ${alDescanso.home}-${alDescanso.away}`}
+                </span>
+                <div className="h-px flex-1 bg-slate-700" />
+              </div>
+              <div className="space-y-2">
+                {delTiempo.map((p, i) => <TimelineRow key={i} p={p} />)}
+              </div>
+            </div>
+          );
+        })}
+        {tanda.length > 0 && (
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-700" />
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                {t('live.penalties')}
+                {data.home_shootout != null && data.away_shootout != null && ` · ${data.home_shootout}-${data.away_shootout}`}
+              </span>
+              <div className="h-px flex-1 bg-slate-700" />
+            </div>
+            <div className="space-y-2">
+              {tanda.map((p, i) => <TimelineRow key={i} p={p} etiqueta={`#${i + 1}`} />)}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

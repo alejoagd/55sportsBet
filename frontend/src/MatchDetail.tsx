@@ -6,8 +6,9 @@ import H2HScoring from './H2Hscoring';
 import TeamFormSection from './TeamFormSection';
 import { useIsMobile } from './Hooks/useIsMobile';
 import { useLiveMatches } from './Hooks/useLiveMatches';
-import { LiveBadge, LiveStatsPanel, PlayColumn, PlayTimeline } from './LiveParts';
-import { playsFor, liveScoreText, estadoLinea } from './Hooks/liveHelpers';
+import { LiveBadge, LiveStatsPanel, MatchTimeline } from './LiveParts';
+import { estadoLinea } from './Hooks/liveHelpers';
+import type { LiveMatch } from './Hooks/useLiveMatches';
 import i18n, { localeTag } from './i18n';
 
 interface MatchStats {
@@ -122,6 +123,20 @@ export default function MatchDetail() {
   // Debe ir antes de los return tempranos de abajo (reglas de los hooks de React)
   const liveMap = useLiveMatches();
   const lv = liveMap.get(Number(matchId));
+  // Datos en vivo ya guardados de este partido (también si terminó): alimentan Resumen y Estadísticas.
+  // Mientras se juega manda el sondeo compartido (`lv`), que se refresca solo.
+  const [saved, setSaved] = useState<LiveMatch | null>(null);
+  const [tab, setTab] = useState<'stats' | 'summary' | 'analysis' | null>(null);
+  useEffect(() => {
+    const apiUrl: string = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    setSaved(null);
+    setTab(null);
+    fetch(`${apiUrl}/api/matches/${matchId}/live-data`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: LiveMatch | null) => setSaved(d))
+      .catch(() => { /* sin datos en vivo: las pestañas muestran su estado vacío */ });
+  }, [matchId]);
+  const info: LiveMatch | null = lv ?? saved;
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -384,6 +399,21 @@ export default function MatchDetail() {
   }
 
   const isFinished = match.home_goals !== null && match.away_goals !== null;
+  const enJuego = lv?.state === 'in';
+  // Marcador del encabezado: el de la BD al terminar; mientras se juega, el en vivo
+  const vivoConMarcador = !!lv && (lv.state === 'in' || lv.state === 'post') && lv.home_score != null && lv.away_score != null;
+  const hg = isFinished ? match.home_goals : vivoConMarcador ? lv!.home_score : null;
+  const ag = isFinished ? match.away_goals : vivoConMarcador ? lv!.away_score : null;
+  const hasScore = hg != null && ag != null;
+  const hayPenales = info?.home_shootout != null && info?.away_shootout != null;
+  // Estadísticas en vivo (o finales guardadas por el sondeo) solo si no hay estadísticas reales de la BD
+  const mostrarStatsVivas = !!info?.stats && (info.state === 'in' || !match.has_real_stats);
+  const hayStatsPred = match.weinston_shots_home != null || match.weinston_fouls_home != null ||
+    match.weinston_cards_home != null || match.weinston_corners_home != null;
+  const hayStatsReales = isFinished && !!match.has_real_stats;
+  const hayLineaTiempo = !!info && info.plays.some(p => p.scoring || p.red || p.yellow);
+  // Pestaña inicial: en juego -> estadísticas; terminado con línea de tiempo -> resumen; si no, análisis
+  const tabActivo = tab ?? (enJuego ? 'stats' : isFinished && hayLineaTiempo ? 'summary' : 'analysis');
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
@@ -402,7 +432,7 @@ export default function MatchDetail() {
           </button>
           <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
             <TeamCrest url={match.home_team_logo} alt={match.home_team} size="sm" />
-            <span className="text-slate-500 text-[10px] font-bold shrink-0">vs</span>
+            <span className={`shrink-0 font-bold tabular-nums ${hasScore ? 'text-white text-sm' : 'text-slate-500 text-[10px]'}`}>{hasScore ? `${hg} - ${ag}` : 'vs'}</span>
             <TeamCrest url={match.away_team_logo} alt={match.away_team} size="sm" />
           </div>
         </div>
@@ -418,109 +448,95 @@ export default function MatchDetail() {
           >
             {i18n.t('matchDetail.volverAlDashboard2')}</button>
           
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center justify-center gap-3 sm:gap-4 mb-3">
-                <div className="flex flex-col items-center gap-1.5 w-20 sm:w-24 min-w-0">
-                  <TeamCrest url={match.home_team_logo} alt={match.home_team} />
-                  <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
-                    {match.home_team}
-                  </span>
-                </div>
-                <span className="text-slate-500 font-bold text-sm shrink-0">VS</span>
-                <div className="flex flex-col items-center gap-1.5 w-20 sm:w-24 min-w-0">
-                  <TeamCrest url={match.away_team_logo} alt={match.away_team} />
-                  <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
-                    {match.away_team}
-                  </span>
-                </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-start justify-center gap-2 sm:gap-8">
+              <div className="flex flex-col items-center gap-1.5 w-[4.5rem] sm:w-28 min-w-0">
+                <TeamCrest url={match.home_team_logo} alt={match.home_team} />
+                <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
+                  {match.home_team}
+                </span>
               </div>
-              <div className="text-slate-300 text-center">
-                {formatMatchDate(match.date)}
-              </div>
-              {match.referee && (
-                <div className="text-slate-400 text-sm text-center">
-                  {i18n.t('matchDetail.referee', { name: match.referee })}
-                </div>
-              )}
-            </div>
 
-            {/* Partido en juego: el resultado definitivo aparece cuando termina */}
-            {!isFinished && lv && lv.state === 'in' && (
-              <div className="bg-slate-900 rounded-lg p-4 border border-red-500/40">
-                <div className="mb-2 flex justify-center">
-                  <LiveBadge live={lv} />
-                </div>
-                {liveScoreText(lv) ? (
-                  <div className="text-4xl font-bold text-center">
-                    <span className="text-blue-400">{lv.home_score}</span>
-                    <span className="text-slate-500 mx-3">-</span>
-                    <span className="text-orange-400">{lv.away_score}</span>
+              {/* Solo el marcador entre los escudos; el detalle va en las pestañas de abajo */}
+              <div className="flex min-w-[5rem] flex-col items-center justify-center gap-1.5 pt-2 sm:min-w-[6rem]">
+                {enJuego && <LiveBadge live={lv!} />}
+                {hasScore ? (
+                  <div className="flex items-center gap-1.5 text-3xl font-bold tabular-nums sm:gap-2 sm:text-5xl">
+                    <span className="text-blue-400">{hg}</span>
+                    <span className="text-slate-500">-</span>
+                    <span className="text-orange-400">{ag}</span>
                   </div>
                 ) : (
-                  <div className="text-center text-slate-500 text-sm">—</div>
+                  <span className="text-slate-500 font-bold text-sm">VS</span>
                 )}
-                {lv.home_shootout != null && lv.away_shootout != null && (
-                  <div className="text-center text-slate-300 text-sm mt-1">
-                    {i18n.t('live.penalties')}: {lv.home_shootout} - {lv.away_shootout}
+                {hayPenales && (
+                  <div className="text-xs text-slate-300">
+                    {i18n.t('live.penalties')}: {info!.home_shootout} - {info!.away_shootout}
                   </div>
                 )}
-                {/* Pantallas anchas: una columna por equipo. Angostas: lista única cronológica. */}
-                <div className="mt-3 hidden grid-cols-2 gap-4 sm:grid">
-                  <PlayColumn plays={playsFor(lv, 'home', true)} align="left" />
-                  <PlayColumn plays={playsFor(lv, 'away', true)} align="right" />
-                </div>
-                <div className="mt-3 sm:hidden"><PlayTimeline live={lv} /></div>
-              </div>
-            )}
-
-            {isFinished && (
-              <div className="bg-slate-900 rounded-lg p-4">
-                <div className="text-slate-400 text-sm mb-1">{i18n.t('matchDetail.resultadoFinal')}</div>
-                <div className="text-4xl font-bold text-center">
-                  <span className="text-blue-400">{match.home_goals}</span>
-                  <span className="text-slate-500 mx-3">-</span>
-                  <span className="text-orange-400">{match.away_goals}</span>
-                </div>
-                {match.halftime_homegoal != null && match.halftime_awaygoal != null && (
-                  <div className="flex items-center justify-center gap-3 mt-2 text-xs text-slate-400">
-                    <span>
-                      1T <span className="text-slate-200 font-semibold">
-                        {match.halftime_homegoal}-{match.halftime_awaygoal}
-                      </span>
-                    </span>
+                {isFinished && (
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-green-400">{i18n.t('matchList.fullTime')}</div>
+                )}
+                {isFinished && match.halftime_homegoal != null && match.halftime_awaygoal != null && (
+                  <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+                    <span>1T <span className="text-slate-200 font-semibold">{match.halftime_homegoal}-{match.halftime_awaygoal}</span></span>
                     <span className="text-slate-600">•</span>
-                    <span>
-                      2T <span className="text-slate-200 font-semibold">
-                        {match.home_goals - match.halftime_homegoal}-{match.away_goals - match.halftime_awaygoal}
-                      </span>
-                    </span>
+                    <span>2T <span className="text-slate-200 font-semibold">
+                      {match.home_goals! - match.halftime_homegoal}-{match.away_goals! - match.halftime_awaygoal}
+                    </span></span>
                   </div>
                 )}
+              </div>
+
+              <div className="flex flex-col items-center gap-1.5 w-[4.5rem] sm:w-28 min-w-0">
+                <TeamCrest url={match.away_team_logo} alt={match.away_team} />
+                <span className="text-xs sm:text-sm font-semibold text-white text-center line-clamp-2">
+                  {match.away_team}
+                </span>
+              </div>
+            </div>
+            <div className="text-slate-300 text-center">
+              {formatMatchDate(match.date)}
+            </div>
+            {match.referee && (
+              <div className="text-slate-400 text-sm text-center">
+                {i18n.t('matchDetail.referee', { name: match.referee })}
               </div>
             )}
           </div>
         </div>
 
-        {/* Estadísticas en vivo (ESPN): solo mientras el partido se juega */}
-        {!isFinished && lv && lv.state === 'in' && (
-          <LiveStatsPanel live={lv} homeName={match.home_team} awayName={match.away_team} />
-        )}
+        {/* Pestañas: Estadísticas (en vivo + líneas de apuesta) · Resumen (línea de tiempo) · Análisis */}
+        <div className="flex gap-1 rounded-lg border border-slate-700/70 bg-slate-800 p-1" role="tablist">
+          {([
+            { id: 'stats', label: i18n.t('live.tabStats'), vivo: enJuego },
+            { id: 'summary', label: i18n.t('live.tabSummary'), vivo: false },
+            { id: 'analysis', label: i18n.t('live.tabAnalysis'), vivo: false },
+          ] as const).map(tb => (
+            <button
+              key={tb.id}
+              role="tab"
+              aria-selected={tabActivo === tb.id}
+              onClick={() => setTab(tb.id)}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-semibold transition-colors sm:gap-1.5 sm:px-2 sm:text-sm ${
+                tabActivo === tb.id ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'}`}
+            >
+              {tb.vivo && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />}
+              {tb.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Análisis H2H */}
-        <MatchH2HNarrative matchId={Number(matchId)} />
-
-        {/* 🎯 H2H SCORING SYSTEM - NUEVO */}
-        <H2HScoring matchId={Number(matchId)} />
-
-        {/* Últimos 6 partidos de cada equipo */}
-        <TeamFormSection matchId={Number(matchId)} />
+        {tabActivo === 'stats' && (
+          <>
+            {mostrarStatsVivas && (
+              <LiveStatsPanel live={info!} homeName={match.home_team} awayName={match.away_team} />
+            )}
 
         {/* Predicciones de Estadísticas Detalladas. Cada card sólo se
             muestra si la liga tiene match_stats real para calibrarla - si
             no, el backend manda null y no hay nada fiable que mostrar. */}
-        {(match.weinston_shots_home != null || match.weinston_fouls_home != null ||
-          match.weinston_cards_home != null || match.weinston_corners_home != null) && (
+        {hayStatsPred && (
         <div className="bg-slate-800 rounded-lg p-4 sm:p-6 shadow-xl border border-orange-500/20">
           <h2 className="text-xl sm:text-2xl font-bold text-orange-400 mb-4 sm:mb-6">{i18n.t('matchDetail.prediccionesDeEstadisticasWeinston')}</h2>
 
@@ -614,6 +630,7 @@ export default function MatchDetail() {
         </div>
         )}
 
+
         {/* Estadísticas Reales (si el partido está finalizado) */}
         {isFinished && match.has_real_stats && (
           <div className="bg-slate-800 rounded-lg p-6 shadow-xl border border-green-500/20">
@@ -659,6 +676,29 @@ export default function MatchDetail() {
             </div>
           </div>
         )}
+
+
+            {!mostrarStatsVivas && !hayStatsPred && !hayStatsReales && (
+              <div className="rounded-lg bg-slate-800 p-6 text-center text-sm text-slate-500">{i18n.t('live.noStats')}</div>
+            )}
+          </>
+        )}
+
+        {tabActivo === 'summary' && (
+          <MatchTimeline data={info} homeName={match.home_team} awayName={match.away_team} />
+        )}
+
+        {tabActivo === 'analysis' && (
+          <>
+        {/* Análisis H2H */}
+        <MatchH2HNarrative matchId={Number(matchId)} />
+
+        {/* 🎯 H2H SCORING SYSTEM - NUEVO */}
+        <H2HScoring matchId={Number(matchId)} />
+
+        {/* Últimos 6 partidos de cada equipo */}
+        <TeamFormSection matchId={Number(matchId)} />
+
 
         {/* Predicciones */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -764,6 +804,8 @@ export default function MatchDetail() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

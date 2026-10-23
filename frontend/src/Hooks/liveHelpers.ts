@@ -4,9 +4,9 @@ import type { LiveMatch, LivePlay } from './useLiveMatches';
 // Funciones del "en vivo" sin JSX (van aparte de LiveParts.tsx para que ese archivo solo
 // exporte componentes, como exige la recarga rápida de React).
 
-/** Solo goles y tarjetas; el resto de jugadas no se muestran. */
+/** Goles y tarjetas del partido. Los penales de la tanda NO entran: no son goles del partido. */
 export function relevant(p: LivePlay): boolean {
-  return p.scoring || p.red || p.yellow;
+  return (p.scoring || p.red || p.yellow) && !p.shootout;
 }
 
 /** Texto de estado: minuto, Descanso, Penales o Final. */
@@ -24,7 +24,7 @@ export function useLiveLabel(live: LiveMatch): string {
 export function playsFor(live: LiveMatch | undefined, side: 'home' | 'away' | null, conTarjetas = false): LivePlay[] {
   if (!live) return [];
   return live.plays
-    .filter(p => (conTarjetas ? relevant(p) : p.scoring) && (p.side ?? null) === side)
+    .filter(p => (conTarjetas ? relevant(p) : p.scoring && !p.shootout) && (p.side ?? null) === side)
     .sort((a, b) => (a.clock_s ?? 0) - (b.clock_s ?? 0));
 }
 
@@ -54,4 +54,26 @@ export function estadoLinea(prediccion: string | undefined, linea: number | unde
   }
   const maximo = Number.isInteger(linea) ? linea - 1 : Math.floor(linea);   // línea 9.5 -> 9; línea 4 -> 3
   return total > maximo ? { estado: 'perdida', n: 0 } : { estado: 'pendiente', n: maximo - total };
+}
+
+
+export type Periodo = '1T' | '2T' | 'ET';
+
+/** A qué tiempo pertenece una jugada según su minuto: "45'+3'" es del primer tiempo (la base 45
+ *  manda, el añadido no cambia de tiempo), "90'+2'" del segundo y más de 90 es prórroga. */
+export function periodoJugada(clock: string | null | undefined): Periodo {
+  const base = parseInt(clock ?? '', 10);
+  if (Number.isNaN(base) || base <= 45) return '1T';
+  return base <= 90 ? '2T' : 'ET';
+}
+
+/** Goles de cada equipo según las jugadas. Un autogol suma al rival del jugador que lo hizo. */
+export function golesPorLado(plays: LivePlay[]): { home: number; away: number } {
+  const r = { home: 0, away: 0 };
+  for (const p of plays) {
+    if (!p.scoring || p.shootout || !p.side) continue;
+    const lado = p.own_goal ? (p.side === 'home' ? 'away' : 'home') : p.side;
+    r[lado] += 1;
+  }
+  return r;
 }

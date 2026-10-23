@@ -15,6 +15,9 @@ export interface LivePlay {
   red: boolean;
   yellow: boolean;
   own_goal?: boolean;
+  penalty?: boolean;
+  // Penal de la tanda de desempate: no cuenta como gol del partido
+  shootout?: boolean;
 }
 
 // Estadísticas de equipo en vivo (boxscore de ESPN). Una que ESPN no informa viene ausente,

@@ -223,3 +223,11 @@ def test_sin_boxscore_devuelve_none():
     from src.live.espn_live import parse_stats
     assert parse_stats({}) is None
     assert parse_stats({"boxscore": {"teams": []}}) is None
+
+
+def test_penales_de_la_tanda_se_marcan_y_no_son_goles_del_partido():
+    d = [{"type": {"text": "Goal"}, "clock": {"displayValue": "20'", "value": 1200.0}, "team": {"id": "1"}, "scoringPlay": True, "penaltyKick": True},
+         {"type": {"text": "Penalty - Scored"}, "clock": {"displayValue": "91'", "value": 5419.0}, "team": {"id": "2"}, "scoringPlay": True,
+          "penaltyKick": True, "shootout": True}]
+    ev = parse_event(raw(details=d), "Copa Libertadores")
+    assert [(p["penalty"], p["shootout"]) for p in ev.plays] == [(True, False), (True, True)]

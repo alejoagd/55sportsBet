@@ -110,6 +110,9 @@ def parse_event(raw: dict, league: str) -> LiveEvent | None:
                 "yellow": bool(p.get("yellowCard")),
                 "own_goal": bool(p.get("ownGoal")),
                 "penalty": bool(p.get("penaltyKick")),
+                # Penal de la TANDA de desempate (no es un gol del partido): ESPN lo manda como
+                # "Penalty - Scored" con scoringPlay=true y minutos 91'-98', pero shootout=true.
+                "shootout": bool(p.get("shootout")),
             })
         return LiveEvent(
             espn_event_id=int(raw["id"]), league=league, kickoff=kickoff,
