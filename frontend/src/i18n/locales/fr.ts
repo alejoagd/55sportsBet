@@ -89,6 +89,28 @@ const fr: Dictionary = {
     fullTime: 'FT',
   },
 
+  highlights: {
+    title: "Ce qui ressort pour chaque équipe",
+    subtitle: "Parmi les {{top}} premiers de la ligue, sur leurs {{n}} derniers matchs à domicile ou à l'extérieur",
+    most: "Plus de {{stat}}",
+    least: "Moins de {{stat}}",
+    dirMost: "le plus",
+    dirLeast: "le moins",
+    chip: "{{team}} : n°{{rank}} sur {{of}} pour {{dir}} {{venue}}",
+    rankOf: "n°{{rank}} sur {{of}}",
+    venueHome: "à domicile",
+    venueAway: "à l'extérieur",
+    perMatch: "{{v}} par match",
+    leagueAvg: "ligue {{v}}",
+    none: "Aucun indicateur marquant",
+    stat_goals: "buts",
+    stat_shots: "tirs",
+    stat_shots_on_target: "tirs cadrés",
+    stat_corners: "corners",
+    stat_fouls: "fautes",
+    stat_cards: "cartons",
+  },
+
   live: {
     live: 'EN DIRECT',
     halftime: 'Mi-temps',

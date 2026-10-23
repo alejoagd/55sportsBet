@@ -997,6 +997,21 @@ def get_live_matches():
     return [dict(r) for r in rows]
 
 
+@router.get("/api/matches/{match_id}/team-highlights")
+def get_team_highlights(match_id: int):
+    """
+    Indicadores en los que cada equipo del partido se destaca en su liga (entre los 5 que más o menos
+    hacen algo: goles, tiros, tiros a puerta, córners, faltas, tarjetas), según su condición en este
+    partido (local o visitante) y sus últimos 10 partidos así. Ver src/analysis/team_highlights.py.
+    """
+    from src.analysis.team_highlights import destacados_del_partido
+    with engine.connect() as conn:
+        data = destacados_del_partido(conn, match_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Partido no encontrado")
+    return data
+
+
 @router.get("/api/matches/{match_id}/live-data")
 def get_match_live_data(match_id: int):
     """

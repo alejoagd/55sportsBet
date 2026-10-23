@@ -89,6 +89,28 @@ const pt: Dictionary = {
     fullTime: 'FT',
   },
 
+  highlights: {
+    title: "O que mais se destaca em cada equipe",
+    subtitle: "Entre os {{top}} primeiros da liga, pelos últimos {{n}} jogos em casa ou fora",
+    most: "Mais {{stat}}",
+    least: "Menos {{stat}}",
+    dirMost: "mais",
+    dirLeast: "menos",
+    chip: "{{team}}: #{{rank}} de {{of}} que faz {{dir}} {{venue}}",
+    rankOf: "#{{rank}} de {{of}}",
+    venueHome: "em casa",
+    venueAway: "fora",
+    perMatch: "{{v}} por jogo",
+    leagueAvg: "liga {{v}}",
+    none: "Sem indicadores de destaque",
+    stat_goals: "gols",
+    stat_shots: "finalizações",
+    stat_shots_on_target: "finalizações no alvo",
+    stat_corners: "escanteios",
+    stat_fouls: "faltas",
+    stat_cards: "cartões",
+  },
+
   live: {
     live: 'AO VIVO',
     halftime: 'Intervalo',

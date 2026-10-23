@@ -89,6 +89,28 @@ const es = {
     fullTime: 'FT',
   },
 
+  highlights: {
+    title: "Lo más destacado de cada equipo",
+    subtitle: "Entre los {{top}} primeros de la liga, según sus últimos {{n}} partidos de local o de visitante",
+    most: "Más {{stat}}",
+    least: "Menos {{stat}}",
+    dirMost: "más",
+    dirLeast: "menos",
+    chip: "{{team}}: #{{rank}} de {{of}} que {{dir}} hace {{venue}}",
+    rankOf: "#{{rank}} de {{of}}",
+    venueHome: "de local",
+    venueAway: "de visitante",
+    perMatch: "{{v}} por partido",
+    leagueAvg: "liga {{v}}",
+    none: "Sin indicadores destacados",
+    stat_goals: "goles",
+    stat_shots: "tiros",
+    stat_shots_on_target: "tiros a puerta",
+    stat_corners: "córners",
+    stat_fouls: "faltas",
+    stat_cards: "tarjetas",
+  },
+
   live: {
     live: 'EN VIVO',
     halftime: 'Descanso',

@@ -89,6 +89,28 @@ const en: Dictionary = {
     fullTime: 'FT',
   },
 
+  highlights: {
+    title: "What stands out for each team",
+    subtitle: "Among the top {{top}} in the league, based on their last {{n}} home or away matches",
+    most: "Most {{stat}}",
+    least: "Fewest {{stat}}",
+    dirMost: "most",
+    dirLeast: "fewest",
+    chip: "{{team}}: #{{rank}} of {{of}} for {{dir}} {{venue}}",
+    rankOf: "#{{rank}} of {{of}}",
+    venueHome: "at home",
+    venueAway: "away",
+    perMatch: "{{v}} per match",
+    leagueAvg: "league {{v}}",
+    none: "No standout indicators",
+    stat_goals: "goals",
+    stat_shots: "shots",
+    stat_shots_on_target: "shots on target",
+    stat_corners: "corners",
+    stat_fouls: "fouls",
+    stat_cards: "cards",
+  },
+
   live: {
     live: 'LIVE',
     halftime: 'Half time',
