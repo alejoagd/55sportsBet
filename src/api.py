@@ -52,7 +52,23 @@ async def lifespan(app: FastAPI):
             time.sleep(2 * (attempt + 1))
     else:
         raise RuntimeError(f"No se pudo conectar a la BD tras 5 intentos: {last_exc}")
-    yield
+
+    # Sondeo de resultados en vivo (src/live/poller.py) como hilo del propio API. Apagado por
+    # defecto: LIVE_POLLER=dry solo observa y registra (no escribe), LIVE_POLLER=on escribe.
+    # Un fallo al arrancarlo nunca debe impedir que el API sirva.
+    sondeo = None
+    modo_sondeo = os.getenv("LIVE_POLLER", "").strip().lower()
+    if modo_sondeo in ("dry", "on"):
+        try:
+            from src.live.poller import iniciar_en_segundo_plano
+            sondeo = iniciar_en_segundo_plano(dry_run=(modo_sondeo == "dry"))
+        except Exception as e:
+            print(f"⚠️  [lifespan] no se pudo iniciar el sondeo en vivo: {e}")
+    try:
+        yield
+    finally:
+        if sondeo is not None:
+            sondeo.detener()
 
 
 app = FastAPI(title="Predictions API", lifespan=lifespan)
@@ -951,6 +967,34 @@ def get_upcoming_matches(
         }).mappings().all()
 
         return [dict(row) for row in rows]
+
+
+@router.get("/api/matches/live")
+def get_live_matches():
+    """
+    Partidos en juego y los terminados en los últimos 30 minutos, con minuto, marcador,
+    penales y jugadas (goles/tarjetas). Los llena src/live/poller.py desde ESPN.
+
+    Marcador y penales salen NULL cuando ESPN no los dio: no se rellenan con 0. Si el sondeo
+    nunca corrió (la tabla no existe) devuelve una lista vacía.
+    """
+    with engine.connect() as conn:
+        if conn.execute(text("SELECT to_regclass('match_live')")).scalar() is None:
+            return []
+        rows = conn.execute(text("""
+            SELECT ml.match_id, l.name AS league_name, th.name AS home_team, ta.name AS away_team,
+                   ml.state, ml.detail, ml.clock, ml.period, ml.home_score, ml.away_score,
+                   ml.home_shootout, ml.away_shootout, ml.plays, ml.first_live_at, ml.finished_at, ml.updated_at
+            FROM match_live ml
+            JOIN matches m ON m.id = ml.match_id
+            JOIN seasons s ON s.id = m.season_id
+            JOIN leagues l ON l.id = s.league_id
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            WHERE ml.state = 'in' OR (ml.state = 'post' AND ml.finished_at > now() - interval '30 minutes')
+            ORDER BY (ml.state = 'in') DESC, ml.first_live_at
+        """)).mappings().all()
+    return [dict(r) for r in rows]
 
 
 @router.get("/api/matches/today")
