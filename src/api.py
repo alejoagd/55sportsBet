@@ -52,7 +52,23 @@ async def lifespan(app: FastAPI):
             time.sleep(2 * (attempt + 1))
     else:
         raise RuntimeError(f"No se pudo conectar a la BD tras 5 intentos: {last_exc}")
-    yield
+
+    # Sondeo de resultados en vivo (src/live/poller.py) como hilo del propio API. Apagado por
+    # defecto: LIVE_POLLER=dry solo observa y registra (no escribe), LIVE_POLLER=on escribe.
+    # Un fallo al arrancarlo nunca debe impedir que el API sirva.
+    sondeo = None
+    modo_sondeo = os.getenv("LIVE_POLLER", "").strip().lower()
+    if modo_sondeo in ("dry", "on"):
+        try:
+            from src.live.poller import iniciar_en_segundo_plano
+            sondeo = iniciar_en_segundo_plano(dry_run=(modo_sondeo == "dry"))
+        except Exception as e:
+            print(f"⚠️  [lifespan] no se pudo iniciar el sondeo en vivo: {e}")
+    try:
+        yield
+    finally:
+        if sondeo is not None:
+            sondeo.detener()
 
 
 app = FastAPI(title="Predictions API", lifespan=lifespan)

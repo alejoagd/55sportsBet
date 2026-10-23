@@ -171,3 +171,16 @@ def test_modo_rapido_solo_con_partidos_activos(monkeypatch):
     por_empezar = ev_bl("a", "b", datetime.now(timezone.utc) + timedelta(minutes=10))
     por_empezar.state = "pre"
     assert es_rapido(por_empezar, s, 0)
+
+
+def test_candado_un_solo_sondeo_escribiendo_y_se_libera():
+    from src.live import poller
+    a = poller.adquirir_candado()
+    assert a is not None
+    try:
+        assert poller.adquirir_candado() is None          # el segundo no puede mientras el primero vive
+    finally:
+        poller.liberar_candado(a)
+    c = poller.adquirir_candado()                          # tras liberar (y cerrar de verdad la sesión) otro lo toma
+    assert c is not None
+    poller.liberar_candado(c)
