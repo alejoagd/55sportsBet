@@ -1,118 +1,92 @@
 """
-Indicadores destacados: selección pura (más/menos, empates, muestras mínimas) y el cálculo desde la
-BD con tablas TEMP (no toca datos reales).
+Indicadores destacados: misma regla que las tablas del módulo de Estadísticas (todos los equipos
+ordenados, los 5 de arriba y los 5 de abajo). Función pura: no toca la BD.
 """
-from datetime import date, timedelta
-
 import pytest
-from sqlalchemy import text
 
-from src.analysis import team_highlights as th
-from src.analysis.team_highlights import destacados_del_partido, indicadores
-from src.db import engine
+from src.analysis.team_highlights import MIN_EQUIPOS, destacados, indicadores
 
 
-def liga(valores: list[float], n: int = 10, stat: str = "corners") -> dict:
-    """Equipos 1..len(valores) con ese valor y n partidos."""
-    return {i + 1: {stat: (v, n)} for i, v in enumerate(valores)}
+def liga(goles_local: list[float], **extra) -> list[dict]:
+    """Equipos 1..N (con nombre en orden alfabético) y su ofensiva de local; `extra` agrega otras columnas."""
+    equipos = []
+    for i, g in enumerate(goles_local, start=1):
+        t = {"team_id": i, "team_name": f"Equipo {i:02d}", "home_matches": 3, "away_matches": 3,
+             "home_avg_goals_scored": g, "away_avg_goals_scored": g}
+        for campo, valores in extra.items():
+            t[campo] = valores[i - 1]
+        equipos.append(t)
+    return equipos
 
 
-def test_el_que_menos_hace_queda_en_el_puesto_1():
-    m = liga([3.0] + [5.0 + i * 0.1 for i in range(11)])            # equipo 1: el que menos córners hace
-    (ind,) = indicadores(m, 1)
-    assert (ind["stat"], ind["direction"], ind["rank"], ind["of"]) == ("corners", "least", 1, 12)
+def test_el_que_menos_anota_es_el_peor_ofensiva_puesto_1():
+    eq = liga([0.0] + [1.0 + i * 0.1 for i in range(11)])
+    (ind,) = indicadores(eq, 1, "home", con_stats=False)
+    assert (ind["stat"], ind["direction"], ind["rank"], ind["of"], ind["pj"]) == ("goals", "least", 1, 12, 3)
 
 
-def test_el_que_mas_hace_queda_en_el_puesto_1():
-    m = liga([9.0] + [5.0 + i * 0.1 for i in range(11)])
-    (ind,) = indicadores(m, 1)
+def test_el_que_mas_anota_es_la_mejor_ofensiva():
+    eq = liga([9.0] + [1.0 + i * 0.1 for i in range(11)])
+    (ind,) = indicadores(eq, 1, "home", con_stats=False)
     assert (ind["direction"], ind["rank"]) == ("most", 1)
 
 
-def test_mitad_de_tabla_no_se_destaca():
-    m = liga([5.0 + i * 0.1 for i in range(12)])
-    assert indicadores(m, 6) == []
+def test_el_puesto_6_ya_no_aparece_igual_que_en_el_modulo():
+    eq = liga([float(i) for i in range(12)])           # equipo 6 anota 5.0: sexto desde abajo
+    assert indicadores(eq, 6, "home", con_stats=False) == []
+    assert indicadores(eq, 5, "home", con_stats=False)[0]["rank"] == 5
 
 
-def test_el_sexto_ya_no_cuenta():
-    m = liga([1.0, 2.0, 3.0, 4.0, 5.0, 6.0] + [10.0 + i for i in range(6)])
-    assert indicadores(m, 6) == []                                    # 6.º que menos hace
-    assert indicadores(m, 5)[0]["rank"] == 5
+def test_empate_en_el_corte_se_resuelve_como_el_modulo_por_orden_alfabetico():
+    # Seis equipos empatados en el valor más bajo: el módulo muestra los 5 primeros en orden (sort estable)
+    eq = liga([1.0] * 6 + [3.0 + i for i in range(6)])
+    en_tabla = [t for t in range(1, 7) if indicadores(eq, t, "home", False)]
+    assert en_tabla == [1, 2, 3, 4, 5]                 # el 6.º queda fuera de la tabla de abajo
 
 
-def test_ranking_con_menos_equipos_de_los_minimos_no_se_muestra():
-    assert indicadores(liga([3.0, 5.0, 6.0, 7.0, 8.0, 9.0, 4.0, 5.5]), 1) == []   # 8 equipos
+def test_local_y_visitante_se_miran_por_separado():
+    eq = liga([2.0] * 12)
+    for t in eq:
+        t["away_avg_goals_scored"] = 1.0 + t["team_id"] * 0.1
+    eq[0]["home_avg_goals_scored"] = 0.0               # peor ofensiva de local, pero de visitante es el 1.º por abajo igual
+    assert indicadores(eq, 1, "home", False)[0]["direction"] == "least"
+    away = indicadores(eq, 1, "away", False)
+    assert away and away[0]["direction"] == "least"
 
 
-def test_equipo_con_pocos_partidos_no_entra_al_ranking():
-    m = liga([3.0] + [5.0 + i * 0.1 for i in range(11)])
-    m[1]["corners"] = (3.0, th.MIN_PARTIDOS - 1)
-    assert indicadores(m, 1) == []
+def test_con_pocos_equipos_no_se_muestra_nada():
+    assert indicadores(liga([0.0] + [1.0] * (MIN_EQUIPOS - 2)), 1, "home", False) == []
 
 
-def test_todos_iguales_nadie_se_destaca():
-    assert indicadores(liga([5.0] * 12), 1) == []
+def test_sin_estadisticas_solo_se_evalua_la_ofensiva():
+    n = 12
+    eq = liga([1.0 + i * 0.1 for i in range(n)], home_avg_corners=[1.0] + [6.0] * (n - 1),
+              away_avg_corners=[1.0] + [6.0] * (n - 1))
+    assert {i["stat"] for i in indicadores(eq, 1, "home", con_stats=False)} == {"goals"}
+    assert "corners" in {i["stat"] for i in indicadores(eq, 1, "home", con_stats=True)}
+
+
+def test_dato_ausente_no_se_trata_como_cero():
+    n = 12
+    eq = liga([1.0 + i * 0.1 for i in range(n)], home_avg_corners=[None] * n, away_avg_corners=[None] * n)
+    assert "corners" not in {i["stat"] for i in indicadores(eq, 1, "home", con_stats=True)}
 
 
 def test_el_mas_marcado_va_primero():
-    m = {i: {"corners": (5.0 + i * 0.1, 10), "shots": (14.0 + i * 0.1, 10)} for i in range(1, 13)}
-    m[1] = {"corners": (4.7, 10), "shots": (5.0, 10)}                 # equipo 1: #1 menos en ambos, mucho más extremo en tiros
-    assert [i["stat"] for i in indicadores(m, 1)] == ["shots", "corners"]
+    n = 12
+    eq = liga([1.0 + i * 0.01 for i in range(n)], home_avg_shots=[2.0] + [14.0 + i * 0.1 for i in range(n - 1)],
+              away_avg_shots=[2.0] * n)
+    eq[0]["home_avg_goals_scored"] = 0.99               # puesto 1 abajo en goles, pero muy poco alejado de la liga
+    stats = [i["stat"] for i in indicadores(eq, 1, "home", con_stats=True)]
+    assert stats[0] == "shots"
 
 
-@pytest.fixture
-def conn():
-    with engine.connect() as c:
-        tx = c.begin()
-        c.execute(text("CREATE TEMP TABLE leagues (id INT, name TEXT)"))
-        c.execute(text("CREATE TEMP TABLE seasons (id INT, league_id INT)"))
-        c.execute(text("CREATE TEMP TABLE teams (id INT, name TEXT)"))
-        c.execute(text("""CREATE TEMP TABLE matches (id INT, date DATE, season_id INT, home_team_id INT, away_team_id INT,
-                          home_goals INT, away_goals INT)"""))
-        c.execute(text("""CREATE TEMP TABLE match_stats (match_id INT, home_shots INT, away_shots INT, home_shots_on_target INT,
-            away_shots_on_target INT, home_corners INT, away_corners INT, home_fouls INT, away_fouls INT,
-            home_yellow_cards INT, away_yellow_cards INT, home_red_cards INT, away_red_cards INT)"""))
-        c.execute(text("INSERT INTO leagues VALUES (1, 'Liga X')"))
-        c.execute(text("INSERT INTO seasons VALUES (10, 1)"))
-        for t in range(1, 13):
-            c.execute(text("INSERT INTO teams VALUES (:t, :n)"), {"t": t, "n": f"Equipo {t}"})
-        yield c
-        tx.rollback()
+def test_destacados_arma_los_dos_lados():
+    eq = liga([0.0] + [1.0 + i * 0.1 for i in range(11)])
+    d = destacados(eq, 1, 2, con_stats=False)
+    assert d["home"]["team"] == "Equipo 01" and d["away"]["team"] == "Equipo 02"
+    assert d["home"]["indicators"][0]["direction"] == "least" and d["top_n"] == 5
 
 
-def _jornadas(c, hasta: date):
-    """Cada equipo juega 6 veces de local. El equipo 1 hace pocos córners; el resto 6."""
-    mid, d = 1, hasta - timedelta(days=200)
-    for ronda in range(6):
-        for local in range(1, 13):
-            visita = local % 12 + 1
-            d += timedelta(days=1)
-            c.execute(text("INSERT INTO matches VALUES (:i, :d, 10, :h, :a, 1, 1)"), {"i": mid, "d": d, "h": local, "a": visita})
-            corners = 2 if local == 1 else 6
-            c.execute(text("INSERT INTO match_stats VALUES (:i, 12, 11, 4, 4, :c, 5, 10, 10, 1, 1, NULL, NULL)"), {"i": mid, "c": corners})
-            mid += 1
-    return mid
-
-
-def test_desde_la_bd_el_local_que_menos_corners_hace(conn):
-    hoy = date(2026, 10, 23)
-    sig = _jornadas(conn, hoy)
-    conn.execute(text("INSERT INTO matches VALUES (:i, :d, 10, 1, 2, NULL, NULL)"), {"i": sig, "d": hoy})   # el partido a analizar
-    d = destacados_del_partido(conn, sig)
-    c = next(i for i in d["home"]["indicators"] if i["stat"] == "corners")
-    assert (c["direction"], c["rank"], c["of"], c["value"]) == ("least", 1, 12, 2.0)
-    assert d["home"]["team"] == "Equipo 1" and d["away"]["team"] == "Equipo 2"
-
-
-def test_no_cuenta_el_propio_partido_ni_los_posteriores(conn):
-    hoy = date(2026, 10, 23)
-    sig = _jornadas(conn, hoy)
-    conn.execute(text("INSERT INTO matches VALUES (:i, :d, 10, 1, 2, 3, 3)"), {"i": sig, "d": hoy})        # mismo día: no cuenta
-    conn.execute(text("INSERT INTO match_stats VALUES (:i, 99, 99, 9, 9, 99, 99, 99, 99, 9, 9, 0, 0)"), {"i": sig})
-    d = destacados_del_partido(conn, sig)
-    c = next(i for i in d["home"]["indicators"] if i["stat"] == "corners")
-    assert c["value"] == 2.0                                          # el 99 del propio partido no entró
-
-
-def test_partido_inexistente(conn):
-    assert destacados_del_partido(conn, 999999) is None
+def test_equipo_que_no_esta_en_la_lista_no_rompe():
+    assert indicadores(liga([1.0] * 12), 999, "home", False) == []

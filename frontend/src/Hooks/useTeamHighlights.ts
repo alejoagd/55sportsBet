@@ -10,7 +10,7 @@ export interface Highlight {
   of: number;
   value: number;
   league_avg: number;
-  matches: number;
+  pj: number;            // partidos jugados por el equipo en esa condición (local o visitante)
 }
 
 export interface TeamSide {
@@ -23,8 +23,8 @@ export interface TeamSide {
 export interface TeamHighlightsData {
   match_id: number;
   league: string;
-  window: number;
-  min_matches: number;
+  season_id: number;
+  has_match_stats: boolean;
   top_n: number;
   home: TeamSide;
   away: TeamSide;

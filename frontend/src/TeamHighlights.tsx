@@ -2,8 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { hayDestacados } from './Hooks/highlightHelpers';
 import type { Highlight, TeamHighlightsData, TeamSide } from './Hooks/useTeamHighlights';
 
-// Tarjeta "Lo más destacado de cada equipo": en qué estadística cada equipo está entre los 5 que
-// más o que menos hacen en su liga (como local o visitante, según su condición en este partido).
+// Tarjeta "Lo más destacado de cada equipo": en qué estadística cada equipo sale entre los 5 de arriba o
+// los 5 de abajo de las tablas del módulo de Estadísticas (como local o visitante, según su condición
+// en este partido). No es un ranking general de la liga: es una posición por cada estadística.
 // El más marcado va destacado; el resto, más discretos. Si un equipo no se destaca en nada, se
 // dice (no se inventa un indicador).
 
@@ -13,20 +14,25 @@ function Indicador({ h, venue, principal, color }: { h: Highlight; venue: 'home'
   const { t } = useTranslation();
   const mas = h.direction === 'most';
   const stat = t(`highlights.stat_${h.stat}`);
+  // Los goles usan los nombres del módulo de Estadísticas (Mejor/Peor ofensiva); el resto, "Más/Menos ..."
+  const titulo = h.stat === 'goals'
+    ? t(mas ? 'highlights.bestOffense' : 'highlights.worstOffense')
+    : t(mas ? 'highlights.most' : 'highlights.least', { stat });
   const ring = color === 'blue' ? 'ring-blue-500/40 bg-blue-500/10' : 'ring-orange-500/40 bg-orange-500/10';
   return (
     <div className={`rounded-lg px-3 py-2 ${principal ? `ring-1 ${ring}` : 'bg-slate-800/60'}`}>
       <div className="flex items-start gap-2">
         <span className={`mt-0.5 shrink-0 ${mas ? 'text-green-400' : 'text-sky-400'}`} aria-hidden>{mas ? '🔺' : '🔻'}</span>
         <div className="min-w-0 flex-1">
-          <div className={`font-semibold leading-tight text-white ${principal ? 'text-sm' : 'text-xs'}`}>
-            {t(mas ? 'highlights.most' : 'highlights.least', { stat })}
+          <div className={`font-semibold leading-tight text-white ${principal ? 'text-sm' : 'text-xs'}`}>{titulo}</div>
+          <div className="mt-0.5 text-[11px] font-semibold leading-tight text-slate-200">
+            {t('highlights.position', {
+              rank: h.rank, of: h.of,
+              venue: t(venue === 'home' ? 'highlights.venueHome' : 'highlights.venueAway'),
+            })}
           </div>
           <div className="mt-0.5 text-[11px] leading-tight text-slate-400">
-            <span className="font-semibold text-slate-200">{t('highlights.rankOf', { rank: h.rank, of: h.of })}</span>
-            {' '}{t(venue === 'home' ? 'highlights.venueHome' : 'highlights.venueAway')}
-            {' · '}{t('highlights.perMatch', { v: h.value })}
-            <span className="text-slate-500"> ({t('highlights.leagueAvg', { v: h.league_avg })})</span>
+            {t('highlights.detail', { v: h.value, pj: h.pj, avg: h.league_avg })}
           </div>
         </div>
         {h.rank === 1 && (
@@ -59,7 +65,7 @@ export default function TeamHighlights({ data }: { data: TeamHighlightsData | nu
   return (
     <div className="rounded-lg border border-slate-700/70 bg-slate-800 p-4 shadow-xl sm:p-5">
       <h2 className="text-base font-bold text-white sm:text-lg">⭐ {t('highlights.title')}</h2>
-      <p className="mb-3 mt-0.5 text-[11px] text-slate-400">{t('highlights.subtitle', { top: data.top_n, n: data.window })}</p>
+      <p className="mb-3 mt-0.5 text-[11px] text-slate-400">{t('highlights.subtitle', { top: data.top_n })}</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Columna side={data.home} color="blue" />
         <Columna side={data.away} color="orange" />
