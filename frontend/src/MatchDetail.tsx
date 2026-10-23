@@ -918,7 +918,7 @@ function StatPredictionCard({
               className={`inline-flex max-w-full items-start gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight ${
                 h.side === 'home' ? 'bg-blue-500/15 text-blue-300' : 'bg-orange-500/15 text-orange-300'}`}
             >
-              <span aria-hidden>{h.direction === 'most' ? '🔺' : '🔻'}</span>
+              <span aria-hidden className={h.direction === 'most' ? 'text-emerald-400' : 'text-sky-400'}>{h.direction === 'most' ? '▲' : '▼'}</span>
               <span className="break-words">
                 {i18n.t('highlights.chip', {
                   team: h.team, rank: h.rank, of: h.of,
