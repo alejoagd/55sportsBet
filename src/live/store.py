@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import text
@@ -55,6 +56,12 @@ def guardar_en_vivo(conn: Connection, match_id: int, ev: LiveEvent) -> dict | No
            "hso": ev.home_shootout, "aso": ev.away_shootout, "pl": json.dumps(ev.plays),
            "done": ev.tiene_resultado})
     return dict(anterior) if anterior else None
+
+
+def guardar_estadisticas(conn: Connection, match_id: int, stats: dict) -> None:
+    """Guarda las estadísticas de equipo en vivo en match_live (la fila ya debe existir)."""
+    conn.execute(text("UPDATE match_live SET stats = CAST(:s AS jsonb) WHERE match_id = :m"),
+                 {"s": json.dumps({**stats, "updated_at": datetime.now(timezone.utc).isoformat()}), "m": match_id})
 
 
 def ganador_penales(ev: LiveEvent, home: str, away: str) -> str | None:

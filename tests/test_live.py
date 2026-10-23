@@ -196,3 +196,30 @@ def test_jugadas_traen_lado_y_jugador():
          {"type": {"text": "Yellow Card"}, "clock": {"displayValue": "50'", "value": 3000.0}, "team": {"id": "999"}}]
     ev = parse_event(raw(details=d), "Bundesliga")
     assert [(p["side"], p["player"]) for p in ev.plays] == [("home", "Ermedin Demirovic"), ("away", "Florian Neuhaus"), (None, None)]
+
+
+def _boxscore(h, a):
+    def eq(lado, vals):
+        return {"homeAway": lado, "statistics": [{"name": k, "displayValue": str(v)} for k, v in vals.items()]}
+    return {"boxscore": {"teams": [eq("home", h), eq("away", a)]}}
+
+
+def test_estadisticas_en_vivo_se_leen_por_lado():
+    from src.live.espn_live import parse_stats
+    st = parse_stats(_boxscore({"totalShots": 7, "shotsOnTarget": 2, "foulsCommitted": 7, "wonCorners": 3, "yellowCards": 2, "redCards": 0, "possessionPct": "64.2", "passPct": "0.8"},
+                               {"totalShots": 11, "shotsOnTarget": 3, "foulsCommitted": 5, "wonCorners": 2, "yellowCards": 1, "redCards": 1, "possessionPct": "35.8"}))
+    assert st["home"] == {"shots": 7, "shots_on_target": 2, "fouls": 7, "corners": 3, "yellow_cards": 2, "red_cards": 0, "possession": 64.2}
+    assert st["away"]["red_cards"] == 1 and st["away"]["possession"] == 35.8
+    assert "passPct" not in st["home"]
+
+
+def test_estadisticas_ausentes_no_se_rellenan_con_cero():
+    from src.live.espn_live import parse_stats
+    st = parse_stats(_boxscore({"totalShots": 4}, {"foulsCommitted": 3}))
+    assert st["home"] == {"shots": 4} and st["away"] == {"fouls": 3}      # nada de corners: 0
+
+
+def test_sin_boxscore_devuelve_none():
+    from src.live.espn_live import parse_stats
+    assert parse_stats({}) is None
+    assert parse_stats({"boxscore": {"teams": []}}) is None

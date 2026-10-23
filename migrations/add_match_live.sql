@@ -21,3 +21,8 @@ CREATE TABLE IF NOT EXISTS match_live (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_match_live_state ON match_live (state);
+
+-- Estadísticas de equipo en vivo (tiros, a puerta, faltas, córners, tarjetas, posesión), del
+-- boxscore de ESPN: {"home": {"shots": 7, ...}, "away": {...}, "updated_at": "..."}. Alimentan
+-- las líneas de apuesta del detalle del partido. Un valor que ESPN no da queda ausente (null).
+ALTER TABLE match_live ADD COLUMN IF NOT EXISTS stats JSONB;

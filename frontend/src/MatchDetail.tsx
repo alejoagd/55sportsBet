@@ -6,8 +6,8 @@ import H2HScoring from './H2Hscoring';
 import TeamFormSection from './TeamFormSection';
 import { useIsMobile } from './Hooks/useIsMobile';
 import { useLiveMatches } from './Hooks/useLiveMatches';
-import { LiveBadge, PlayColumn } from './LiveParts';
-import { playsFor, liveScoreText } from './Hooks/liveHelpers';
+import { LiveBadge, LiveStatsPanel, PlayColumn, PlayTimeline } from './LiveParts';
+import { playsFor, liveScoreText, estadoLinea } from './Hooks/liveHelpers';
 import i18n, { localeTag } from './i18n';
 
 interface MatchStats {
@@ -333,6 +333,20 @@ export default function MatchDetail() {
     );
   };
 
+  // Valor en vivo de cada estadística de las líneas de apuesta, por equipo. Las tarjetas de la
+  // línea cuentan amarillas + rojas (igual que actual_total_cards). null = ESPN no lo informó.
+  const liveStat = (k: 'shots' | 'shots_on_target' | 'fouls' | 'corners' | 'cards') => {
+    const st = lv?.stats;
+    if (!st || lv?.state !== 'in') return null;
+    const get = (side: 'home' | 'away') => {
+      const x = st[side];
+      if (!x) return null;
+      if (k === 'cards') return x.yellow_cards != null && x.red_cards != null ? x.yellow_cards + x.red_cards : null;
+      return x[k] ?? null;
+    };
+    return { home: get('home'), away: get('away') };
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 p-6">
@@ -451,10 +465,12 @@ export default function MatchDetail() {
                     {i18n.t('live.penalties')}: {lv.home_shootout} - {lv.away_shootout}
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <PlayColumn plays={playsFor(lv, 'home')} align="left" />
-                  <PlayColumn plays={playsFor(lv, 'away')} align="right" />
+                {/* Pantallas anchas: una columna por equipo. Angostas: lista única cronológica. */}
+                <div className="mt-3 hidden grid-cols-2 gap-4 sm:grid">
+                  <PlayColumn plays={playsFor(lv, 'home', true)} align="left" />
+                  <PlayColumn plays={playsFor(lv, 'away', true)} align="right" />
                 </div>
+                <div className="mt-3 sm:hidden"><PlayTimeline live={lv} /></div>
               </div>
             )}
 
@@ -486,6 +502,11 @@ export default function MatchDetail() {
           </div>
         </div>
 
+        {/* Estadísticas en vivo (ESPN): solo mientras el partido se juega */}
+        {!isFinished && lv && lv.state === 'in' && (
+          <LiveStatsPanel live={lv} homeName={match.home_team} awayName={match.away_team} />
+        )}
+
         {/* Análisis H2H */}
         <MatchH2HNarrative matchId={Number(matchId)} />
 
@@ -512,6 +533,7 @@ export default function MatchDetail() {
                 homeTeam={match.home_team}
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.shots}
+                live={liveStat('shots')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -523,6 +545,7 @@ export default function MatchDetail() {
                 homeTeam={match.home_team}
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.shots_on_target}
+                live={liveStat('shots_on_target')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -534,6 +557,7 @@ export default function MatchDetail() {
                 homeTeam={match.home_team}
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.fouls}
+                live={liveStat('fouls')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -545,6 +569,7 @@ export default function MatchDetail() {
                 homeTeam={match.home_team}
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.cards}
+                live={liveStat('cards')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -556,6 +581,7 @@ export default function MatchDetail() {
                 homeTeam={match.home_team}
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.corners}
+                live={liveStat('corners')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -799,6 +825,8 @@ interface StatPredictionCardProps {
   awayTeam: string;
   bettingLine?: BettingLine;
   renderBettingLine: (line: BettingLine | undefined) => JSX.Element;
+  // Valor en vivo por equipo (null/ausente si el partido no está en juego o ESPN no lo informó)
+  live?: { home: number | null; away: number | null } | null;
 }
 
 // Una tarjeta por estadística — mismo lenguaje visual que H2HScoring (badge
@@ -811,8 +839,11 @@ function StatPredictionCard({
   homeTeam,
   awayTeam,
   bettingLine,
-  renderBettingLine
+  renderBettingLine,
+  live
 }: StatPredictionCardProps) {
+  const liveTotal = live && live.home != null && live.away != null ? live.home + live.away : null;
+  const estado = estadoLinea(bettingLine?.prediction, bettingLine?.line, liveTotal);
   const higher = homeValue > awayValue ? 'home' : awayValue > homeValue ? 'away' : null;
 
   return (
@@ -831,6 +862,27 @@ function StatPredictionCard({
           <div className="text-orange-300 font-mono font-bold text-lg">{awayValue > 0 ? awayValue.toFixed(2) : '0.00'}</div>
         </div>
       </div>
+      {liveTotal !== null && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-red-500/[0.08] px-3 py-1.5 text-xs">
+          <span className="text-slate-300">
+            🔴 {i18n.t('live.now')}: <span className="font-mono font-bold text-blue-300">{live!.home}</span>
+            <span className="text-slate-500"> – </span><span className="font-mono font-bold text-orange-300">{live!.away}</span>
+            <span className="text-slate-500"> (= {liveTotal})</span>
+          </span>
+          {estado && (
+            <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-bold ${
+              estado.estado === 'cumplida' ? 'bg-green-500/20 text-green-400'
+              : estado.estado === 'perdida' ? 'bg-red-500/20 text-red-400'
+              : 'bg-slate-600/40 text-slate-300'}`}>
+              {estado.estado === 'cumplida' ? `✅ ${i18n.t('live.hit')}`
+                : estado.estado === 'perdida' ? `❌ ${i18n.t('live.lost')}`
+                : bettingLine?.prediction?.toLowerCase() === 'over'
+                  ? i18n.t('live.needs', { n: estado.n })
+                  : i18n.t('live.margin', { n: estado.n })}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

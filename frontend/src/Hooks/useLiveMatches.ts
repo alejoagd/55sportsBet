@@ -17,6 +17,24 @@ export interface LivePlay {
   own_goal?: boolean;
 }
 
+// Estadísticas de equipo en vivo (boxscore de ESPN). Una que ESPN no informa viene ausente,
+// no en 0: "sin dato" y "ninguna todavía" son cosas distintas.
+export interface LiveTeamStats {
+  shots?: number;
+  shots_on_target?: number;
+  fouls?: number;
+  corners?: number;
+  yellow_cards?: number;
+  red_cards?: number;
+  possession?: number;
+}
+
+export interface LiveStats {
+  home?: LiveTeamStats;
+  away?: LiveTeamStats;
+  updated_at?: string;
+}
+
 export interface LiveMatch {
   match_id: number;
   league_name: string;
@@ -31,6 +49,7 @@ export interface LiveMatch {
   home_shootout: number | null;
   away_shootout: number | null;
   plays: LivePlay[];
+  stats?: LiveStats | null;
 }
 
 type Listener = (m: Map<number, LiveMatch>) => void;

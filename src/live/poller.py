@@ -38,7 +38,7 @@ from sqlalchemy import text
 
 from src.db import engine
 from src.live import store
-from src.live.espn_live import SLUGS, LiveEvent, fetch_events
+from src.live.espn_live import SLUGS, LiveEvent, fetch_events, fetch_stats
 from src.live.matching import encontrar_partido
 
 def pr(*a) -> None:
@@ -52,6 +52,7 @@ CONFIRMACIONES = 2
 SEGUIMIENTO_POST = 600
 VENTANA_PREVIA = 30 * 60
 REINTENTO_MAPEO = 300
+STATS_CADA = 60          # s entre lecturas de estadísticas (el boxscore pesa ~380 KB; no hace falta cada 30 s)
 
 
 @dataclass
@@ -63,6 +64,8 @@ class Seguimiento:
     confirmaciones: int = 0
     finalizado_en: float | None = None
     sin_mapeo_avisado: bool = False
+    ultimo_stats: float = 0.0
+    stats_final: bool = False
 
 
 def firma(ev: LiveEvent) -> tuple:
@@ -149,12 +152,36 @@ def procesar_evento(ev: LiveEvent, s: Seguimiento, args, log: Registro, cont: di
                 store.guardar_en_vivo(conn, s.match["id"], ev)
         s.firma = f
 
+    _estadisticas(ev, s, args, log)
+
     if ev.tiene_resultado:
         s.confirmaciones += 1
         if s.confirmaciones >= CONFIRMACIONES:
             _finalizar(ev, s, args, log, cont)
     else:
         s.confirmaciones = 0
+
+
+def _estadisticas(ev: LiveEvent, s: Seguimiento, args, log: Registro) -> None:
+    """Estadísticas de equipo (tiros, faltas, córners, tarjetas...) para las líneas de apuesta del
+    detalle: cada STATS_CADA s mientras se juega y una última vez al terminar. Un fallo aquí no
+    afecta al marcador: es información de apoyo."""
+    if args.dry_run or s.match is None:
+        return
+    ahora = time.time()
+    final = ev.tiene_resultado and not s.stats_final
+    if not (ev.en_juego and ahora - s.ultimo_stats >= STATS_CADA) and not final:
+        return
+    s.ultimo_stats = ahora
+    try:
+        stats = fetch_stats(ev.league, ev.espn_event_id)
+        if stats:
+            with engine.begin() as conn:
+                store.guardar_estadisticas(conn, s.match["id"], stats)
+            s.stats_final = s.stats_final or ev.tiene_resultado
+    except Exception as e:
+        pr(f"{hora()} ⚠️  [{ev.league}] sin estadísticas de {ev.home_name} v {ev.away_name}: {str(e)[:80]}")
+        log("error", liga=ev.league, espn=ev.espn_event_id, error=f"estadisticas: {str(e)[:150]}")
 
 
 def _finalizar(ev: LiveEvent, s: Seguimiento, args, log: Registro, cont: dict) -> None:
