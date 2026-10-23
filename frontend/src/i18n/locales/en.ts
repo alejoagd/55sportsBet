@@ -89,6 +89,17 @@ const en: Dictionary = {
     fullTime: 'FT',
   },
 
+  live: {
+    live: 'LIVE',
+    halftime: 'Half time',
+    penalties: 'Penalties',
+    final: 'Final',
+    ownGoal: 'Own goal',
+    goal: 'Goal',
+    yellowCard: 'Yellow card',
+    redCard: 'Red card',
+  },
+
   news: {
     loading: 'Loading news...',
     error: 'Could not load the news',

@@ -89,6 +89,17 @@ const es = {
     fullTime: 'FT',
   },
 
+  live: {
+    live: 'EN VIVO',
+    halftime: 'Descanso',
+    penalties: 'Penales',
+    final: 'Final',
+    ownGoal: 'Autogol',
+    goal: 'Gol',
+    yellowCard: 'Amarilla',
+    redCard: 'Roja',
+  },
+
   news: {
     loading: 'Cargando noticias...',
     error: 'No se pudieron cargar las noticias',

@@ -3,6 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n, { localeTag } from './i18n';
 import ProbabilityBar from './ProbabilityBar';
+import { useLiveMatches } from './Hooks/useLiveMatches';
+import { LiveBadge, PlayLine } from './LiveParts';
+import { playsFor } from './Hooks/liveHelpers';
+import type { LivePlay } from './Hooks/useLiveMatches';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
@@ -128,21 +132,31 @@ function PredictionStrip({ m, finished }: { m: TodayMatch; finished: boolean }) 
 // el nombre ocupa todo el ancho disponible y se recorta con "…" en vez de
 // partirse letra por letra, sin importar qué tan angosta quede la tarjeta
 // (tablet con el menú de ligas abierto, por ejemplo).
-function TeamLine({ name, logo, goals, winner }: { name: string; logo: string | null; goals: number | null; winner: boolean }) {
+function TeamLine({ name, logo, goals, winner, shootout, plays }: {
+  name: string; logo: string | null; goals: number | null; winner: boolean;
+  shootout?: number | null; plays?: LivePlay[];
+}) {
   return (
-    <div className="flex items-center gap-2.5 min-w-0">
-      <TeamLogo url={logo} alt={name} />
-      <span
-        className={`flex-1 min-w-0 truncate text-sm ${winner ? 'font-bold text-white' : 'font-medium text-slate-200'}`}
-        title={name}
-      >
-        {name}
-      </span>
-      {goals !== null && (
-        <span className={`w-5 text-right text-base tabular-nums ${winner ? 'font-bold text-white' : 'font-semibold text-slate-300'}`}>
-          {goals}
+    <div className="min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <TeamLogo url={logo} alt={name} />
+        <span
+          className={`flex-1 min-w-0 truncate text-sm ${winner ? 'font-bold text-white' : 'font-medium text-slate-200'}`}
+          title={name}
+        >
+          {name}
         </span>
-      )}
+        {/* Tanda de penales: entre paréntesis junto al marcador del juego */}
+        {shootout != null && (
+          <span className="text-xs tabular-nums text-slate-400">({shootout})</span>
+        )}
+        {goals !== null && (
+          <span className={`w-5 text-right text-base tabular-nums ${winner ? 'font-bold text-white' : 'font-semibold text-slate-300'}`}>
+            {goals}
+          </span>
+        )}
+      </div>
+      {plays && <PlayLine plays={plays} />}
     </div>
   );
 }
@@ -154,13 +168,27 @@ export default function TodayAllLeaguesView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const live = useLiveMatches();
+
+  const loadToday = () =>
     fetch(`${API_URL}/api/matches/today`)
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: TodayMatch[]) => setMatches(data))
+      .then((data: TodayMatch[]) => setMatches(data));
+
+  useEffect(() => {
+    loadToday()
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  // Cuando un partido pasa a final, el sondeo ya guardó el resultado en la BD: se vuelve a
+  // pedir la lista para que la tarjeta pase a mostrar el resultado definitivo y los aciertos.
+  const finalKey = [...live.values()].filter(l => l.state === 'post').map(l => l.match_id).sort().join(',');
+  useEffect(() => {
+    if (!finalKey) return;
+    const id = setTimeout(() => { loadToday().catch(() => {}); }, 4000);
+    return () => clearTimeout(id);
+  }, [finalKey]);
 
   // Orden cronológico dentro de cada liga
   const todayMatches = matches.filter(m => isToday(m)).sort((a, b) => (a.kickoff_at ?? '').localeCompare(b.kickoff_at ?? ''));
@@ -215,18 +243,33 @@ export default function TodayAllLeaguesView() {
             </div>
             <div className="divide-y divide-slate-700/50">
               {leagueMatches.map((m) => {
-                const finished = m.home_goals !== null && m.away_goals !== null;
+                const lv = live.get(m.match_id);
+                const enJuego = lv?.state === 'in';
+                const conVivo = lv != null && (lv.state === 'in' || lv.state === 'post');
+                // El marcador en vivo manda sobre el de la BD (que sigue vacío hasta que termina)
+                const hg = conVivo && lv!.home_score != null ? lv!.home_score : m.home_goals;
+                const ag = conVivo && lv!.away_score != null ? lv!.away_score : m.away_goals;
+                const finished = (m.home_goals !== null && m.away_goals !== null) || lv?.state === 'post';
+                const hasScore = hg !== null && ag !== null;
+                const hayPenales = lv?.home_shootout != null && lv?.away_shootout != null;
+                const ganaLocal = finished && hasScore && (hg! > ag! || (hg === ag && hayPenales && lv!.home_shootout! > lv!.away_shootout!));
+                const ganaVisita = finished && hasScore && (ag! > hg! || (hg === ag && hayPenales && lv!.away_shootout! > lv!.home_shootout!));
+                const sinLado = playsFor(lv, null);
                 return (
                   <div
                     key={m.match_id}
                     onClick={() => navigate(`/match/${m.match_id}`, { state: { returnPath: '/' } })}
-                    className="group cursor-pointer px-3 sm:px-4 py-3 transition-colors hover:bg-slate-700/40 active:bg-slate-700/60"
+                    className={`group cursor-pointer px-3 sm:px-4 py-3 transition-colors hover:bg-slate-700/40 active:bg-slate-700/60 ${enJuego ? 'border-l-2 border-red-500/70 bg-red-500/[0.04]' : ''}`}
                   >
                     <div className="flex items-center gap-2.5 sm:gap-3">
                       <div className="hidden w-20 shrink-0 flex-col items-center justify-center gap-1 text-center sm:flex">
-                        <span className="whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-300 tabular-nums">
-                          {formatTime(m.kickoff_at)}
-                        </span>
+                        {enJuego ? (
+                          <LiveBadge live={lv!} stacked />
+                        ) : (
+                          <span className="whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-300 tabular-nums">
+                            {formatTime(m.kickoff_at)}
+                          </span>
+                        )}
                         {finished && (
                           <span className="rounded-full bg-green-500/20 px-1.5 py-0.5 text-[10px] font-bold text-green-400">
                             {t('matchList.fullTime')}
@@ -234,25 +277,31 @@ export default function TodayAllLeaguesView() {
                         )}
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 sm:border-l sm:border-slate-700/60 sm:pl-3">
-                        {/* Móvil: la hora va aquí (en vez de una columna lateral) para dar el
-                            ancho a los nombres de los equipos. */}
+                        {/* Móvil: la hora (o el estado en vivo) va aquí en vez de una columna lateral,
+                            para dar el ancho a los nombres de los equipos. */}
                         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 tabular-nums sm:hidden">
-                          <span>{formatTime(m.kickoff_at)}</span>
+                          {enJuego ? <LiveBadge live={lv!} /> : <span>{formatTime(m.kickoff_at)}</span>}
                           {finished && (
                             <span className="rounded-full bg-green-500/20 px-1.5 text-[10px] font-bold text-green-400">{t('matchList.fullTime')}</span>
                           )}
                         </div>
                         <TeamLine
-                          name={m.home_team} logo={m.home_team_logo} goals={m.home_goals}
-                          winner={finished && m.home_goals! > m.away_goals!}
+                          name={m.home_team} logo={m.home_team_logo} goals={hg}
+                          winner={ganaLocal}
+                          shootout={hayPenales ? lv!.home_shootout : null}
+                          plays={playsFor(lv, 'home')}
                         />
                         <TeamLine
-                          name={m.away_team} logo={m.away_team_logo} goals={m.away_goals}
-                          winner={finished && m.away_goals! > m.home_goals!}
+                          name={m.away_team} logo={m.away_team_logo} goals={ag}
+                          winner={ganaVisita}
+                          shootout={hayPenales ? lv!.away_shootout : null}
+                          plays={playsFor(lv, 'away')}
                         />
+                        {/* Jugadas guardadas sin lado (antes de que el backend lo informara) */}
+                        {sinLado.length > 0 && <PlayLine plays={sinLado} />}
                       </div>
                       <div className="w-[6rem] shrink-0 border-l border-slate-700/60 pl-2 sm:w-[9.5rem] sm:pl-3">
-                        <PredictionStrip m={m} finished={finished} />
+                        <PredictionStrip m={m} finished={m.home_goals !== null && m.away_goals !== null} />
                       </div>
                       <span className="shrink-0 text-slate-600 transition-colors group-hover:text-yellow-400">›</span>
                     </div>

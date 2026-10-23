@@ -173,8 +173,10 @@ def test_modo_rapido_solo_con_partidos_activos(monkeypatch):
     assert es_rapido(por_empezar, s, 0)
 
 
-def test_candado_un_solo_sondeo_escribiendo_y_se_libera():
+def test_candado_un_solo_sondeo_escribiendo_y_se_libera(monkeypatch):
     from src.live import poller
+    # Clave propia: un sondeo real corriendo en esta máquina ya tiene el candado de la clave de producción
+    monkeypatch.setattr(poller, "CLAVE_CANDADO", 55_000_999)
     a = poller.adquirir_candado()
     assert a is not None
     try:
@@ -184,3 +186,13 @@ def test_candado_un_solo_sondeo_escribiendo_y_se_libera():
     c = poller.adquirir_candado()                          # tras liberar (y cerrar de verdad la sesión) otro lo toma
     assert c is not None
     poller.liberar_candado(c)
+
+
+def test_jugadas_traen_lado_y_jugador():
+    d = [{"type": {"text": "Goal"}, "clock": {"displayValue": "5'", "value": 280.0}, "team": {"id": "1"}, "scoringPlay": True,
+          "athletesInvolved": [{"displayName": "Ermedin Demirovic"}]},
+         {"type": {"text": "Yellow Card"}, "clock": {"displayValue": "44'", "value": 2600.0}, "team": {"id": "2"}, "yellowCard": True,
+          "athletesInvolved": [{"displayName": "Florian Neuhaus"}]},
+         {"type": {"text": "Yellow Card"}, "clock": {"displayValue": "50'", "value": 3000.0}, "team": {"id": "999"}}]
+    ev = parse_event(raw(details=d), "Bundesliga")
+    assert [(p["side"], p["player"]) for p in ev.plays] == [("home", "Ermedin Demirovic"), ("away", "Florian Neuhaus"), (None, None)]

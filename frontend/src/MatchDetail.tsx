@@ -5,6 +5,9 @@ import MatchH2HNarrative from './MatchH2HNarrative';
 import H2HScoring from './H2Hscoring';
 import TeamFormSection from './TeamFormSection';
 import { useIsMobile } from './Hooks/useIsMobile';
+import { useLiveMatches } from './Hooks/useLiveMatches';
+import { LiveBadge, PlayColumn } from './LiveParts';
+import { playsFor, liveScoreText } from './Hooks/liveHelpers';
 import i18n, { localeTag } from './i18n';
 
 interface MatchStats {
@@ -116,6 +119,9 @@ function TeamCrest({ url, alt, size = 'lg' }: { url?: string | null; alt: string
 
 export default function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>();
+  // Debe ir antes de los return tempranos de abajo (reglas de los hooks de React)
+  const liveMap = useLiveMatches();
+  const lv = liveMap.get(Number(matchId));
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -424,6 +430,33 @@ export default function MatchDetail() {
                 </div>
               )}
             </div>
+
+            {/* Partido en juego: el resultado definitivo aparece cuando termina */}
+            {!isFinished && lv && lv.state === 'in' && (
+              <div className="bg-slate-900 rounded-lg p-4 border border-red-500/40">
+                <div className="mb-2 flex justify-center">
+                  <LiveBadge live={lv} />
+                </div>
+                {liveScoreText(lv) ? (
+                  <div className="text-4xl font-bold text-center">
+                    <span className="text-blue-400">{lv.home_score}</span>
+                    <span className="text-slate-500 mx-3">-</span>
+                    <span className="text-orange-400">{lv.away_score}</span>
+                  </div>
+                ) : (
+                  <div className="text-center text-slate-500 text-sm">—</div>
+                )}
+                {lv.home_shootout != null && lv.away_shootout != null && (
+                  <div className="text-center text-slate-300 text-sm mt-1">
+                    {i18n.t('live.penalties')}: {lv.home_shootout} - {lv.away_shootout}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <PlayColumn plays={playsFor(lv, 'home')} align="left" />
+                  <PlayColumn plays={playsFor(lv, 'away')} align="right" />
+                </div>
+              </div>
+            )}
 
             {isFinished && (
               <div className="bg-slate-900 rounded-lg p-4">

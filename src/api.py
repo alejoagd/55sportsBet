@@ -983,7 +983,7 @@ def get_live_matches():
             return []
         rows = conn.execute(text("""
             SELECT ml.match_id, l.name AS league_name, th.name AS home_team, ta.name AS away_team,
-                   ml.state, ml.detail, ml.clock, ml.period, ml.home_score, ml.away_score,
+                   ml.state, ml.status_name, ml.detail, ml.clock, ml.period, ml.home_score, ml.away_score,
                    ml.home_shootout, ml.away_shootout, ml.plays, ml.first_live_at, ml.finished_at, ml.updated_at
             FROM match_live ml
             JOIN matches m ON m.id = ml.match_id

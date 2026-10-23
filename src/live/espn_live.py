@@ -92,12 +92,18 @@ def parse_event(raw: dict, league: str) -> LiveEvent | None:
         winner = "home" if home.get("winner") else ("away" if away.get("winner") else None)
         pre = tipo["state"] == "pre"   # antes de empezar ESPN manda "0": no es un marcador
         plays = []
+        ids = {str(home["team"].get("id")): "home", str(away["team"].get("id")): "away"}
         for p in comp.get("details", []) or []:
+            atletas = p.get("athletesInvolved") or []
             plays.append({
                 "type": (p.get("type") or {}).get("text"),
                 "clock": (p.get("clock") or {}).get("displayValue"),
                 "clock_s": (p.get("clock") or {}).get("value"),
                 "team_id": (p.get("team") or {}).get("id"),
+                # De qué equipo es la jugada (para mostrarla bajo el escudo correcto) y quién la hizo.
+                # En un autogol ESPN registra el equipo del jugador, no el que sumó el gol.
+                "side": ids.get(str((p.get("team") or {}).get("id"))),
+                "player": (atletas[0].get("displayName") or atletas[0].get("shortName")) if atletas else None,
                 "scoring": bool(p.get("scoringPlay")),
                 "red": bool(p.get("redCard")),
                 "yellow": bool(p.get("yellowCard")),

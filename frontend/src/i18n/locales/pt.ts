@@ -89,6 +89,17 @@ const pt: Dictionary = {
     fullTime: 'FT',
   },
 
+  live: {
+    live: 'AO VIVO',
+    halftime: 'Intervalo',
+    penalties: 'Pênaltis',
+    final: 'Final',
+    ownGoal: 'Gol contra',
+    goal: 'Gol',
+    yellowCard: 'Cartão amarelo',
+    redCard: 'Cartão vermelho',
+  },
+
   news: {
     loading: 'Carregando notícias...',
     error: 'Não foi possível carregar as notícias',

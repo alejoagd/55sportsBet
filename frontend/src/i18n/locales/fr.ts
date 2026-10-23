@@ -89,6 +89,17 @@ const fr: Dictionary = {
     fullTime: 'FT',
   },
 
+  live: {
+    live: 'EN DIRECT',
+    halftime: 'Mi-temps',
+    penalties: 'Tirs au but',
+    final: 'Terminé',
+    ownGoal: 'But contre son camp',
+    goal: 'But',
+    yellowCard: 'Carton jaune',
+    redCard: 'Carton rouge',
+  },
+
   news: {
     loading: 'Chargement des actualités...',
     error: 'Impossible de charger les actualités',
