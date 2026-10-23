@@ -113,7 +113,16 @@ export default function TeamHighlights({ data }: { data: TeamHighlightsData | nu
       <h2 className="text-base font-bold text-white sm:text-lg">⭐ {t('highlights.title')}</h2>
       <p className="mt-0.5 text-[11px] text-slate-400">{t('highlights.subtitleShort')}</p>
       {/* La explicación completa, a un toque: no hace falta verla siempre */}
-      <details className="mb-3 mt-1">
+      {/* Leyenda: qué es la barra y qué es la marca blanca */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-1.5 w-5 rounded-full bg-gradient-to-r from-blue-400 to-orange-400" />{t('highlights.legendTeam')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-3 w-0.5 rounded bg-white/80" />{t('highlights.legendAvg')}
+        </span>
+      </div>
+      <details className="mb-3 mt-2">
         <summary className="inline-block cursor-pointer select-none text-[11px] font-semibold text-sky-300 hover:text-sky-200">{t('highlights.howTitle')}</summary>
         <p className="mt-1 text-[11px] leading-snug text-slate-400">{t('highlights.subtitle', { top: data.top_n })}</p>
       </details>

@@ -93,6 +93,8 @@ const pt: Dictionary = {
     title: "O que mais se destaca em cada equipe",
     subtitle: "Aparece quando a equipe está entre as {{top}} que mais ou as {{top}} que menos fazem nessa estatística da liga. Dados da temporada atual, os mesmos do módulo de Estatísticas.",
     subtitleShort: "Top 5 da liga em cada estatística · temporada atual",
+    legendAvg: "Média da liga",
+    legendTeam: "Valor da equipe",
     howTitle: "Como é calculado?",
     ofTeams: "de {{of}} equipes",
     perMatch: "{{v}} por jogo",

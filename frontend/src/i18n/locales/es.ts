@@ -93,6 +93,8 @@ const es = {
     title: "Lo más destacado de cada equipo",
     subtitle: "Aparece cuando el equipo está entre los {{top}} que más o los {{top}} que menos hacen en esa estadística de la liga. Datos de la temporada en curso, los mismos del módulo de Estadísticas.",
     subtitleShort: "Top 5 de la liga en cada estadística · temporada en curso",
+    legendAvg: "Promedio de la liga",
+    legendTeam: "Valor del equipo",
     howTitle: "¿Cómo se calcula?",
     ofTeams: "de {{of}} equipos",
     perMatch: "{{v}} por partido",
