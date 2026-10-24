@@ -997,6 +997,29 @@ def get_live_matches():
     return [dict(r) for r in rows]
 
 
+@router.get("/api/matches/{match_id}/team-highlights")
+def get_team_highlights(match_id: int):
+    """
+    Indicadores en los que cada equipo del partido sale entre los 5 de arriba o los 5 de abajo de las
+    tablas del módulo de Estadísticas (goles anotados, tiros, tiros a puerta, córners, faltas, tarjetas),
+    como local o como visitante según su condición en el partido. Usa el MISMO cálculo que ese módulo
+    (get_team_statistics) para que ambos coincidan; ver src/analysis/team_highlights.py.
+    """
+    from datetime import date
+    from src.analysis.team_highlights import destacados
+    with engine.connect() as conn:
+        m = conn.execute(text("""
+            SELECT m.season_id, m.home_team_id, m.away_team_id, l.name AS league
+            FROM matches m JOIN seasons s ON s.id = m.season_id JOIN leagues l ON l.id = s.league_id
+            WHERE m.id = :m"""), {"m": match_id}).mappings().first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Partido no encontrado")
+    # Mismos parámetros con los que el frontend del módulo le pide los datos
+    stats = get_team_statistics(season_id=m["season_id"], date_from="2024-08-01", date_to=date.today().isoformat())
+    data = destacados(stats["teams"], m["home_team_id"], m["away_team_id"], bool(stats.get("has_match_stats")))
+    return {"match_id": match_id, "league": m["league"], "season_id": m["season_id"], **data}
+
+
 @router.get("/api/matches/{match_id}/live-data")
 def get_match_live_data(match_id: int):
     """

@@ -8,6 +8,10 @@ import { useIsMobile } from './Hooks/useIsMobile';
 import { useLiveMatches } from './Hooks/useLiveMatches';
 import { LiveBadge, LiveStatsPanel, MatchTimeline } from './LiveParts';
 import { estadoLinea } from './Hooks/liveHelpers';
+import TeamHighlights from './TeamHighlights';
+import { useTeamHighlights } from './Hooks/useTeamHighlights';
+import { chipsDeStat } from './Hooks/highlightHelpers';
+import type { StatChip } from './Hooks/highlightHelpers';
 import type { LiveMatch } from './Hooks/useLiveMatches';
 import i18n, { localeTag } from './i18n';
 
@@ -137,6 +141,8 @@ export default function MatchDetail() {
       .catch(() => { /* sin datos en vivo: las pestañas muestran su estado vacío */ });
   }, [matchId]);
   const info: LiveMatch | null = lv ?? saved;
+  // En qué se destaca cada equipo dentro de su liga (más/menos tiros, córners...), local o visitante
+  const highlights = useTeamHighlights(matchId);
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -506,6 +512,8 @@ export default function MatchDetail() {
           </div>
         </div>
 
+        <TeamHighlights data={highlights} />
+
         {/* Pestañas: Estadísticas (en vivo + líneas de apuesta) · Resumen (línea de tiempo) · Análisis */}
         <div className="flex gap-1 rounded-lg border border-slate-700/70 bg-slate-800 p-1" role="tablist">
           {([
@@ -550,6 +558,7 @@ export default function MatchDetail() {
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.shots}
                 live={liveStat('shots')}
+                highlights={chipsDeStat(highlights, 'shots')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -562,6 +571,7 @@ export default function MatchDetail() {
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.shots_on_target}
                 live={liveStat('shots_on_target')}
+                highlights={chipsDeStat(highlights, 'shots_on_target')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -574,6 +584,7 @@ export default function MatchDetail() {
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.fouls}
                 live={liveStat('fouls')}
+                highlights={chipsDeStat(highlights, 'fouls')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -586,6 +597,7 @@ export default function MatchDetail() {
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.cards}
                 live={liveStat('cards')}
+                highlights={chipsDeStat(highlights, 'cards')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -598,6 +610,7 @@ export default function MatchDetail() {
                 awayTeam={match.away_team}
                 bettingLine={bettingLines?.corners}
                 live={liveStat('corners')}
+                highlights={chipsDeStat(highlights, 'corners')}
                 renderBettingLine={renderBettingLine}
               />
             )}
@@ -869,6 +882,8 @@ interface StatPredictionCardProps {
   renderBettingLine: (line: BettingLine | undefined) => JSX.Element;
   // Valor en vivo por equipo (null/ausente si el partido no está en juego o ESPN no lo informó)
   live?: { home: number | null; away: number | null } | null;
+  // Equipos del partido que se destacan en esta estadística dentro de su liga
+  highlights?: StatChip[];
 }
 
 // Una tarjeta por estadística — mismo lenguaje visual que H2HScoring (badge
@@ -882,7 +897,8 @@ function StatPredictionCard({
   awayTeam,
   bettingLine,
   renderBettingLine,
-  live
+  live,
+  highlights
 }: StatPredictionCardProps) {
   const liveTotal = live && live.home != null && live.away != null ? live.home + live.away : null;
   const estado = estadoLinea(bettingLine?.prediction, bettingLine?.line, liveTotal);
@@ -894,6 +910,26 @@ function StatPredictionCard({
         <span className="text-white font-semibold text-sm">{label}</span>
         {renderBettingLine(bettingLine)}
       </div>
+      {highlights && highlights.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {highlights.map(h => (
+            <span
+              key={h.side}
+              className={`inline-flex max-w-full items-start gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight ${
+                h.side === 'home' ? 'bg-blue-500/15 text-blue-300' : 'bg-orange-500/15 text-orange-300'}`}
+            >
+              <span aria-hidden className={h.direction === 'most' ? 'text-emerald-400' : 'text-sky-400'}>{h.direction === 'most' ? '▲' : '▼'}</span>
+              <span className="break-words">
+                {i18n.t('highlights.chip', {
+                  team: h.team, rank: h.rank, of: h.of,
+                  dir: i18n.t(h.direction === 'most' ? 'highlights.dirMost' : 'highlights.dirLeast'),
+                  venue: i18n.t(h.venue === 'home' ? 'highlights.venueHome' : 'highlights.venueAway'),
+                })}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <div className={`rounded-lg px-3 py-2 min-w-0 ${higher === 'home' ? 'bg-blue-500/20 ring-1 ring-blue-500/40' : 'bg-slate-800/60'}`}>
           <div className="text-[10px] text-blue-300 uppercase tracking-wide truncate">{homeTeam}</div>
